@@ -6,8 +6,9 @@ This directory is an **isolated track**: the **Rule-Engine-Based Source Generati
 Read `prd.md` in this directory as the source of truth for this track before doing anything here.
 
 ## Scope Boundary (read first)
-- This track is **NOT** part of the knowledge-assistant chat/RAG product. Do not mix its requirements with `agent/` or `frontend/`.
-- The **only** shared component is the existing document/knowledge **extraction pipeline**, reused as one rule-extraction source (see `prd.md` §5.2 / §6, source 2d).
+- This track is **NOT** part of the knowledge-assistant chat/RAG product; it is **effectively a separate application**. Do not mix its requirements with `agent/` or `frontend/`.
+- Inputs are the customer's **git repositories and databases**; the analysis/mining stack (Joern static analysis + a purpose-built rule miner, ETL, JDM code-gen) is **all new**. It does **not** run on the knowledge assistant's document/knowledge (RAG) ingestion.
+- There is **no meaningful shared component**. At most, the optional/supplementary manuals source (`prd.md` §5.1 #2, §5.2) may borrow low-level document-parsing utilities — but it needs rule-oriented extraction, not the RAG ingestion as-is. Do not call the document pipeline "the shared component."
 - Not reused from the main project: chat/RAG retrieval, citation surfaces, Neptune telecom graph schema, NUEL/ProcessMap content.
 - **Status: design/groundwork only.** Nothing here is in active implementation. Do not treat this as a build spec or wire it into the running backend/frontend.
 

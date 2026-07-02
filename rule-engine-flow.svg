@@ -1,0 +1,80 @@
+<svg viewBox="0 0 860 620" xmlns="http://www.w3.org/2000/svg" font-family="ui-sans-serif, system-ui, 'Segoe UI', sans-serif">
+  <title>Rule-Engine module end-to-end flow</title>
+  <desc>Two phases around a central rule repository. Phase 1 (one-time): legacy sources are located, chunked with Joern, and mined into candidate rules that fill the rule repository. Phase 2 (ongoing): users edit rules in the repository, code is generated from them (Option B), then built and deployed back into the legacy system.</desc>
+
+  <rect x="0" y="0" width="860" height="620" fill="#ffffff"/>
+
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6b6b6b"/>
+    </marker>
+    <marker id="ahp" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#534AB7"/>
+    </marker>
+  </defs>
+
+  <text x="40" y="28" font-size="18" font-weight="700" fill="#26211C">Rule-Engine Module — End-to-End Flow</text>
+
+  <!-- ===== PHASE 1 ===== -->
+  <rect x="40" y="46" width="250" height="22" rx="11" fill="#534AB7"/>
+  <text x="52" y="61" font-size="12" font-weight="600" fill="#ffffff">Phase 1 · Initial Load — one-time (SI)</text>
+
+  <rect x="40" y="82" width="180" height="64" rx="10" fill="#F1EFE8" stroke="#B4B2A9"/>
+  <text x="130" y="110" text-anchor="middle" font-size="14" font-weight="600" fill="#26211C">Legacy sources</text>
+  <text x="130" y="130" text-anchor="middle" font-size="10.5" fill="#6b6b6b">git code · DB (MCP) · manuals</text>
+
+  <rect x="250" y="82" width="185" height="64" rx="10" fill="#F1EFE8" stroke="#B4B2A9"/>
+  <text x="342" y="110" text-anchor="middle" font-size="14" font-weight="600" fill="#26211C">Locate &amp; Chunk</text>
+  <text x="342" y="130" text-anchor="middle" font-size="10.5" fill="#6b6b6b">Joern · code-property-graph</text>
+
+  <rect x="465" y="82" width="195" height="64" rx="10" fill="#F1EFE8" stroke="#B4B2A9"/>
+  <text x="562" y="106" text-anchor="middle" font-size="14" font-weight="600" fill="#26211C">Extract candidate rules</text>
+  <text x="562" y="125" text-anchor="middle" font-size="10.5" fill="#6b6b6b">AI mining · ETL · pipeline</text>
+  <text x="562" y="139" text-anchor="middle" font-size="10.5" fill="#6b6b6b">&#8594; human review / approve</text>
+
+  <line x1="220" y1="114" x2="248" y2="114" stroke="#6b6b6b" stroke-width="1.6" marker-end="url(#ah)"/>
+  <line x1="435" y1="114" x2="463" y2="114" stroke="#6b6b6b" stroke-width="1.6" marker-end="url(#ah)"/>
+
+  <path d="M562,146 L562,200 Q562,214 548,214 L446,214" fill="none" stroke="#6b6b6b" stroke-width="1.6" marker-end="url(#ah)"/>
+
+  <!-- ===== REPOSITORY ===== -->
+  <rect x="250" y="228" width="360" height="82" rx="12" fill="#EEEDFE" stroke="#7F77DD" stroke-width="2"/>
+  <text x="430" y="262" text-anchor="middle" font-size="16" font-weight="700" fill="#26215C">Rule Repository</text>
+  <text x="430" y="283" text-anchor="middle" font-size="11.5" fill="#3C3489">rules-as-data · versioned · traceable</text>
+  <text x="430" y="299" text-anchor="middle" font-size="11.5" fill="#3C3489">engine consumes approved rules only</text>
+
+  <!-- ===== PHASE 2 ===== -->
+  <rect x="40" y="336" width="255" height="22" rx="11" fill="#534AB7"/>
+  <text x="52" y="351" font-size="12" font-weight="600" fill="#ffffff">Phase 2 · Operation — ongoing (SM)</text>
+
+  <rect x="40" y="238" width="150" height="62" rx="10" fill="#F1EFE8" stroke="#B4B2A9"/>
+  <text x="115" y="265" text-anchor="middle" font-size="13" font-weight="600" fill="#26211C">User edits / adds</text>
+  <text x="115" y="284" text-anchor="middle" font-size="11" fill="#6b6b6b">rule (no code)</text>
+  <line x1="190" y1="269" x2="248" y2="269" stroke="#534AB7" stroke-width="1.6" marker-end="url(#ahp)"/>
+
+  <path d="M340,310 L340,388" fill="none" stroke="#534AB7" stroke-width="1.8" marker-end="url(#ahp)"/>
+
+  <rect x="250" y="390" width="180" height="64" rx="10" fill="#F1EFE8" stroke="#B4B2A9"/>
+  <text x="340" y="418" text-anchor="middle" font-size="14" font-weight="600" fill="#26211C">Code Generation</text>
+  <text x="340" y="438" text-anchor="middle" font-size="10.5" fill="#6b6b6b">Option B · from rules</text>
+
+  <rect x="460" y="390" width="160" height="64" rx="10" fill="#F1EFE8" stroke="#B4B2A9"/>
+  <text x="540" y="418" text-anchor="middle" font-size="14" font-weight="600" fill="#26211C">Build &amp; Deploy</text>
+  <text x="540" y="438" text-anchor="middle" font-size="10.5" fill="#6b6b6b">CI/CD · golden tests</text>
+
+  <rect x="650" y="390" width="170" height="64" rx="10" fill="#E1F5EE" stroke="#1D9E75" stroke-width="1.5"/>
+  <text x="735" y="418" text-anchor="middle" font-size="14" font-weight="600" fill="#0F6E56">Legacy system runs</text>
+  <text x="735" y="438" text-anchor="middle" font-size="10.5" fill="#0F6E56">new logic live</text>
+
+  <line x1="430" y1="422" x2="458" y2="422" stroke="#534AB7" stroke-width="1.6" marker-end="url(#ahp)"/>
+  <line x1="620" y1="422" x2="648" y2="422" stroke="#534AB7" stroke-width="1.6" marker-end="url(#ahp)"/>
+
+  <text x="250" y="478" font-size="10.5" font-style="italic" fill="#6b6b6b">Option A (source calls the engine at runtime) — not chosen by customer.</text>
+
+  <rect x="40" y="560" width="14" height="14" rx="3" fill="#EEEDFE" stroke="#7F77DD"/>
+  <text x="60" y="571" font-size="11" fill="#6b6b6b">system of record</text>
+  <rect x="190" y="560" width="14" height="14" rx="3" fill="#F1EFE8" stroke="#B4B2A9"/>
+  <text x="210" y="571" font-size="11" fill="#6b6b6b">process step</text>
+  <line x1="330" y1="567" x2="360" y2="567" stroke="#534AB7" stroke-width="1.8" marker-end="url(#ahp)"/>
+  <text x="368" y="571" font-size="11" fill="#6b6b6b">operation loop (Phase 2)</text>
+</svg>
