@@ -284,7 +284,7 @@ The asymmetry is deliberate (ADR-3): in mode B there are two executors (Zen prev
 
 | Phase | Deliverables |
 |---|---|
-| **0 — Design & samples** | IR v1 schema + profile; adapter/generator contracts; integration-seam design against sample Java; site-profile format; confirm pilot's engine assets |
+| **0 — Design & samples** | IR v1 schema + profile; adapter/generator contracts; integration-seam design against sample Java; site-profile format; confirm pilot's engine assets; **mining-model benchmark** (value vs frontier tiers on real sample slices: extraction precision/recall per cost) |
 | **1 — PoC (mode B)** | `db-postgres` (via MCP lib) + `code-java` (Joern) adapters; IR repository + review workflow; embedded-Zen preview; `java-source` + `test-generator`; diff/PR + CI golden tests; demo per PRD §11 |
 | **2 — Productize + mode A** | Hardened DB MCP library; `engine-dmn` adapter; mode-A runtime delivery (IR→JDM→Zen); governance hardening; second DBMS/language as plug-in proof |
 | **3 — Scale** | More adapters (stored-proc, UI mining, DRL/ODM import, `dmn-export`, C#); more sites/products |
@@ -309,7 +309,8 @@ Concrete choices per component (rationale in ADR-5; all self-hostable / air-gap-
 | Adapter | Primary choice | Notes / alternatives |
 |---|---|---|
 | `code-java` mining | **Joern** (`javasrc2cpg` frontend; CPGQL in server mode, driven from Python) | The CPG store is Joern's own — **no Neo4j/Neptune needed**; the graph is throwaway scaffolding (§6.3). tree-sitter as a cheap pre-scan fallback. |
-| LLM rule mining | **Anthropic Claude** — `claude-sonnet-5` as the default miner, escalating hard slices to the Opus tier — behind a thin provider-swappable client | Structured output validated by the same Pydantic IR models; provider must stay swappable (site constraints may force Azure OpenAI/Bedrock). LLM output is candidate-only (ADR-4). |
+| LLM rule mining | **Tiered + benchmark-selected, provider-swappable** — bulk extraction on a value-tier model; hard slices & verification on a frontier-tier model | Mining is token-heavy, repetitive, structured-output work with a downstream safety net (human review + golden tests) — the cost/quality trade-off favors value models for the bulk tier. Candidates: **DeepSeek, Kimi (Moonshot), GLM (Z.ai), Qwen** (value/open-weights) vs **Claude/GPT** (frontier). Defaults are decided by the **Phase-0 mining benchmark** on real sample slices (extraction precision/recall vs cost), not by vendor claims. Structured output validated by the same Pydantic IR models regardless of provider. LLM output is candidate-only (ADR-4). |
+| LLM deployment per site | API where policy allows; **self-hosted open-weights (vLLM)** for air-gapped sites | Open-weights options (DeepSeek/Qwen/GLM/Kimi) are the only viable path for air-gapped finance sites — no closed API (Claude included) can serve them. Conversely, some sites may restrict specific foreign endpoints; the site profile (§10) selects the provider, the pipeline code never changes. |
 | `db-postgres` + DB MCP library | **Official Python MCP SDK (FastMCP)** + **psycopg 3** | The reusable, connection-info-driven MCP asset (PRD §8). Other DBMS later as drivers: `oracledb`, `pyodbc`/MSSQL. |
 | `engine-dmn` | **lxml** against the DMN 1.3+ XSD for decision tables; hand-rolled parser for the *restricted* FEEL subset | Complex FEEL → review queue (§6.4), so no full FEEL parser in MVP. If XML handling gets hairy, Camunda's `dmn-model` via the Java toolchain. |
 | `docs-manual` | pdfplumber / python-docx / openpyxl + LLM extraction | Supplementary source; low default confidence. |
