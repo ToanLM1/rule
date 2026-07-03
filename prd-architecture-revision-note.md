@@ -1,5 +1,7 @@
 # PRD Update Note — Reconsider GoRules/JDM And Target Architecture
 
+> **Status: superseded (2026-07-03).** Reviewed and incorporated into `architecture.md` + `prd.md`, with three deviations: (1) A/B are **per-site delivery modes** — the engine is the confirmed production runtime for engine-migration sites (customer 2026-07-03), not an optional afterthought; (2) **no bespoke internal evaluator** — embedded GoRules Zen (customer-accepted) serves preview and mode-A runtime, with golden-test authority on generated source for mode B; (3) the **mode-B integration seam** (legacy call-site cut-over) is added as a first-class design item. Kept for historical reference only.
+
 ## 1. Background
 
 The previous PRD assumed that a rule engine could be a core runtime component. Under that assumption, selecting GoRules Zen Engine and JDM made sense because:

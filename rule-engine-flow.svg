@@ -40,8 +40,8 @@
   <!-- ===== REPOSITORY ===== -->
   <rect x="250" y="228" width="360" height="82" rx="12" fill="#EEEDFE" stroke="#7F77DD" stroke-width="2"/>
   <text x="430" y="262" text-anchor="middle" font-size="16" font-weight="700" fill="#26215C">Rule Repository</text>
-  <text x="430" y="283" text-anchor="middle" font-size="11.5" fill="#3C3489">rules-as-data · versioned · traceable</text>
-  <text x="430" y="299" text-anchor="middle" font-size="11.5" fill="#3C3489">engine consumes approved rules only</text>
+  <text x="430" y="283" text-anchor="middle" font-size="11.5" fill="#3C3489">Canonical Rule IR · versioned · traceable</text>
+  <text x="430" y="299" text-anchor="middle" font-size="11.5" fill="#3C3489">targets consume approved rules only</text>
 
   <!-- ===== PHASE 2 ===== -->
   <rect x="40" y="336" width="255" height="22" rx="11" fill="#534AB7"/>
@@ -69,7 +69,8 @@
   <line x1="430" y1="422" x2="458" y2="422" stroke="#534AB7" stroke-width="1.6" marker-end="url(#ahp)"/>
   <line x1="620" y1="422" x2="648" y2="422" stroke="#534AB7" stroke-width="1.6" marker-end="url(#ahp)"/>
 
-  <text x="250" y="478" font-size="10.5" font-style="italic" fill="#6b6b6b">Option A (source calls the engine at runtime) — not chosen by customer.</text>
+  <text x="250" y="478" font-size="10.5" font-style="italic" fill="#6b6b6b">Mode shown = B (code generation), for logic-in-code sites. Sites migrating off an existing rule engine run</text>
+  <text x="250" y="493" font-size="10.5" font-style="italic" fill="#6b6b6b">mode A instead: approved rules published to our engine (Zen) as the production runtime — no rebuild.</text>
 
   <rect x="40" y="560" width="14" height="14" rx="3" fill="#EEEDFE" stroke="#7F77DD"/>
   <text x="60" y="571" font-size="11" fill="#6b6b6b">system of record</text>
