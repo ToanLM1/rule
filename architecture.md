@@ -47,6 +47,14 @@
 
 **Rationale.** Finance/insurance compliance requires reviewable, reproducible, auditable output. Determinism also makes generated-code diffs meaningful in PR review (§7.3).
 
+### ADR-5 — Polyglot split: Python platform core, Java-native generation toolchain
+
+**Decision.** Platform services (adapter orchestration, rule-repository API, governance backend, decision service) are **Python/FastAPI**. Artifact-facing Java work — the source generator, seam cut-over recipes, golden-test rendering — is a small **Java toolchain** (JavaPoet + OpenRewrite + google-java-format) packaged as a versioned CLI the platform invokes (JSON IR in → files out).
+
+**Rationale.** (i) Team competency: this workspace already runs a FastAPI backend and a Vue frontend — same stack, faster delivery, one hiring profile. (ii) GoRules Zen ships an official **Python** binding (also Rust/Node/Go) but **no official Java binding** — embedding Zen for preview is natural from Python. (iii) LLM/mining tooling is Python-native. (iv) But *generating and refactoring Java* is safest with Java-native AST tools — hand-rolled Java emission from another language is where codegen bugs breed.
+
+**Consequences.** Two build systems (uv + Gradle), kept decoupled by the CLI contract. Because Zen has no official Java binding, mode-A delivery for Java legacy sites runs as a thin **sidecar decision service** (FastAPI + embedded Zen) rather than in-process — acceptable, and consistent with how their previous third-party engines were typically deployed.
+
 ## 3. System Overview
 
 ```mermaid
@@ -281,7 +289,49 @@ The asymmetry is deliberate (ADR-3): in mode B there are two executors (Zen prev
 | **2 — Productize + mode A** | Hardened DB MCP library; `engine-dmn` adapter; mode-A runtime delivery (IR→JDM→Zen); governance hardening; second DBMS/language as plug-in proof |
 | **3 — Scale** | More adapters (stored-proc, UI mining, DRL/ODM import, `dmn-export`, C#); more sites/products |
 
-## 13. Open Design Questions
+## 13. Technology Stack And Libraries
+
+Concrete choices per component (rationale in ADR-5; all self-hostable / air-gap-mirrorable per PRD §8). **Primary** = what we build first; alternatives noted where a real fallback exists.
+
+### 13.1 Platform core
+
+| Component | Primary choice | Notes / alternatives |
+|---|---|---|
+| Platform API & orchestration | **Python 3.12 + FastAPI + Pydantic v2** | IR schema = Pydantic models (JSON Schema exported from them — one definition, validated everywhere). Matches existing team stack. |
+| Rule repository storage | **PostgreSQL 16** — IR as `JSONB`, append-only version rows + audit tables; SQLAlchemy + Alembic | Dogfoods the customer's own DBMS. Alternative (open question §14): git-backed IR files if review ergonomics demand it. |
+| Governance UI | **Vue 3 + TypeScript + Vite + Pinia** | Team consistency with the existing `frontend/` app (React would work; no reason to split stacks). **ag-grid-community** (MIT) for editable decision tables; **monaco-editor** for JSON/rule-diff views. |
+| AuthN/Z | **OIDC-pluggable** (Keycloak as self-host reference) | Maker-checker enforced in the app layer, not the IdP. |
+| Packaging | **Docker Compose** (api, ui, postgres, joern, decision-service); `uv` for Python, `pnpm` for UI | Compose-first for on-prem/air-gap; k8s optional, never required. |
+| Observability | structlog (JSON logs); OpenTelemetry optional per site | Keep light. |
+
+### 13.2 Source adapters (extraction)
+
+| Adapter | Primary choice | Notes / alternatives |
+|---|---|---|
+| `code-java` mining | **Joern** (`javasrc2cpg` frontend; CPGQL in server mode, driven from Python) | The CPG store is Joern's own — **no Neo4j/Neptune needed**; the graph is throwaway scaffolding (§6.3). tree-sitter as a cheap pre-scan fallback. |
+| LLM rule mining | **Anthropic Claude** — `claude-sonnet-5` as the default miner, escalating hard slices to the Opus tier — behind a thin provider-swappable client | Structured output validated by the same Pydantic IR models; provider must stay swappable (site constraints may force Azure OpenAI/Bedrock). LLM output is candidate-only (ADR-4). |
+| `db-postgres` + DB MCP library | **Official Python MCP SDK (FastMCP)** + **psycopg 3** | The reusable, connection-info-driven MCP asset (PRD §8). Other DBMS later as drivers: `oracledb`, `pyodbc`/MSSQL. |
+| `engine-dmn` | **lxml** against the DMN 1.3+ XSD for decision tables; hand-rolled parser for the *restricted* FEEL subset | Complex FEEL → review queue (§6.4), so no full FEEL parser in MVP. If XML handling gets hairy, Camunda's `dmn-model` via the Java toolchain. |
+| `docs-manual` | pdfplumber / python-docx / openpyxl + LLM extraction | Supplementary source; low default confidence. |
+
+### 13.3 Target generators & delivery
+
+| Component | Primary choice | Notes / alternatives |
+|---|---|---|
+| `java-source` generator | **Java 17 toolchain: JavaPoet** (AST-safe class generation) + **google-java-format** (deterministic formatting) — packaged as a Gradle-built CLI: JSON IR in → `.java` out | MVP shortcut: Jinja2 templates from Python are acceptable to start, migrate to JavaPoet when the generated surface grows. Determinism is non-negotiable either way (ADR-4). |
+| Integration-seam cut-over (§8) | **OpenRewrite** recipes — replace the mined region with the façade call | Semi-automated, always lands as a human-reviewed PR. This is *refactoring existing code*; distinct from generation (JavaPoet) and mining (Joern). |
+| `test-generator` | JUnit 5 sources via the same Java toolchain; JSON fixtures for Zen (mode A) | Golden-test authority per §9. |
+| `jdm-export` | Pure Python JSON transform, round-trip-validated against embedded Zen | Trivial by design — IR v1 ⊂ JDM. |
+| Preview + mode-A runtime | **GoRules Zen** via the `zen-engine` Python binding, embedded in a thin stateless FastAPI **decision service** | Same service serves governance preview and mode-A production (scaled/hardened). No official Java Zen binding → Java sites integrate mode A via this sidecar, not in-process (ADR-5). |
+| CI/CD delivery (mode B) | git branch/PR flow (GitHub/GitLab — per site), **Gradle** builds the generated module | Platform side uses `gh`/API; the site's existing pipeline stays the deploy authority. |
+
+### 13.4 Explicitly not in the stack
+
+- **No graph database** (Neo4j/Neptune) — Joern's internal CPG store covers mining; the graph is rebuilt per run.
+- **No message broker** (Kafka etc.) — extraction is batch; FastAPI + task queue in-process is enough at this scale.
+- **No rule-engine BRMS suite** (GoRules BRMS paid tier, Camunda platform) — governance UI is ours; only the MIT Zen evaluator is consumed.
+
+## 14. Open Design Questions
 
 1. Rule packaging granularity — one IR decision per legacy decision point, or aggregated per product/flow? (drives repo UX and generated-module layout; decide in Phase 0 with sample code)
 2. Lookup data at runtime — how generated code and Zen runtime each bind `lookup://` refs at a given site (provided interface vs snapshot tables).
