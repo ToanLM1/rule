@@ -33,7 +33,9 @@
 - All new code: English identifiers/comments; type hints everywhere (Python), `from __future__ import annotations` not required (3.12); `ruff` clean; tests colocated under `tests/` mirroring `src/` paths.
 
 ### 0.4 Environment assumptions
-- **Windows host, bare-metal-first.** Git Bash is available for `.sh`; every script in `scripts/` must have a `.ps1` twin. Docker is **optional** — a fallback, not a requirement (§3.0).
+- **Reuse-first on AWS.** The primary dev/integration host is the **existing project EC2 instance** (the one already running the knowledge-assistant backend) — it already has Python and other tooling installed for that project. **Verify what exists before installing anything** (E-tasks start with checks, not installs). The database is **AWS RDS PostgreSQL**, not a local install.
+- **Shared-host etiquette (hard rules):** the EC2 also serves the knowledge-assistant (hybrid-RAG) deployment. Do NOT: upgrade/replace system Python or global packages, stop/restart its services, edit its env files, or bind its ports. All BRP Python work lives in this repo's own uv-managed venvs; BRP API binds **port 8100** (assume 8000 is taken). If a needed system-level change could affect the other project, log `BLOCKED:`/`PROPOSAL:` instead of doing it.
+- **Local Windows dev is the secondary path** (bare-metal per §2.1 winget column; Docker optional fallback). Git Bash runs `.sh`; every script in `scripts/` must have a `.ps1` twin so both environments work.
 - Run Python commands from `platform/` (or `mcp-db-connector/`), Gradle from `java-toolchain/` or `fixtures/legacy-enrollment/`, pnpm from `ui/`, unless a task says otherwise.
 
 ---
@@ -84,19 +86,28 @@ Restricted v1 profile: operators `=, !=, >, >=, <, <=, IN, NOT_IN, BETWEEN, EXIS
 
 ## 2. Conventions & Configuration
 
-### 2.1 Version pins
+### 2.1 Shared AWS resources (reuse — record actual values at E-001/E-002, do not guess)
 
-| Tool | Version | Install (bare-metal, Windows) |
+| Resource | Value (fill in) | Notes |
 |---|---|---|
-| Python | 3.12.x | `winget install Python.Python.3.12` (or via `uv python install 3.12`) |
-| uv | latest | `winget install astral-sh.uv` |
-| JDK | Temurin 17 (LTS) | `winget install EclipseAdoptium.Temurin.17.JDK` |
-| Gradle | 8.7 via wrapper | committed `gradlew` — never require a global Gradle |
-| Node | 22 LTS | `winget install OpenJS.NodeJS.LTS` |
-| pnpm | 9.x | `corepack enable && corepack prepare pnpm@9 --activate` |
-| PostgreSQL | 16.x | `winget install PostgreSQL.PostgreSQL.16` (runs as a Windows service) — Docker fallback allowed |
-| Joern | pin latest 4.x at E-005 time — **record the exact version here: `_______`** | release zip → `C:\tools\joern` (needs JDK 17); fallback: Docker `ghcr.io/joernio/joern`, then WSL2 |
-| zen-engine (PyPI) | pin at T-401 time — record: `_______` | `uv add zen-engine` |
+| EC2 dev host | host/IP: `_______` · SSH user: `_______` | the instance already running the knowledge-assistant backend |
+| Existing Python on EC2 | version found: `_______` | reuse if ≥3.12; otherwise `uv python install 3.12` (user-local, NOT a system replacement) |
+| RDS PostgreSQL endpoint | `_______` · db: `brp` | see E-002; security group must allow the EC2 SG (and dev IP if needed) |
+| BRP API port on EC2 | **8100** | 8000 assumed taken by the knowledge-assistant |
+
+### 2.1b Version pins & install paths
+
+| Tool | Version | EC2 (Amazon Linux/Ubuntu — check first, install only if missing) | Windows local (secondary) |
+|---|---|---|---|
+| Python | 3.12.x | reuse existing; else `uv python install 3.12` (user-local) | `winget install Python.Python.3.12` |
+| uv | latest | `curl -LsSf https://astral.sh/uv/install.sh \| sh` (user-local) | `winget install astral-sh.uv` |
+| JDK | Temurin/Corretto 17 | check `java -version`; else `sudo dnf install java-17-amazon-corretto` (or apt temurin-17-jdk) | `winget install EclipseAdoptium.Temurin.17.JDK` |
+| Gradle | 8.7 via wrapper | committed `gradlew` — never a global install | same |
+| Node | 22 LTS | check `node -v`; else via nvm (user-local) | `winget install OpenJS.NodeJS.LTS` |
+| pnpm | 9.x | `corepack enable && corepack prepare pnpm@9 --activate` | same |
+| PostgreSQL | 16.x | **AWS RDS** (E-002) — no server install anywhere | connect to the same RDS; `psql` client only (`winget install PostgreSQL.psqlODBC`… client tools suffice) |
+| Joern | pin latest 4.x — **record: `_______`** | release zip → `~/tools/joern` (Linux is Joern's native platform — prefer running mining on EC2) | zip → `C:\tools\joern`; fallback Docker → WSL2 |
+| zen-engine (PyPI) | pin at T-401 — record: `_______` | `uv add zen-engine` | same |
 
 ### 2.2 Python dependencies (platform/pyproject.toml)
 `fastapi`, `uvicorn[standard]`, `pydantic>=2.7`, `sqlalchemy>=2.0`, `alembic`, `psycopg[binary]`, `pyyaml`, `httpx`, `typer` (CLI), `structlog`; dev: `pytest`, `pytest-asyncio`, `ruff`, `mypy`. Pin exact versions in the lockfile (uv does this automatically); do not add dependencies beyond these without a `PROPOSAL:`.
@@ -104,7 +115,9 @@ Restricted v1 profile: operators `=, !=, >, >=, <, <=, IN, NOT_IN, BETWEEN, EXIS
 ### 2.3 Environment variables (`.env.example`, committed; `.env` gitignored)
 
 ```
-BRP_DB_URL=postgresql+psycopg://brp:brp@localhost:5432/brp
+# RDS is the primary DB (endpoint from §2.1); localhost only for offline local dev
+BRP_DB_URL=postgresql+psycopg://brp:<password>@<rds-endpoint>:5432/brp
+BRP_API_PORT=8100
 BRP_LLM_PROVIDER=mock            # mock | anthropic | openai_compat (covers DeepSeek/Kimi/GLM/Qwen endpoints)
 BRP_LLM_BULK_MODEL=
 BRP_LLM_FRONTIER_MODEL=
@@ -177,17 +190,17 @@ Actor identity for Phase 1 = `X-BRP-Actor: <name>` header (real auth is Phase 2 
 
 Format per task — **Do** (steps), **Files** (what to create/touch), **Accept** (commands that must pass; run from the stated directory), **Depends**.
 
-### 3.0 E — Environment (bare-metal first; Docker only as fallback)
+### 3.0 E — Environment (reuse-first on the existing EC2; install only what's missing)
 
-- [ ] **E-001 — Base tools.**
-  - Do: install per §2.1: uv, Python 3.12, Temurin 17, Node 22 + pnpm 9. Set user env vars `PYTHONUTF8=1`, `JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8`.
-  - Accept: `uv --version` · `python --version` prints 3.12.x · `java -version` prints 17.x · `node -v` prints v22.x · `pnpm -v` prints 9.x.
-- [ ] **E-002 — PostgreSQL 16.**
-  - Do: install PostgreSQL 16 as a Windows service (or `docker compose -f docker/docker-compose.yml up -d postgres` as fallback). Create role `brp` (password `brp`, for local dev only) and database `brp`: `psql -U postgres -c "CREATE ROLE brp LOGIN PASSWORD 'brp'; CREATE DATABASE brp OWNER brp;"`.
-  - Accept: `psql "postgresql://brp:brp@localhost:5432/brp" -c "select 1;"` exit 0.
+- [ ] **E-001 — Inventory & base tools on the EC2.**
+  - Do: on the existing EC2 (§2.1): run `python3 --version && java -version && node -v && git --version && psql --version` and **record every found version in the §2.1 table**. Install only the gaps, per the §2.1b EC2 column, always user-local (uv-managed Python, nvm Node) — **never upgrade or replace anything the knowledge-assistant uses** (§0.4 etiquette). Add `PYTHONUTF8=1` and `JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8` to the BRP shell profile (or `.env`), not to system-wide config. If also working locally on Windows, repeat with the Windows column.
+  - Accept: `uv --version` · `uv run python --version` prints 3.12.x · `java -version` prints 17.x · `node -v` ≥ v20 · `pnpm -v` prints 9.x — all on the host you will actually build on.
+- [ ] **E-002 — RDS PostgreSQL.**
+  - Do: **prefer AWS RDS** over any local install. Reuse an existing dev RDS PostgreSQL instance if the project has one; otherwise create a small one (PostgreSQL 16, `db.t4g.micro`/`small`, private subnet, storage 20GB, no public access unless dev-IP access is required). Security group: allow 5432 from the EC2's SG (+ dev IP if needed). Create `brp` database and `brp` role (strong password — into `.env`, never committed). **Record the endpoint in §2.1.** Do NOT reuse the knowledge-assistant's database if it has one — separate DB instance or at minimum a separate database + role. Local/docker PG remains an offline fallback only.
+  - Accept: from the EC2 (and/or dev machine): `psql "$BRP_DB_URL" -c "select version();"` exit 0 and prints PostgreSQL 16.x.
 - [ ] **E-003 — Joern.**
-  - Do: download the pinned Joern 4.x release zip → extract to `C:\tools\joern`; record the version in §2.1. If native launch fails on Windows, fall back to Docker image (then WSL2), and set `JOERN_MODE=docker` in `.env`.
-  - Accept: `"$JOERN_HOME"/joern --version` (or `docker run --rm ghcr.io/joernio/joern:<pin> --version`) prints the pinned version.
+  - Do: prefer the **EC2 (Linux)** — Joern's native platform: download the pinned 4.x release, extract to `~/tools/joern`, set `JOERN_HOME`; record the version in §2.1b. (Windows local: zip to `C:\tools\joern`; if the native launcher misbehaves → Docker image → WSL2; set `JOERN_MODE` accordingly in `.env`.)
+  - Accept: `"$JOERN_HOME"/joern --version` (or the docker equivalent) prints the pinned version.
 
 ### M0 — Scaffold & Foundations
 *Exit: all builds green; fixture app tests pass; Joern parses the fixture.*
@@ -201,9 +214,9 @@ Format per task — **Do** (steps), **Files** (what to create/touch), **Accept**
     `platform/`: `uv init --package`, package name `brp`, deps per §2.2, `ruff.toml` (line-length 100), `pytest.ini` (testpaths=tests, asyncio_mode=auto). Root `README.md` linking prd/architecture/this plan. `.gitattributes` per §2.6. Commit `.env.example` per §2.3.
   - Files: as above + `platform/src/brp/__init__.py`.
   - Accept (from `platform/`): `uv run ruff check .` exit 0 · `uv run pytest` exit 0 (0 collected is fine).
-- [ ] **T-002 — DB bootstrap & compose fallback.**
-  - Do: `docker/docker-compose.yml` (postgres:16 with healthcheck — the *fallback* path); `scripts/check-pg.sh|.ps1` = connect using `BRP_DB_URL`, `select 1`, exit code. `scripts/db-load-fixture.sh|.ps1` = apply `fixtures/legacy-enrollment/db/schema.sql` + `seed.sql` to the `brp` DB.
-  - Accept: `scripts/check-pg.sh` exit 0 (bare-metal PG from E-002 is fine; Docker not required).
+- [ ] **T-002 — DB bootstrap scripts.**
+  - Do: `scripts/check-pg.sh|.ps1` = connect using `BRP_DB_URL` (normally the RDS endpoint from E-002), `select 1`, exit code. `scripts/db-load-fixture.sh|.ps1` = apply `fixtures/legacy-enrollment/db/schema.sql` + `seed.sql` to the `brp` DB. Also add `docker/docker-compose.yml` (postgres:16 with healthcheck) as the *offline fallback only* — CI also uses a containerized PG service, dev uses RDS.
+  - Accept: `scripts/check-pg.sh` exit 0 against the RDS endpoint.
   - Depends: E-002.
 - [ ] **T-003 — Java toolchain scaffold.**
   - Do: `java-toolchain/`: Gradle 8.7 wrapper committed, Java 17 toolchain block, modules `codegen-cli` (application plugin, mainClass `brp.codegen.Main`) and `seam-recipes` (java-library); Spotless plugin with googleJavaFormat; an empty smoke test each.
