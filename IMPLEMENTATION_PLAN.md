@@ -88,12 +88,12 @@ Restricted v1 profile: operators `=, !=, >, >=, <, <=, IN, NOT_IN, BETWEEN, EXIS
 
 ### 2.1 Shared AWS resources (reuse — record actual values at E-001/E-002, do not guess)
 
-| Resource | Value (fill in) | Notes |
+| Resource | Value (verified 2026-07-04 via AWS CLI) | Notes |
 |---|---|---|
-| EC2 dev host | host/IP: `_______` · SSH user: `_______` | the instance already running the knowledge-assistant backend |
-| Existing Python on EC2 | version found: `_______` | reuse if ≥3.12; otherwise `uv python install 3.12` (user-local, NOT a system replacement) |
-| RDS PostgreSQL endpoint | `_______` · db: `brp` | see E-002; security group must allow the EC2 SG (and dev IP if needed) |
-| BRP API port on EC2 | **8100** | 8000 assumed taken by the knowledge-assistant |
+| EC2 dev host | `i-07af453b12aa01ff2` · EIP `13.251.6.169` · ap-southeast-1a · **t3.small (2 vCPU / 2 GB)** · 32 GB gp3 | runs `knowledge-api` + `knowledge-api-worker` (systemd, port 8080); EIP survives stop/start resize. ⚠ 2 GB RAM is too small for Joern — see resize note in E-001. SSH user: `_______` (fill at E-001) |
+| Existing Python on EC2 | version found: `_______` (fill at E-001) | the knowledge-api already uses uv there; reuse if ≥3.12 |
+| RDS PostgreSQL | `csax-rag-utils-ap-se1.cf2as4mo2yxu.ap-southeast-1.rds.amazonaws.com:5432` · **postgres 17.9** · db.t4g.small · 20 GB · publicly accessible · SG `sg-083fc997dd34f03e6` | **reuse this instance** — create a separate `brp` database + `brp` role (E-002); do NOT touch the RAG project's databases |
+| BRP API port on EC2 | **8100** | 8080 is taken by knowledge-api |
 
 ### 2.1b Version pins & install paths
 
@@ -105,7 +105,7 @@ Restricted v1 profile: operators `=, !=, >, >=, <, <=, IN, NOT_IN, BETWEEN, EXIS
 | Gradle | 8.7 via wrapper | committed `gradlew` — never a global install | same |
 | Node | 22 LTS | check `node -v`; else via nvm (user-local) | `winget install OpenJS.NodeJS.LTS` |
 | pnpm | 9.x | `corepack enable && corepack prepare pnpm@9 --activate` | same |
-| PostgreSQL | 16.x | **AWS RDS** (E-002) — no server install anywhere | connect to the same RDS; `psql` client only (`winget install PostgreSQL.psqlODBC`… client tools suffice) |
+| PostgreSQL | 16+ (the shared RDS runs **17.9** — target that; keep SQL/migrations compatible with 16) | **AWS RDS `csax-rag-utils-ap-se1`** (E-002) — no server install anywhere | connect to the same RDS; `psql` client tools only |
 | Joern | pin latest 4.x — **record: `_______`** | release zip → `~/tools/joern` (Linux is Joern's native platform — prefer running mining on EC2) | zip → `C:\tools\joern`; fallback Docker → WSL2 |
 | zen-engine (PyPI) | pin at T-401 — record: `_______` | `uv add zen-engine` | same |
 
@@ -193,11 +193,12 @@ Format per task — **Do** (steps), **Files** (what to create/touch), **Accept**
 ### 3.0 E — Environment (reuse-first on the existing EC2; install only what's missing)
 
 - [ ] **E-001 — Inventory & base tools on the EC2.**
+  - ⚠ **RAM note:** the EC2 is a t3.small (2 GB). BRP API + existing knowledge-api coexist fine, but **Joern mining will not fit** — before running any Joern task (E-003, T-007, T-304+) the instance must be resized (recommended **t3.large**, 8 GB; EIP is retained across stop/start; coordinate the few minutes of knowledge-api downtime with the team) or mining must run on a separate machine (local Windows box / ephemeral EC2). A human decides the resize — raise `BLOCKED:` if you reach a Joern task while still on 2 GB.
   - Do: on the existing EC2 (§2.1): run `python3 --version && java -version && node -v && git --version && psql --version` and **record every found version in the §2.1 table**. Install only the gaps, per the §2.1b EC2 column, always user-local (uv-managed Python, nvm Node) — **never upgrade or replace anything the knowledge-assistant uses** (§0.4 etiquette). Add `PYTHONUTF8=1` and `JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8` to the BRP shell profile (or `.env`), not to system-wide config. If also working locally on Windows, repeat with the Windows column.
   - Accept: `uv --version` · `uv run python --version` prints 3.12.x · `java -version` prints 17.x · `node -v` ≥ v20 · `pnpm -v` prints 9.x — all on the host you will actually build on.
-- [ ] **E-002 — RDS PostgreSQL.**
-  - Do: **prefer AWS RDS** over any local install. Reuse an existing dev RDS PostgreSQL instance if the project has one; otherwise create a small one (PostgreSQL 16, `db.t4g.micro`/`small`, private subnet, storage 20GB, no public access unless dev-IP access is required). Security group: allow 5432 from the EC2's SG (+ dev IP if needed). Create `brp` database and `brp` role (strong password — into `.env`, never committed). **Record the endpoint in §2.1.** Do NOT reuse the knowledge-assistant's database if it has one — separate DB instance or at minimum a separate database + role. Local/docker PG remains an offline fallback only.
-  - Accept: from the EC2 (and/or dev machine): `psql "$BRP_DB_URL" -c "select version();"` exit 0 and prints PostgreSQL 16.x.
+- [ ] **E-002 — RDS PostgreSQL (reuse `csax-rag-utils-ap-se1`).**
+  - Do: **no new RDS instance.** On the existing instance (endpoint in §2.1, postgres 17.9): create role `brp` (strong password → `.env`, never committed) and database `brp` owned by it: `psql "<admin-url>" -c "CREATE ROLE brp LOGIN PASSWORD '<pw>'; CREATE DATABASE brp OWNER brp;"`. Do NOT touch any existing database on that instance. Verify the SG (`sg-083fc997dd34f03e6`) already allows your client (it is publicly accessible; the EC2 path should already work). Keep an eye on shared 20 GB storage — if `brp` data grows past ~5 GB, raise a `PROPOSAL:` to split to a dedicated instance.
+  - Accept: `psql "$BRP_DB_URL" -c "select version();"` exit 0, prints PostgreSQL 17.x.
 - [ ] **E-003 — Joern.**
   - Do: prefer the **EC2 (Linux)** — Joern's native platform: download the pinned 4.x release, extract to `~/tools/joern`, set `JOERN_HOME`; record the version in §2.1b. (Windows local: zip to `C:\tools\joern`; if the native launcher misbehaves → Docker image → WSL2; set `JOERN_MODE` accordingly in `.env`.)
   - Accept: `"$JOERN_HOME"/joern --version` (or the docker equivalent) prints the pinned version.
