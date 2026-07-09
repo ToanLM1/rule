@@ -10,14 +10,18 @@ Read `prd.md` in this directory as the source of truth for this track before doi
 - Inputs are the customer's **git repositories and databases**; the analysis/mining stack (Joern static analysis + a purpose-built rule miner, ETL, JDM code-gen) is **all new**. It does **not** run on the knowledge assistant's document/knowledge (RAG) ingestion.
 - There is **no meaningful shared component**. At most, the optional/supplementary manuals source (`prd.md` §5.1 #2, §5.2) may borrow low-level document-parsing utilities — but it needs rule-oriented extraction, not the RAG ingestion as-is. Do not call the document pipeline "the shared component."
 - Not reused from the main project: chat/RAG retrieval, citation surfaces, Neptune telecom graph schema, NUEL/ProcessMap content.
-- **Status: design/groundwork only.** Nothing here is in active implementation. Do not treat this as a build spec or wire it into the running backend/frontend.
+- **Status: implementation (Phase 0/1) — customer approved the architecture 2026-07-04.** Build strictly per `IMPLEMENTATION_PLAN.md` (task order, acceptance criteria, progress protocol). Still do not wire anything into the knowledge-assistant backend/frontend.
 
 ## Domain
 - Business problem: enrollment logic (`가입 Rule`) for financial/insurance products is buried in source code; this track manages it as **rules-as-data** in a governed repository, with an optional path to reflect edited rules back into deployable source.
 - Customer context confirmed 2026-06-23 and 2026-06-29 (see `prd.md` §1, §10).
 
 ## Files In This Track
-- `prd.md` — track PRD (source of truth).
+- `prd.md` — track PRD (product source of truth).
+- `architecture.md` — architecture design (design source of truth: ADRs, IR spec, adapter contracts, tech stack).
+- `IMPLEMENTATION_PLAN.md` — execution plan + progress tracker for AI coding agents (milestones M0–M8, task checkboxes, agent protocol). **Implementing agents start here.**
+- `prd-architecture-revision-note.md` — superseded historical note (do not follow).
+- `proposals/business-rules-platform-design-review.en.docx` — customer-facing design review document (approved 2026-07-04).
 - `vendor-survey.ko.md` / `vendor-survey.vi.md` — rule-engine vendor comparison (license, deployment, pricing, pros/cons, recommendation). Appendix to `prd.md` §7.
 - `proposals/item2-source-module.en.docx` / `.ko.docx` — the initial design proposal for the customer (Item 2 reply).
 
