@@ -430,7 +430,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept (from `mcp-db-connector/`): `uv run pytest`; shared contract tests run for PostgreSQL and SQLite, with writes/injection/excess limits rejected for both and unsupported stored-procedure source reported explicitly.
   - Depends: T-302.
 
-- [ ] **T-804 — Real-slice mining benchmark.**
+- [x] **T-804 — Real-slice mining benchmark.** ✅ 2026-07-11 02f7bcc
   - Do: implement the versioned benchmark/ground-truth format and precision/recall/cost/latency runner with provider-policy enforcement and per-construct diagnostics. Check in a synthetic proof only until customer-approved slices arrive.
   - Accept: `uv run pytest tests/benchmark/`; synthetic metrics are reproducible and labeled `SYNTHETIC_NON_CUSTOMER`; a `REAL_CUSTOMER` run fails closed without approval metadata and provider policy.
   - Depends: T-305, T-306, T-307.
@@ -513,4 +513,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-11 01:27 | T-801 | done | 93e21d7 | Added restricted DMN decision-table import with exact provenance, Korean text, review routing, and BPMN rejection.
 2026-07-11 01:43 | T-802 | done | 0f34366 | Added authoritative Zen publication, immutable evidence history, active execution, audit, and append-only rollback.
 2026-07-11 01:55 | T-803 | done | 1717f2a | Refactored the bounded connector behind a driver contract and proved PostgreSQL/SQLite read-only parity.
+2026-07-11 02:07 | T-804 | done | 02f7bcc | Added versioned ground truth, provider-policy gates, reproducible metrics, and a synthetic-only benchmark proof.
 ```
