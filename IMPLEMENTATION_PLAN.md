@@ -358,7 +358,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run --project platform python scripts/gen_compile_fixture.py`; façade tests prove SUM, DISTINCT, FIRST_NON_NULL, Korean, lookup hit/miss.
   - Depends: T-502, T-104.
 
-- [ ] **T-504 — Generated golden tests.**
+- [x] **T-504 — Generated golden tests.** ✅ 2026-07-10 aca89e3
   - Do: suite revision + snapshots to JUnit exercising generated classes and façade. Register `generated-java` runner as Mode-B authority.
   - Accept: `uv run --project platform pytest platform/tests/generators/test_generated_tests.py`; tests compile/run JUnit, plant a failing expectation, and verify manifest changes for suite/lookup changes.
   - Depends: T-402, T-503.
