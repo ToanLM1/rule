@@ -87,6 +87,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
+    { name = "brp-mcp-db" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "mcp" },
@@ -115,6 +116,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.18.5" },
+    { name = "brp-mcp-db", directory = "../mcp-db-connector" },
     { name = "fastapi", specifier = ">=0.139.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "mcp", specifier = ">=1.28.1" },
@@ -138,6 +140,27 @@ dev = [
     { name = "ruff", specifier = ">=0.15.21" },
     { name = "types-openpyxl", specifier = ">=3.1.5.20250602" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20260518" },
+]
+
+[[package]]
+name = "brp-mcp-db"
+version = "0.1.0"
+source = { directory = "../mcp-db-connector" }
+dependencies = [
+    { name = "mcp" },
+    { name = "psycopg", extra = ["binary"] },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "mcp", specifier = ">=1.28.1" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.3.4" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "ruff", specifier = ">=0.15.21" },
 ]
 
 [[package]]
