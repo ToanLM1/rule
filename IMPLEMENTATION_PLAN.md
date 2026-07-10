@@ -261,7 +261,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/api/test_repository_api.py` covering actor rules, maker-checker, content/status separation, effective resolution, and Korean round-trip.
   - Depends: T-203, T-204.
 
-- [ ] **T-206 — Semantic diff.**
+- [x] **T-206 — Semantic diff.** ✅ 2026-07-10 98d2e21
   - Do: diff inputs, outputs, defaults, lookups, program contexts, groups, rules, and provenance; stable paths and ordering; route by revision.
   - Accept: `uv run pytest tests/governance/test_diff.py`.
   - Depends: T-202.
