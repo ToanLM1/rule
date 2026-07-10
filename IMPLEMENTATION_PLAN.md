@@ -173,7 +173,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
 
 *Exit: every project builds locally; CI definitions are locally validated; the fixture behavior and expected decision decomposition are explicit.*
 
-- [ ] **T-001 — Monorepo scaffold.**
+- [x] **T-001 — Monorepo scaffold.** ✅ 2026-07-10 fddbb1f
   - Do: create `platform/`, `java-toolchain/`, `mcp-db-connector/`, `ui/`, `fixtures/legacy-enrollment/`, `fixtures/manuals/`, `docker/`, `docs/`, `scripts/`, `config/sites/`, `config/mappings/`, and `.github/workflows/`. Initialize package `brp`; add dependencies from architecture §13 plus `mcp`, `pypdf`, `python-docx`, and `openpyxl`. Add `.env.example`, `.gitattributes`, `.gitignore`, and a real smoke test.
   - Accept (from `platform/`): `uv run ruff check .`; `uv run pytest tests/test_smoke.py`.
   - Depends: E-000, E-001.
@@ -444,4 +444,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 ```text
 2026-07-10 18:02 | E-000 | done | 76b6331 | Aligned implementation status, per-site delivery modes, and isolated-track boundary.
 2026-07-10 18:05 | E-001 | done | 63017a4 | Verified Python 3.12, JDK 17, Node, pnpm 9, Git, and Docker Compose locally.
+2026-07-10 18:08 | T-001 | done | fddbb1f | Created the Python 3.12 package, locked dependencies, repository layout, and passing smoke test.
 ```
