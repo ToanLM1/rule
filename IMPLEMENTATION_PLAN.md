@@ -256,7 +256,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/repository/test_audit.py tests/repository/test_review_queue.py`.
   - Depends: T-203.
 
-- [ ] **T-205 — Repository API.**
+- [x] **T-205 — Repository API.** ✅ 2026-07-10 4ab01a2
   - Do: implement §2.3 repository routes with RFC 7807 errors. Actor required on writes only. Return envelope and content as distinct fields.
   - Accept: `uv run pytest tests/api/test_repository_api.py` covering actor rules, maker-checker, content/status separation, effective resolution, and Korean round-trip.
   - Depends: T-203, T-204.
@@ -461,4 +461,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-10 19:08 | T-202 | done | 9defbbc | Added content-addressed revisions, row-locked numbering, concurrent creation, and effective approved resolution.
 2026-07-10 19:10 | T-203 | done | c6ca62f | Enforced transactional lifecycle, maker-checker, release evidence policy, reasons, and effective overlap checks.
 2026-07-10 19:13 | T-204 | done | c0eaece | Audited every revision/transition and added persistent unmappable-fragment disposition history.
+2026-07-10 19:16 | T-205 | done | 4ab01a2 | Exposed actor-gated writes, actor-free reads, lifecycle, effective resolution, Korean content, and audit routes.
 ```
