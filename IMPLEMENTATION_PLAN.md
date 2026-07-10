@@ -217,7 +217,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/conformance/test_corpus_shape.py` confirms every operator and hit policy has positive and negative cases.
   - Depends: T-001, T-005.
 
-- [ ] **T-102 — Pydantic decision-content models.**
+- [x] **T-102 — Pydantic decision-content models.** ✅ 2026-07-10 263de4f
   - Do: implement discriminated operands and source references, condition groups, typed outputs/defaults, program contexts, rules, and origin/confidence invariants. Reject repository status/revision/effective fields inside content. Enforce operator/type rules and Java-safe logical names.
   - Accept: `uv run pytest tests/ir/test_models.py tests/conformance/test_pydantic.py`.
   - Depends: T-101.
@@ -454,4 +454,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-10 18:37 | T-006 | done | 068fa26 | Added isolated CI jobs and a passing local matrix across Python, Java, connector, fixture, and UI.
 2026-07-10 18:39 | T-007 | done | ddbf7a2 | Built the fixture CPG and found 39 methods plus the configured enrollment entry point.
 2026-07-10 18:42 | T-101 | done | c7e4c21 | Defined positive/negative cases for every IR operator, hit policy, lookup, nesting, provenance, and fixture decision.
+2026-07-10 18:46 | T-102 | done | 263de4f | Implemented strict Rule IR v1 content, operand, lookup, provenance, and cross-reference validation.
 ```
