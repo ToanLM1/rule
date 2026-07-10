@@ -51,6 +51,14 @@ class GateResult:
     tests: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class DeliveryResult:
+    branch: str
+    base_commit: str
+    head_commit: str
+    review_report: Path
+
+
 def transactional_delivery_gate(
     remote: Path,
     baseline: str,
@@ -94,6 +102,51 @@ def transactional_delivery_gate(
             encoding="utf-8",
         )
         raise
+
+
+def publish_delivery_branch(
+    gate: GateResult,
+    decision_key: str,
+    revision: int,
+    semantic_diff: dict[str, object],
+) -> DeliveryResult:
+    """Commit/push only after a successful gate and emit PR-equivalent evidence."""
+    branch = f"rules/gen-{decision_key}-r{revision}"
+    _run(["git", "switch", "-c", branch], cwd=gate.workspace)
+    _run(["git", "config", "user.name", "BRP Generator"], cwd=gate.workspace)
+    _run(
+        ["git", "config", "user.email", "brp-generator@local.invalid"],
+        cwd=gate.workspace,
+    )
+    _run(["git", "add", "release-manifest.json", "src/generated"], cwd=gate.workspace)
+    _run(
+        ["git", "commit", "-m", f"feat(rules): generate {decision_key} r{revision}"],
+        cwd=gate.workspace,
+    )
+    head = _capture(["git", "rev-parse", "HEAD"], cwd=gate.workspace)
+    _run(["git", "push", "-u", "origin", branch], cwd=gate.workspace)
+    manifest = json.loads((gate.workspace / "release-manifest.json").read_text(encoding="utf-8"))
+    generated_diff = _capture(
+        ["git", "diff", "--stat", f"{gate.base_commit}..{head}"],
+        cwd=gate.workspace,
+    )
+    report = gate.workspace / "review-report.md"
+    report.write_text(
+        "# Generated rules review\n\n"
+        f"- Decision: `{decision_key}` revision `{revision}`\n"
+        f"- Base commit: `{gate.base_commit}`\n"
+        f"- Head commit: `{head}`\n"
+        f"- Manifest hash: `{gate.manifest_hash}`\n"
+        f"- Release hash: `{manifest.get('releaseHash', 'unknown')}`\n"
+        f"- Tests: `{', '.join(gate.tests)}`\n\n"
+        "## Semantic rule diff\n\n```json\n"
+        + json.dumps(semantic_diff, ensure_ascii=False, sort_keys=True, indent=2)
+        + "\n```\n\n## Generated file diff\n\n```text\n"
+        + generated_diff
+        + "\n```\n",
+        encoding="utf-8",
+    )
+    return DeliveryResult(branch, gate.base_commit, head, report)
 
 
 def _install_generated_sources(root: Path, workspace: Path) -> None:
