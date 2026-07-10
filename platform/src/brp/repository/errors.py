@@ -23,3 +23,23 @@ class AmbiguousEffectiveRevisionError(RepositoryError):
 
 class InvalidEffectiveIntervalError(RepositoryError):
     pass
+
+
+class IllegalLifecycleTransitionError(RepositoryError):
+    pass
+
+
+class SelfApprovalError(RepositoryError):
+    pass
+
+
+class SubmissionActorError(RepositoryError):
+    pass
+
+
+class ApprovalEvidenceError(RepositoryError):
+    pass
+
+
+class EffectiveIntervalOverlapError(RepositoryError):
+    pass
