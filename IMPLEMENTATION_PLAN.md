@@ -178,7 +178,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept (from `platform/`): `uv run ruff check .`; `uv run pytest tests/test_smoke.py`.
   - Depends: E-000, E-001.
 
-- [ ] **T-002 — Database bootstrap and fixture loaders.**
+- [x] **T-002 — Database bootstrap and fixture loaders.** ✅ 2026-07-10 8f0019e
   - Do: add idempotent schema/seed loaders invoked through Python/psycopg and thin `.sh`/`.ps1` wrappers. No password appears in process arguments or logs.
   - Accept: run `uv run --project platform python scripts/load_fixture_db.py --reset` twice; both exit 0 and row counts match.
   - Depends: T-001, E-002.
@@ -446,4 +446,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-10 18:05 | E-001 | done | 63017a4 | Verified Python 3.12, JDK 17, Node, pnpm 9, Git, and Docker Compose locally.
 2026-07-10 18:08 | T-001 | done | fddbb1f | Created the Python 3.12 package, locked dependencies, repository layout, and passing smoke test.
 2026-07-10 18:11 | E-002 | done | 4b152ec | Started an isolated local PostgreSQL 16 stack and verified the redacted psycopg probe.
+2026-07-10 18:22 | T-002 | done | 8f0019e | Added idempotent PostgreSQL fixture schema, Korean seed data, and cross-platform loaders.
 ```
