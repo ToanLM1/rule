@@ -82,11 +82,12 @@ def test_golden_api_names_advisory_executor_and_evidence() -> None:
     }
 
 
-def test_mode_b_zen_can_never_claim_authoritative() -> None:
+def test_mode_b_authority_is_reserved_for_generated_java() -> None:
     api = TestClient(create_app(Evidence()))
     response = api.post(
         "/golden/anything/run",
         params={"executor": "generated-java", "decision_revision": 1, "suite_revision": 1},
     )
     assert response.status_code == 200
-    assert response.json()["authority"] == "UNAVAILABLE"
+    assert response.json()["executor"] == "GENERATED_JAVA"
+    assert response.json()["authority"] == "AUTHORITATIVE"
