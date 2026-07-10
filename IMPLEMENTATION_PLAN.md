@@ -411,12 +411,34 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
 
 ### M8 — Phase 2 (human-gated)
 
-- [ ] **PHASE-2-GATE — Human authorization.** No T-8xx task starts until a human checks this item and records scope/customer inputs.
-- [ ] **T-801 — DMN import adapter.** Restricted FEEL, exact asset provenance, BPMN rejection, review queue.
-- [ ] **T-802 — Mode-A Zen service.** Approved/effective revisions only, publish/rollback, authoritative Zen golden gate.
-- [ ] **T-803 — Second DBMS connector.** Prove driver plug-in and the same read-only/injection contract.
-- [ ] **T-804 — Real-slice mining benchmark.** Customer-approved samples, reviewed ground truth, precision/recall/cost/latency, provider policy.
-- [ ] **T-805 — Governance hardening.** OIDC, roles, evidence policy, batch review, deployment authorization.
+- [x] **PHASE-2-GATE — Human authorization.** ✅ 2026-07-11 user authorization
+  - Scope: implement T-801–T-805 as reusable local/self-hosted product capabilities. Use synthetic/local evidence where customer inputs remain unavailable; do not claim real-site mining accuracy or production readiness.
+  - Still gated: customer-approved real Java slices and ground truth, provider/foreign-model policy, pilot approval-role matrix, production IdP metadata, and a production second-DBMS target.
+
+- [ ] **T-801 — DMN import adapter.**
+  - Do: parse DMN 1.3+ decision tables into candidate Rule IR; support literal/simple comparison/range/list FEEL only; preserve asset/revision/decision/element provenance; route unsupported FEEL/boxed expressions to review; reject BPMN documents.
+  - Accept: `uv run pytest tests/adapters/test_dmn.py`; tests cover FIRST/UNIQUE/COLLECT, Korean text, exact element provenance, restricted FEEL, unsupported FEEL review items, and BPMN rejection.
+  - Depends: T-301, T-309.
+
+- [ ] **T-802 — Mode-A Zen service.**
+  - Do: publish only approved/effective decision revisions with approved golden evidence; run the golden suite authoritatively on Zen before activation; keep an immutable publication history; resolve the active release; rollback by appending a publication that points to a previously validated revision.
+  - Accept: `uv run pytest tests/mode_a/`; tests cover publish, draft/ineffective/missing-suite denial, authoritative golden failure, Korean lookup snapshots, active execution, audit, and rollback.
+  - Depends: T-401, T-402, T-403, T-801.
+
+- [ ] **T-803 — Second DBMS connector.**
+  - Do: refactor the MCP connector behind a driver protocol and add SQLite as the dependency-free local second-DBMS proof; preserve catalog allowlists, identifier quoting, row limits, read-only enforcement, stored-object capability reporting, and redacted logs.
+  - Accept (from `mcp-db-connector/`): `uv run pytest`; shared contract tests run for PostgreSQL and SQLite, with writes/injection/excess limits rejected for both and unsupported stored-procedure source reported explicitly.
+  - Depends: T-302.
+
+- [ ] **T-804 — Real-slice mining benchmark.**
+  - Do: implement the versioned benchmark/ground-truth format and precision/recall/cost/latency runner with provider-policy enforcement and per-construct diagnostics. Check in a synthetic proof only until customer-approved slices arrive.
+  - Accept: `uv run pytest tests/benchmark/`; synthetic metrics are reproducible and labeled `SYNTHETIC_NON_CUSTOMER`; a `REAL_CUSTOMER` run fails closed without approval metadata and provider policy.
+  - Depends: T-305, T-306, T-307.
+
+- [ ] **T-805 — Governance hardening.**
+  - Do: OIDC/JWT validation with issuer/audience/JWKS configuration; role enforcement for maker/checker/reviewer/deployer; configurable release-evidence policy; atomic batch review; deployment authorization and audit. Keep Phase-1 development headers available only behind an explicit local-development flag.
+  - Accept: `uv run pytest tests/security/ tests/governance/test_batch_review.py tests/api/test_deployment_authorization.py`; cover invalid issuer/audience/signature/expiry, role denial, maker-checker, evidence policy, batch rollback, deployment authorization, and header-mode production rejection.
+  - Depends: T-204, T-402, T-802.
 
 ---
 
