@@ -415,7 +415,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Scope: implement T-801–T-805 as reusable local/self-hosted product capabilities. Use synthetic/local evidence where customer inputs remain unavailable; do not claim real-site mining accuracy or production readiness.
   - Still gated: customer-approved real Java slices and ground truth, provider/foreign-model policy, pilot approval-role matrix, production IdP metadata, and a production second-DBMS target.
 
-- [ ] **T-801 — DMN import adapter.**
+- [x] **T-801 — DMN import adapter.** ✅ 2026-07-11 93e21d7
   - Do: parse DMN 1.3+ decision tables into candidate Rule IR; support literal/simple comparison/range/list FEEL only; preserve asset/revision/decision/element provenance; route unsupported FEEL/boxed expressions to review; reject BPMN documents.
   - Accept: `uv run pytest tests/adapters/test_dmn.py`; tests cover FIRST/UNIQUE/COLLECT, Korean text, exact element provenance, restricted FEEL, unsupported FEEL review items, and BPMN rejection.
   - Depends: T-301, T-309.
@@ -510,4 +510,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-11 00:57 | T-604 | done | dd57ab2 | Proved main/delivery outcomes from fresh clones and instrumented façade calls.
 2026-07-11 01:05 | T-701 | done | 22d2015 | Ran the shared Mode-B demo: ELIGIBLE to UNDER_AGE via delivered generated Java.
 2026-07-11 01:09 | T-702 | done | 8a67713 | Verified the Windows 11 fresh-checkout guide structure and recorded local-only boundaries.
+2026-07-11 01:27 | T-801 | done | 93e21d7 | Added restricted DMN decision-table import with exact provenance, Korean text, review routing, and BPMN rejection.
 ```
