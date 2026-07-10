@@ -11,6 +11,7 @@ Inventory recorded on 2026-07-10 for the local Windows development host.
 | pnpm | 9.15.9 | Pinned in the user npm prefix |
 | Git | 2.52.0.windows.1 | Feature branch workflow |
 | Docker Compose | 5.0.0-desktop.1 | Local PostgreSQL/CI dependency path |
+| Joern | 4.0.579 | Docker image pinned by digest in `config/joern.lock.json` |
 | psql | not installed | Not required; project probes/loaders use psycopg |
 
 Local JDK 17 path:
