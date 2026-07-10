@@ -5,7 +5,9 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -40,7 +42,8 @@ from brp.repository.lifecycle import (
     LifecycleService,
     ReleaseEvidencePolicy,
 )
-from brp.repository.models import DecisionRevision, GoldenSuiteRevision
+from brp.repository.models import DecisionRevision, GoldenSuite, GoldenSuiteRevision
+from brp.repository.review_queue import ReviewQueueService
 from brp.repository.service import RevisionRepository
 
 Actor = Annotated[str | None, Header(alias="X-BRP-Actor")]
@@ -51,6 +54,12 @@ def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
     factory = sessionmaker(engine, expire_on_commit=False)
     policy = evidence_policy or GoldenSuiteEvidencePolicy()
     app = FastAPI(title="Business Rules Platform", version="0.1.0")
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     def get_session() -> Iterator[Session]:
         with factory() as session:
@@ -320,6 +329,35 @@ def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
         if suite.lifecycle_status != "APPROVED":
             raise ApprovalEvidenceError("golden runner requires an approved suite revision")
         return run_zen_advisory(session, decision, suite)
+
+    @app.get("/golden-suites/{decision_key}")
+    def list_golden_suites(
+        decision_key: str, session: SessionDependency
+    ) -> list[dict[str, object]]:
+        decision = RevisionRepository(session).get_decision(decision_key)
+        records = list(
+            session.scalars(
+                select(GoldenSuiteRevision)
+                .join(GoldenSuite)
+                .where(GoldenSuite.decision_id == decision.id)
+                .order_by(GoldenSuiteRevision.revision.desc())
+            )
+        )
+        return [golden_response(record) for record in records]
+
+    @app.get("/review-queue")
+    def list_review_queue(session: SessionDependency) -> list[dict[str, object]]:
+        return [
+            {
+                "id": str(item.id),
+                "adapter": item.adapter,
+                "reasonCode": item.reason_code,
+                "rawFragment": item.raw_fragment,
+                "provenance": item.provenance,
+                "status": item.status,
+            }
+            for item in ReviewQueueService(session).list_open()
+        ]
 
     return app
 
