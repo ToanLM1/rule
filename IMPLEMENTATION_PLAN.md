@@ -159,7 +159,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Do: record actual Python, uv, Java, Node, pnpm, Git, Docker, and optional psql versions in `docs/environment.md`. Required: Python 3.12, Java 17, Node 20+, pnpm 9, Docker/Compose or a supplied test PostgreSQL URL. Do not install or mutate shared hosts.
   - Accept: `uv --version`; `uv run --python 3.12 python --version`; `java -version`; `node -v`; `pnpm -v`; `git --version`; and either `docker compose version` or a successful documented external test-DB probe.
 
-- [ ] **E-002 — Local PostgreSQL and safe URLs.**
+- [x] **E-002 — Local PostgreSQL and safe URLs.** ✅ 2026-07-10 4b152ec
   - Do: add Compose PostgreSQL 16 on port 55432, create the `brp` database/user through container initialization, and implement `scripts/check-pg.py` using psycopg so shell scripts never need to translate SQLAlchemy URLs. `.sh`/`.ps1` wrappers call the Python script. RDS integration is opt-in and not part of local acceptance.
   - Accept: `docker compose -f docker/docker-compose.yml up -d --wait postgres`; then `uv run --project platform python scripts/check-pg.py` exits 0 using `BRP_DATABASE_URL`.
   - Depends: T-001.
@@ -445,4 +445,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-10 18:02 | E-000 | done | 76b6331 | Aligned implementation status, per-site delivery modes, and isolated-track boundary.
 2026-07-10 18:05 | E-001 | done | 63017a4 | Verified Python 3.12, JDK 17, Node, pnpm 9, Git, and Docker Compose locally.
 2026-07-10 18:08 | T-001 | done | fddbb1f | Created the Python 3.12 package, locked dependencies, repository layout, and passing smoke test.
+2026-07-10 18:11 | E-002 | done | 4b152ec | Started an isolated local PostgreSQL 16 stack and verified the redacted psycopg probe.
 ```
