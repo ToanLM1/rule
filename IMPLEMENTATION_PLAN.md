@@ -151,7 +151,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
 
 ### 3.0 E — Safe local environment
 
-- [x] **E-000 — Align governing status.** ✅ 2026-07-10 4e1fa4f
+- [x] **E-000 — Align governing status.** ✅ 2026-07-10 76b6331
   - Do: update stale planning-only statements in `AGENTS.md` to agree with the approved per-site Mode A/B decision and implementation status; preserve the isolated-track boundary.
   - Accept: `rg -n "unconfirmed|planning track" AGENTS.md` returns no stale instruction; `rg -n "separate|isolated" AGENTS.md` confirms the boundary remains.
 
@@ -442,5 +442,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 ## 7. Progress Log
 
 ```text
-2026-07-10 18:02 | E-000 | done | 4e1fa4f | Aligned implementation status, per-site delivery modes, and isolated-track boundary.
+2026-07-10 18:02 | E-000 | done | 76b6331 | Aligned implementation status, per-site delivery modes, and isolated-track boundary.
 ```
