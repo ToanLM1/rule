@@ -270,7 +270,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
 
 *Exit: DB, Java, and a bounded manual source all produce traced candidate batches; repeated ingestion is idempotent.*
 
-- [ ] **T-301 — Adapter and extraction-batch contracts.**
+- [x] **T-301 — Adapter and extraction-batch contracts.** ✅ 2026-07-10 28545a2
   - Do: `SourceAdapter.discover()` and `extract() -> ExtractionBatch{decisions, unmappable, diagnostics, source_snapshot}`; registry and capability versions.
   - Accept: `uv run pytest tests/adapters/test_contract.py`.
   - Depends: T-102, T-104.
