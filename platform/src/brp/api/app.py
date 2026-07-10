@@ -18,6 +18,8 @@ from brp.api.schemas import (
     RevisionCreateRequest,
 )
 from brp.db import create_database_engine
+from brp.governance.diff import semantic_diff
+from brp.ir.models import DecisionContent
 from brp.repository.errors import (
     ApprovalEvidenceError,
     ApprovedRevisionNotFoundError,
@@ -216,6 +218,22 @@ def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
         return [
             AuditEventResponse.from_record(event) for event in repository.get_audit(decision_key)
         ]
+
+    @app.get("/decisions/{decision_key}/diff")
+    def get_diff(
+        decision_key: str,
+        session: SessionDependency,
+        from_revision: int = Query(alias="from", ge=1),
+        to_revision: int = Query(alias="to", ge=1),
+    ) -> dict[str, object]:
+        repository = RevisionRepository(session)
+        before = repository.get_revision(decision_key, from_revision)
+        after = repository.get_revision(decision_key, to_revision)
+        result = semantic_diff(
+            DecisionContent.model_validate(before.content_blob.content),
+            DecisionContent.model_validate(after.content_blob.content),
+        )
+        return {"fromRevision": from_revision, "toRevision": to_revision, **result}
 
     return app
 
