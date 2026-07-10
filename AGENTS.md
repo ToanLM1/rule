@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Purpose
-This directory is an **isolated track**: the **Rule-Engine-Based Source Generation Module** for finance/insurance enrollment logic. It is the deferred "PGM source-generation" direction mentioned in the Telecom Business Knowledge Assistant PRD (`../agent/services/knowledge-api/prd.md`, §4.10), kept separate so its scope does not pollute the active knowledge-assistant work.
+This directory is an **isolated track**: the **Rule-Engine-Based Source Generation Module** for finance/insurance enrollment logic. It is the separately designed "PGM source-generation" direction mentioned in the Telecom Business Knowledge Assistant PRD (`../agent_testcase/services/knowledge-api/prd.md`, §4.10), kept separate so its scope does not pollute the active knowledge-assistant work.
 
 Read `prd.md` in this directory as the source of truth for this track before doing anything here.
 
@@ -27,10 +27,10 @@ Read `prd.md` in this directory as the source of truth for this track before doi
 
 ## Working Rules
 - Keep this track's context here. If a change affects the main project, make it in `agent/` or `frontend/` instead, not here.
-- Engine recommendation is **GoRules (Zen/JDM)** as default; alternatives are scenario-driven (see `prd.md` §7). Do not hard-commit an engine before the §10 open questions are answered.
-- The round-trip A/B decision (externalization vs code generation, `prd.md` §5.5) is **unconfirmed** and shapes the whole design — surface it, don't silently assume one.
+- Engine decision for Phase 1 is **GoRules Zen/JDM** for advisory preview; generated Java remains Mode-B production authority. Mode A uses Zen in Phase 2. See `architecture.md` ADR-2/3 and §9.
+- Delivery mode is selected per site: Mode B for logic-in-code sites and Mode A for engine-migration sites. Phase 1 implements Mode B first.
 - Rule extraction from legacy code is precision-sensitive: any extracted rule is a **human-reviewed candidate**, never auto-applied. Preserve source traceability and Korean text.
-- Prefer additive design notes over speculative implementation. This is a planning track until the customer confirms scope and provides sample materials (`prd.md` §10).
+- Implement the approved synthetic Phase-1 reference path even while customer samples remain gated. Do not claim real-site mining accuracy or begin real-site rollout until the §10 inputs arrive.
 
 ## Instruction Priority
 - This `AGENTS.md` and `prd.md` govern work inside `rule-engine/`.
