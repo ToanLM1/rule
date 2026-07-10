@@ -285,7 +285,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/adapters/test_db_postgres.py`; Korean values and composite primary keys round-trip byte-exact.
   - Depends: T-301, T-302.
 
-- [ ] **T-304 — Joern locate.**
+- [x] **T-304 — Joern locate.** ✅ 2026-07-10 201d486
   - Do: pin source commit, build CPG, map PGM context, traverse reachable private helpers, and exclude unrelated code.
   - Accept: `uv run pytest tests/adapters/test_joern_locate.py`.
   - Depends: T-007, T-301.

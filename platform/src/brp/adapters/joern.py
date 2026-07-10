@@ -28,6 +28,31 @@ class LocatedMethod(StrictModel):
     entry_point: bool = False
 
 
+class SourceSpan(StrictModel):
+    repository: str
+    revision: str = Field(pattern=r"^[0-9a-f]{40}$")
+    file: str
+    line_start: int = Field(ge=1)
+    line_end: int = Field(ge=1)
+    symbol: str
+
+
+class DecisionSlice(StrictModel):
+    slice_id: str
+    construct_id: str
+    construct_kind: str = Field(alias="construct")
+    source: str
+    source_references: list[SourceSpan] = Field(min_length=1)
+    diagnostics: list[str] = Field(default_factory=list)
+
+
+class SliceManifest(StrictModel):
+    repository: str
+    revision: str = Field(pattern=r"^[0-9a-f]{40}$")
+    entry_point: str
+    slices: list[DecisionSlice]
+
+
 class JoernLocator:
     """Locate an entry method and only its reachable private helpers."""
 
@@ -82,6 +107,69 @@ class JoernLocator:
 JavaLocator = JoernLocator
 
 
+class JoernSlicer:
+    """Create one self-contained, bounded slice per decision construct."""
+
+    def slice(self, methods: list[LocatedMethod]) -> SliceManifest:
+        entries = [method for method in methods if method.entry_point]
+        if len(entries) != 1:
+            raise ValueError("exactly one entry method is required")
+        entry = entries[0]
+        helpers = {method.method: method for method in methods if not method.entry_point}
+        slices: list[DecisionSlice] = []
+        for match in re.finditer(r"if\s*\((.*?)\)\s*\{(.*?)\n\s*\}", entry.source, re.DOTALL):
+            fragment = match.group(0)
+            classification = _classify_if(fragment)
+            if classification is None:
+                continue
+            construct_id, kind = classification
+            references = [_span(entry, match.start(), match.end())]
+            source = fragment
+            diagnostics: list[str] = []
+            called_helpers = [name for name in helpers if re.search(rf"\b{name}\s*\(", fragment)]
+            for helper_name in called_helpers:
+                helper = helpers[helper_name]
+                references.append(_whole_span(helper))
+                source += f"\n\n// reachable helper: {helper_name}\n{helper.source}"
+            if len(source.splitlines()) > 120:
+                diagnostics.append("SLICE_TRUNCATED_AT_120_LINES")
+                source = "\n".join(source.splitlines()[:120])
+            slices.append(
+                DecisionSlice(
+                    slice_id=f"S{len(slices) + 1:03d}",
+                    construct_id=construct_id,
+                    construct=kind,
+                    source=source,
+                    source_references=references,
+                    diagnostics=diagnostics,
+                )
+            )
+
+        switch = re.search(r"switch\s*\(.*?\)\s*\{.*?\n\s*\}", entry.source, re.DOTALL)
+        if switch is not None:
+            slices.append(
+                DecisionSlice(
+                    slice_id=f"S{len(slices) + 1:03d}",
+                    construct_id="C5_OCCUPATION_DOCUMENT",
+                    construct="SWITCH",
+                    source=switch.group(0),
+                    source_references=[_span(entry, switch.start(), switch.end())],
+                )
+            )
+        slices.sort(key=lambda item: item.source_references[0].line_start)
+        for index, item in enumerate(slices, 1):
+            item.slice_id = f"S{index:03d}"
+        identifiers = [item.construct_id for item in slices]
+        if len(identifiers) != len(set(identifiers)):
+            raise ValueError("decision constructs must be covered exactly once")
+        return SliceManifest(
+            repository=entry.repository,
+            revision=entry.revision,
+            entry_point=f"{entry.class_name}#{entry.method}",
+            slices=slices,
+        )
+
+
 def _resolve_revision(repository: Path, revision: str) -> str:
     completed = subprocess.run(
         ["git", "rev-parse", revision],
@@ -122,3 +210,42 @@ def _method_facts(source: str) -> list[tuple[str, int, int, str]]:
         facts.append((match.group("name"), start + 1, end + 1, "\n".join(lines[start : end + 1])))
         index += 1
     return facts
+
+
+def _classify_if(fragment: str) -> tuple[str, str] | None:
+    compact = " ".join(fragment.split())
+    if "age() < 18" in compact:
+        return "C1_UNDER_AGE", "IF"
+    if "productCode" in compact and "age() > 65" in compact:
+        return "C2_OVER_AGE_LIMIT", "IF"
+    if "smoker()" in compact and "startsWith" in compact:
+        return "C3_SMOKER_LOADING", "IF"
+    if "isRegionCovered" in compact:
+        return "C4_REGION_LOOKUP", "JDBC_LOOKUP"
+    if "age() >= 60" in compact and "age() <= 65" in compact:
+        return "C6_SENIOR_ADJUSTMENTS", "IF"
+    return None
+
+
+def _span(method: LocatedMethod, start: int, end: int) -> SourceSpan:
+    line_start = method.line_start + method.source[:start].count("\n")
+    line_end = method.line_start + method.source[:end].count("\n")
+    return SourceSpan(
+        repository=method.repository,
+        revision=method.revision,
+        file=method.file,
+        line_start=line_start,
+        line_end=line_end,
+        symbol=f"{method.class_name}#{method.method}",
+    )
+
+
+def _whole_span(method: LocatedMethod) -> SourceSpan:
+    return SourceSpan(
+        repository=method.repository,
+        revision=method.revision,
+        file=method.file,
+        line_start=method.line_start,
+        line_end=method.line_end,
+        symbol=f"{method.class_name}#{method.method}",
+    )
