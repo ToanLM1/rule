@@ -136,6 +136,24 @@ class ReviewQueueItem(Base):
     )
 
 
+class IngestionFingerprint(Base):
+    __tablename__ = "ingestion_fingerprints"
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    fingerprint: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    adapter: Mapped[str] = mapped_column(String(100), nullable=False)
+    capability_version: Mapped[str] = mapped_column(String(100), nullable=False)
+    source_snapshot_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    candidate_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    decision_key: Mapped[str | None] = mapped_column(String(200))
+    revision_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("decision_revisions.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class GoldenSuite(Base):
     __tablename__ = "golden_suites"
 

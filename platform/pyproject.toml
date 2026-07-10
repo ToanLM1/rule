@@ -9,6 +9,7 @@ authors = [
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.18.5",
+    "brp-mcp-db",
     "fastapi>=0.139.0",
     "httpx>=0.28.1",
     "mcp>=1.28.1",
@@ -23,6 +24,9 @@ dependencies = [
     "typer>=0.26.8",
     "uvicorn[standard]>=0.51.0",
 ]
+
+[tool.uv.sources]
+brp-mcp-db = { path = "../mcp-db-connector" }
 
 [project.scripts]
 brp = "brp:main"

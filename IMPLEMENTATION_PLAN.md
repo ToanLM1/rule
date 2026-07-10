@@ -305,7 +305,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/adapters/test_code_java.py`; output matches `expected-decisions.yaml`, all rule references have exact commit/file/lines, and an unsupported raw call reaches review queue.
   - Depends: T-305, T-306.
 
-- [ ] **T-308 — Supplementary manual adapter.**
+- [x] **T-308 — Supplementary manual adapter.** ✅ 2026-07-10 41014ff
   - Do: native-first extraction for the synthetic DOCX/XLSX manual; preserve page/sheet/section/cell provenance; low default confidence; candidate-only. Reuse libraries, not the knowledge-assistant ingestion service.
   - Accept: `uv run pytest tests/adapters/test_docs_manual.py`; Korean evidence and source locations survive, sparse/ambiguous text becomes review queue.
   - Depends: T-301.
