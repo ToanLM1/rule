@@ -1,6 +1,12 @@
 # Business Rules Platform — Architecture Design
 
-> **Status:** working design, v1 (2026-07-03). Companion to `prd.md` (product requirements — read it first for domain/scope). This document is the source of truth for architecture detail. It reviews and supersedes `prd-architecture-revision-note.md`, adopting its core idea (a vendor-neutral canonical IR) with three deliberate deviations, recorded in the ADRs below: per-site delivery modes instead of "engine as optional afterthought" (ADR-2), an embedded engine instead of a bespoke evaluator (ADR-3), and an explicit mode-B integration seam (§8).
+> **Status:** implementation baseline, v1.1 (2026-07-10). Companion to `prd.md` (product requirements — read it first for domain/scope). This document is the source of truth for architecture detail. It reviews and supersedes `prd-architecture-revision-note.md`. Decisions that were open in v1 are closed in ADR-6..8 and §14 so implementation does not have to invent execution semantics.
+
+## 0. Relationship To The Knowledge Assistant
+
+The Telecom Business Knowledge Assistant PRD (`../agent_testcase/services/knowledge-api/prd.md`, especially §4.10) provides product context for why this track exists, but it is not this application's executable specification. It confirms that PGM source generation is a larger, deferred, separately designed capability and that a PGM may map to a screen, batch job, interface, API, or service.
+
+This platform therefore adopts the knowledge product's useful trust principles — evidence provenance, Korean preservation, review before activation, versioned regression sets, and configuration-driven extensibility — without reusing or depending on its chat, RAG ingestion, vector retrieval, Neptune schema, document chunks, or citation API. A manual-document adapter may consume exported source evidence through its own contract; it must not make the knowledge assistant a runtime dependency.
 
 ## 1. Design Constraints (customer-confirmed)
 
@@ -22,7 +28,7 @@
 
 **Rationale.** (i) The product must ingest many input kinds (DB tables, Java code, manuals, DMN assets) and emit many targets (Java, JDM, later C#/DMN) — only a neutral hub format keeps that M×N problem at M+N adapters. (ii) JDM is one vendor's format; making it the internal model silently shapes the whole product around one engine even though half the delivery story is generated source. (iii) Full DMN is too broad (FEEL, boxed expressions, DRDs) to generate safe code from, and lacks the metadata we need (source traceability, confidence, approval status, generator/deploy metadata). (iv) Codegen needs a *restricted, deterministic* rule profile — that restriction is easiest to enforce in a format we own.
 
-**Consequences.** IR schema versioning/migration becomes our responsibility (§5.4). Every new engine or language is an adapter, not a core change. Governance, diffing, and testing all operate on one format.
+**Consequences.** IR schema versioning/migration becomes our responsibility (§5.5). Every new engine or language is an adapter, not a core change. Governance, diffing, and testing all operate on one format.
 
 ### ADR-2 — A and B are per-site delivery modes over one IR, not an architecture fork
 
@@ -43,9 +49,9 @@
 
 ### ADR-4 — Production code generation is deterministic; LLMs are confined to mining
 
-**Decision.** Target generators are **template/AST-based and deterministic**: same approved IR → byte-identical output. LLMs participate only in **extraction** (turning legacy logic into *candidate* rules that humans review); no LLM-generated text ever flows into production artifacts.
+**Decision.** Target generators are **AST/template-based and deterministic**: the same recorded ADR-8 `ReleaseInput` produces byte-identical output. Decision-source generation depends on approved IR content; generated golden tests and the release manifest additionally depend on the governed suite, lookup snapshots, target config, and generator version recorded in `ReleaseInput`. LLMs participate only in **extraction** (turning legacy logic into *candidate* rules that humans review); no LLM-generated text ever flows into production artifacts.
 
-**Rationale.** Finance/insurance compliance requires reviewable, reproducible, auditable output. Determinism also makes generated-code diffs meaningful in PR review (§7.3).
+**Rationale.** Finance/insurance compliance requires reviewable, reproducible, auditable output. Recording every behavior-affecting input avoids the false claim that mutable golden cases or lookup data are implied by IR alone. Determinism also makes generated-code diffs meaningful in PR review (§7.3).
 
 ### ADR-5 — Polyglot split: Python platform core, Java-native generation toolchain
 
@@ -54,6 +60,57 @@
 **Rationale.** (i) Team competency: this workspace already runs a FastAPI backend and a Vue frontend — same stack, faster delivery, one hiring profile. (ii) GoRules Zen ships an official **Python** binding (also Rust/Node/Go) but **no official Java binding** — embedding Zen for preview is natural from Python. (iii) LLM/mining tooling is Python-native. (iv) But *generating and refactoring Java* is safest with Java-native AST tools — hand-rolled Java emission from another language is where codegen bugs breed.
 
 **Consequences.** Two build systems (uv + Gradle), kept decoupled by the CLI contract. Because Zen has no official Java binding, mode-A delivery for Java legacy sites runs as a thin **sidecar decision service** (FastAPI + embedded Zen) rather than in-process — acceptable, and consistent with how their previous third-party engines were typically deployed.
+
+### ADR-6 — Repository lifecycle is a governed envelope around immutable IR content
+
+**Decision.** The canonical decision content does not contain repository revision or lifecycle status. PostgreSQL stores an immutable content snapshot plus a governed revision envelope:
+
+```text
+DecisionRevision:
+  decision_key, revision, content, content_hash
+  lifecycle_status, effective_from, effective_to
+  created_by, submitted_by, approved_by, rejected_by
+  created_at, submitted_at, decided_at
+```
+
+Content, revision identity, and effective interval are never updated. Submit/approve/reject/retire operations append lifecycle events and update only a transactional current-state projection on the revision envelope; generated content is always loaded through an envelope whose projected status is `APPROVED`. The event log is authoritative for lifecycle history. The API never accepts client-supplied revision or lifecycle fields inside IR content.
+
+**Rationale.** Embedding `status` and `version` inside JSON while also storing them in relational columns creates two competing truths. Separating the governed envelope from vendor-neutral decision content preserves deterministic generation while keeping workflow queries and constraints explicit.
+
+**Effective dating.** Approval rejects overlapping approved effective intervals for the same decision key and release channel. Generation requires either an explicit revision or an `as_of` timestamp; an implicit request resolves the one approved revision effective at that timestamp, never merely the greatest revision number.
+
+### ADR-7 — IR v1 has fully specified, cross-target execution semantics
+
+**Decision.** IR v1 uses typed operands and assignments, not language expressions. Operators are `EQ`, `NE`, `GT`, `GTE`, `LT`, `LTE`, `IN`, `NOT_IN`, `BETWEEN`, `EXISTS`, and `STARTS_WITH`. Scalar types are `boolean`, `integer`, `decimal`, `string`, and `date`; list values are homogeneous lists of those scalar types. Java decimal generation uses `BigDecimal`, and dates use `LocalDate`.
+
+An operand is one of:
+
+- `INPUT(name)` — a declared, Java-safe logical input name; optional `sourcePath` records the legacy dotted/property path.
+- `LITERAL(value)` — a typed JSON literal.
+- `LOOKUP_FIELD(lookup, keys, field)` — a declared lookup, input/literal key bindings, and one selected field.
+
+`EXISTS` is unary. `IN`/`NOT_IN` require a non-empty homogeneous list. `BETWEEN` requires exactly two ordered values. `STARTS_WITH` accepts strings only. Validation rejects any operator/type combination not defined by the profile.
+
+Actions remain deterministic `SET(output, literal)` assignments. Legacy increments and collection mutations are represented as independent `COLLECT` decisions rather than side effects. `FIRST` and `UNIQUE` return one typed output record and require `defaultOutput` for no-match behavior; `UNIQUE` fails if more than one rule matches. `COLLECT` returns an ordered list of typed output records and returns an empty list when nothing matches. A site composition specification may deterministically combine decision outputs using only the v1 aggregators `SUM`, `DISTINCT`, and `FIRST_NON_NULL`; the generated façade implements that composition.
+
+**Authority.** The Pydantic validator, JDM exporter, Zen preview, Java generator, and consistency suite must implement these semantics from one checked-in conformance corpus. A profile extension is not accepted until all active targets pass the same corpus.
+
+### ADR-8 — Delivery inputs and validation evidence are versioned
+
+**Decision.** A generated release is identified by all behavior-affecting inputs, not IR alone:
+
+```text
+ReleaseInput = decision content hash
+             + decision revision/effective interval
+             + approved golden-suite revision/hash
+             + lookup snapshot ids/hashes used by tests
+             + site target/composition config hash
+             + generator version
+```
+
+Golden suites are immutable, versioned records with case provenance. Lookup data used by tests is exported to immutable snapshots; production lookup providers may remain live, but the release gate always records the tested snapshot. The artifact manifest contains every input hash and every output hash.
+
+**Delivery ordering.** The one-time integration seam is landed and verified on the target repository's baseline before recurring delivery begins. Each delivery branches from that seam-enabled baseline, generates code and tests, compiles and runs generated Java, runs target-application regression tests through the façade, emits a semantic diff, and only then commits/pushes or opens a review request. The Phase-1 fixture uses a local bare remote and PR-equivalent review report so the complete branch flow is testable without external credentials.
 
 ## 3. System Overview
 
@@ -107,66 +164,114 @@ Six stages; the repository (③) is the hub. Users editing/adding rules in opera
 | ② | Source adapters | Extract *candidate* IR rules from one input kind, attach `sourceReferences` + `confidence` | Approving rules; writing production artifacts |
 | ③ | Rule repository | Store IR; version every change; keep full audit trail | Storing JDM/DMN/source (generated artifacts live in git/artifact store) |
 | ④ | Governance & validation | Review workflow, approval gates, diff, golden-test execution, preview | Mutating rules silently; auto-approving anything |
-| ⑤ | Target generators | Deterministically render approved IR into one artifact kind | Deciding *which* rules are live (they consume `status = approved` only) |
+| ⑤ | Target generators | Deterministically render content from an approved revision envelope into one artifact kind | Deciding *which* rules are live (release selection is a repository/delivery responsibility) |
 | ⑥ | Delivery | Mode B: git branch/PR + CI/CD; Mode A: publish to Zen runtime | Bypassing golden tests |
 
 ## 5. Canonical Rule IR v1
 
-### 5.1 Profile (restricted by design)
+### 5.1 Profile and invariants
 
-The v1 profile only admits structures we can review, test, and generate code from safely:
+The v1 profile admits only structures that every active executor can review and implement identically:
 
-- decision tables and condition/action rules;
-- operators: `=, !=, >, >=, <, <=, IN, NOT_IN, BETWEEN, EXISTS`;
-- `AND`/`OR` condition groups (nesting allowed, bounded depth);
-- hit policies: `FIRST`, `UNIQUE`, `COLLECT`;
-- explicit lookup-table references (no inline SQL, no arbitrary calls);
-- deterministic output assignment only — **no side effects, no arbitrary function execution, no full FEEL**.
+- decision-table condition/action rules;
+- the typed operators and operands defined by ADR-7;
+- `all`/`any` condition groups, with maximum nesting depth 3;
+- hit policies `FIRST`, `UNIQUE`, and `COLLECT`;
+- declared lookup references with explicit key bindings and selected fields;
+- deterministic output assignment and the three site-composition aggregators in ADR-7;
+- no inline SQL, arbitrary calls, side effects, full FEEL, or language snippets.
 
-Anything a source adapter cannot express in this profile becomes a *review-queue item with the raw fragment attached*, never a silently-dropped or silently-mangled rule. The profile grows deliberately (v1.1, v2 …) — each extension must be supported by **every** active target generator before it is admitted, or generation would break asymmetrically.
+Anything an adapter cannot express becomes a review-queue item containing the raw fragment, exact provenance, reason code, and adapter version. It is never silently dropped or coerced. A profile extension requires schema migration plus conformance tests for Pydantic, JDM/Zen, and every active target generator.
 
-### 5.2 Shape
+### 5.2 Decision content shape
+
+Repository status, revision, actors, and effective dates are deliberately absent from this content object; ADR-6 places them in the governed revision envelope.
 
 ```json
 {
   "decisionId": "enrollment_eligibility",
   "decisionName": "가입 자격 판정",
   "profile": "RULE_IR_V1",
-  "version": 7,
-  "status": "APPROVED",
-  "product": "cancer-insurance-basic",
-  "effective": { "from": "2026-08-01", "to": null },
+  "schemaVersion": 1,
+  "product": "CANCER_BASIC",
+  "programContexts": [
+    { "programId": "ENROLLMENT-API", "kind": "API",
+      "entryPoint": "legacy.EnrollmentValidator#evaluate" }
+  ],
   "hitPolicy": "FIRST",
-  "inputs":  [ { "name": "customer.age", "type": "number" },
-               { "name": "product.code", "type": "string" } ],
-  "outputs": [ { "name": "eligible", "type": "boolean" },
-               { "name": "reasonCode", "type": "string" } ],
-  "lookups": [ { "name": "rate_table_2026", "ref": "lookup://rates/2026" } ],
+  "inputs": [
+    { "name": "age", "sourcePath": "customer.age", "type": "integer", "required": true },
+    { "name": "regionCode", "sourcePath": "customer.regionCode", "type": "string", "required": true }
+  ],
+  "outputs": [
+    { "name": "eligible", "type": "boolean" },
+    { "name": "reasonCode", "type": "string" }
+  ],
+  "defaultOutput": { "eligible": true, "reasonCode": "ELIGIBLE" },
+  "lookups": [
+    { "name": "region_eligibility", "ref": "lookup://region_eligibility" }
+  ],
   "rules": [
     {
       "ruleId": "R001",
-      "when": [ { "field": "customer.age", "operator": "<", "value": 18 } ],
-      "then": [ { "field": "eligible", "value": false },
-                { "field": "reasonCode", "value": "UNDER_AGE" } ],
+      "when": {
+        "all": [
+          { "left": { "kind": "INPUT", "name": "age" },
+            "operator": "LT",
+            "right": { "kind": "LITERAL", "value": 18 } }
+        ]
+      },
+      "then": [
+        { "output": "eligible", "value": false },
+        { "output": "reasonCode", "value": "UNDER_AGE" }
+      ],
+      "origin": "EXTRACTED",
       "sourceReferences": [
-        { "type": "JAVA_SOURCE", "repository": "legacy-enrollment",
-          "file": "EnrollmentValidator.java", "lineStart": 120, "lineEnd": 132 } ],
+        { "type": "JAVA_SOURCE", "repository": "legacy-enrollment", "revision": "abc123",
+          "file": "src/main/java/legacy/EnrollmentValidator.java",
+          "lineStart": 24, "lineEnd": 29 }
+      ],
       "confidence": 0.82
     }
-  ],
-  "audit": { "createdBy": "...", "approvedBy": "...", "history": "…" }
+  ]
 }
 ```
 
-Notes: Korean text is first-class everywhere (names, reason codes, comments) — it must survive extraction→storage→generation byte-exact (PRD §8). `sourceReferences` also admits `DB_TABLE`, `MANUAL_DOC`, `DMN_ASSET` types.
+Logical names such as `age` must be valid identifiers in every active target language. `sourcePath` preserves the legacy property path without leaking language syntax into execution semantics.
 
-### 5.3 Status lifecycle
+### 5.3 Provenance and authored rules
 
-`PENDING_REVIEW → APPROVED → RETIRED` (plus `REJECTED`). Target generators and the mode-A runtime see **approved only**. Every transition is audited (who/when/why); approval requires maker-checker.
+Every rule has an `origin`:
 
-### 5.4 Schema evolution
+- `EXTRACTED` requires one or more source references and `confidence` in `[0,1]`.
+- `USER_AUTHORED` requires a `USER_ACTION` reference containing actor, timestamp, and reason; confidence is omitted because it is not an extraction score.
 
-`profile` + a schema version field gate every reader/writer. Migrations are forward-only scripts checked into this repo; adapters declare the max profile they support.
+Source references are discriminated records, not a generic file/line structure:
+
+- `JAVA_SOURCE`: repository, immutable revision, file, line range, optional symbol.
+- `DB_ROW`: connection alias, schema, table, primary-key JSON, snapshot id/hash.
+- `MANUAL_DOC`: document id/revision and page, slide, sheet, section, or cell range.
+- `DMN_ASSET`: repository/object id, immutable revision, decision id, and element id.
+- `USER_ACTION`: actor, timestamp, and reason.
+
+This follows the knowledge product's trust model: an evidence pointer identifies the exact source revision and location, not merely a filename. Korean text is preserved byte-exact through source evidence, content JSON, database storage, previews, generated strings, and reports.
+
+### 5.4 Revision lifecycle and maker-checker
+
+Revision-envelope states are:
+
+```text
+DRAFT → SUBMITTED → APPROVED | REJECTED
+APPROVED → RETIRED
+```
+
+The revision creator is the maker. Submit is allowed only by the maker or a configured delegate. Approve/reject requires an authenticated actor different from both creator and submitter; Phase 1 uses a development actor header, but the service rule is the same. Every transition appends an audit event with actor, timestamp, previous/new state, reason, content hash, and request correlation id.
+
+An approved revision is immutable. Editing it creates a new `DRAFT` revision. Approval also validates effective-date overlap and requires an approved golden-suite revision.
+
+### 5.5 Schema evolution and conformance
+
+`profile` plus `schemaVersion` gate every reader and writer. Migrations are forward-only scripts checked into this repository. Adapters and generators declare supported profile/version ranges. `tests/conformance/` contains canonical inputs and expected results shared by the Pydantic model, JDM/Zen evaluator, Java generator, and consistency runner.
 
 ## 6. Source Adapters
 
@@ -175,7 +280,7 @@ Notes: Korean text is first-class everywhere (names, reason codes, comments) —
 ```text
 SourceAdapter:
   discover(siteConfig)              -> Source[]           # what's there to extract
-  extract(source)                   -> CandidateRule[]    # IR-shaped, status=PENDING_REVIEW
+  extract(source)                   -> ExtractionBatch    # decision content + unmappable items
   # every CandidateRule carries sourceReferences + confidence; nothing is auto-approved
 ```
 
@@ -183,7 +288,9 @@ Adapters are packages under `source-adapters/` (`db-postgres`, `code-java`, `eng
 
 ### 6.2 `db-postgres` — config/code tables (priority-1 source)
 
-Deterministic ETL: map condition columns / action columns per a reviewed mapping spec; each row → one IR rule, `confidence = 1.0` (still reviewed, but near-lossless). DB access goes through the **reusable DB MCP library** — connection-info-driven, plug-and-play per the multi-site directive; the adapter never embeds site credentials or schema assumptions.
+Deterministic ETL: map condition columns / action columns per a reviewed mapping spec; each row → one IR rule, `confidence = 1.0` (still reviewed, but near-lossless). A `DB_ROW` reference records schema/table, primary-key JSON, and a snapshot hash — row ids are never overloaded into source line fields. DB access goes through the **reusable DB MCP library** — connection-info-driven, plug-and-play per the multi-site directive; the adapter never embeds site credentials or schema assumptions.
+
+The connector authenticates with a database role that has `SELECT`/metadata permissions only. Transaction read-only mode is defense in depth, not the primary control. Dynamic identifiers are resolved from catalog-discovered allowlists and quoted by the driver; tests attempt writes and identifier injection and must prove both are rejected.
 
 ### 6.3 `code-java` — source mining (the differentiator)
 
@@ -191,7 +298,7 @@ Pipeline (detail rationale in PRD §5.1 #3):
 
 ```text
 git repo → Joern parse (Code Property Graph: AST + CFG + data-dependency)
-        → seed enrollment entry points (handlers/screens/APIs; embedding-assisted discovery)
+        → seed program entry points (SCREEN/BATCH/INTERFACE/API/SERVICE)
         → call-graph reachability (drop everything unreachable — solves repo scale)
         → keep units containing decision constructs (if/switch/validation/lookup)
         → backward slice per decision point (self-contained chunk + exact file/line)
@@ -199,7 +306,7 @@ git repo → Joern parse (Code Property Graph: AST + CFG + data-dependency)
         → de-dup → PENDING_REVIEW
 ```
 
-The code graph is **throwaway scaffolding** (rebuilt per analysis run, in Joern's own store) — the durable outputs are the candidate rules and a slice manifest. Chunking criteria: real syntax boundaries (method), relevance gate (reachable ∧ decision-bearing), self-contained slices, split oversized units per decision point.
+The code graph is **throwaway scaffolding** (rebuilt per analysis run, in Joern's own store) — the durable outputs are candidate decision content, unmappable items, program-context mappings, and a slice manifest. Each source repository is pinned to an immutable commit for a mining run. Chunking criteria: real syntax boundaries (method), relevance gate (reachable ∧ decision-bearing), self-contained slices, split oversized units per decision point.
 
 ### 6.4 `engine-dmn` — external-engine import
 
@@ -216,22 +323,28 @@ Rule-oriented extraction to IR shape. May borrow low-level document-parsing util
 ```text
 TargetGenerator:
   supports(profile, targetConfig)   -> bool
-  generate(approvedRuleSet, targetConfig) -> GeneratedArtifact   # deterministic (ADR-4)
+  generate(releaseInput)            -> GeneratedArtifact   # deterministic (ADR-4/8)
 ```
 
 Packages under `target-generators/`: `java-source`, `jdm-export`, `test-generator` (Phase 1); `dmn-export`, `csharp-source`, `report-generator` (later).
 
 ### 7.2 `java-source`
 
-- Renders each decision to a self-contained Java class/module (template or JavaPoet-style AST builder — chosen in Phase 0 against real sample code).
-- Generated code is **owned by the generator**: it lives in a marked package (e.g. `…rules.generated`), carries `@Generated` + rule id/version headers, and is **never hand-edited** — regeneration is the only write path.
+- Renders each independently evaluated decision to a self-contained Java class using JavaPoet and the ADR-7 type mapping.
+- `FIRST`/`UNIQUE` classes return one output record and use the required `defaultOutput` on no match. `COLLECT` classes return `List<Output>` in rule order. `UNIQUE` throws a typed multiple-match exception.
+- Lookup operands call a generated `LookupProvider` contract with declared key bindings; lookup results are type-checked before operator evaluation.
+- A generated or hand-reviewed site façade composes multiple decisions using only configured `SUM`, `DISTINCT`, and `FIRST_NON_NULL` aggregators. Site composition lives in target config, not in core generator branches.
+- Generated code is **owned by the generator**: it lives in a marked package (e.g. `…rules.generated`), carries `@Generated` plus decision/revision/content-hash headers from the release manifest, and is **never hand-edited** — regeneration is the only write path.
 - Lookup access goes through a thin provided interface (site supplies the implementation), so generated code stays free of DB/framework coupling.
 
 ### 7.3 Delivery flow (mode B)
 
 ```text
-approve rule vN → generate → diff vs previous generated source → PR (reviewable, deterministic diff)
-             → CI: compile + golden tests (authoritative) → merge → site CI/CD deploy
+one-time: land and verify façade seam on target baseline
+recurring: approve revision + golden suite → generate from recorded ReleaseInput
+        → compile + generated-Java golden tests + target regression tests
+        → diff vs previous generated source → commit/push → PR/MR
+        → site CI repeats authoritative gates → merge → site CI/CD deploy
 ```
 
 ### 7.4 `jdm-export` (mode A + preview)
@@ -240,7 +353,7 @@ IR→JDM is intentionally trivial because the IR v1 profile is a strict subset o
 
 ### 7.5 `test-generator`
 
-Golden tests are IR-derived: each decision's test set = curated input/expected-output pairs (seeded from legacy behavior during initial load, extended by reviewers). Rendered as JUnit against generated Java (mode B) and as Zen evaluation fixtures (mode A).
+Golden suites are governed inputs rather than incidental database rows. Each immutable suite revision contains curated input/expected-output pairs, case provenance, decision-key coverage, and lookup-snapshot references. Suites are seeded from legacy behavior during initial load and extended through maker-checker review. The same suite renders as JUnit against generated Java (mode B) and as Zen evaluation fixtures (mode A), but only the executor named by §9 is authoritative.
 
 ## 8. The Mode-B Integration Seam (initial-load cut-over)
 
@@ -248,9 +361,10 @@ Generating a rule module is not enough — legacy code must *call* it, or edited
 
 1. Mining identifies the sliced region(s) in legacy source (§6.3 gives exact file/line).
 2. Engineers replace each region with a call to the generated module behind a thin façade (`EnrollmentRuleModule.evaluate(input) -> decision`) — a **one-time, human-reviewed surgical change** (this is SI-phase work, consistent with the customer's framing).
-3. From then on, the façade is the stable boundary: regeneration changes what's *behind* it, never the call sites.
+3. The seam branch runs shadow/regression tests and is merged into the delivery baseline before the first recurring rule delivery.
+4. From then on, the façade is the stable boundary: regeneration changes what's *behind* it, never the call sites.
 
-Verification of the cut-over: golden tests seeded from pre-cut-over behavior (shadow comparison where feasible — run old path and new module side by side on sampled inputs; the customer indicated a product-management rule DB can serve as corroborating evidence).
+Verification of the cut-over: golden tests seeded from pre-cut-over behavior plus target-application regression tests through the façade (shadow comparison where feasible — run old path and new module side by side on sampled inputs; the customer indicated a product-management rule DB can serve as corroborating evidence). The end-to-end demo executes the target application from the delivered branch; a Zen preview result is not accepted as proof of Mode-B delivery.
 
 ## 9. Execution & Validation Authority
 
@@ -263,7 +377,7 @@ The asymmetry is deliberate (ADR-3): in mode B there are two executors (Zen prev
 
 ## 10. Multi-Site Packaging
 
-- **Site profile** (config, not code): connection info, repo list, language, DBMS, delivery mode, adapter selection, lookup-provider binding.
+- **Site profile** (config, not code): source connection aliases, source repositories pinned per run, PGM contexts (`SCREEN/BATCH/INTERFACE/API/SERVICE`), language/DBMS, delivery mode, adapter selection, lookup-provider binding, and a target-delivery block containing repository URL/path, base branch, generated/test paths, Java package, composition spec, build/test commands, and PR provider.
 - **Reusable DB MCP library**: connection-info-driven, PostgreSQL connector first, other DBMS as drivers — an owned asset carried to each site (customer directive 2026-07-02).
 - **Adapter registry**: source adapters and target generators register by capability; a site activates them by name in its profile.
 - **Hard rule:** anything that cannot be made general (a site-specific hack) must be isolated in the site profile/plug-in layer and flagged — never merged into core (PRD §8).
@@ -277,15 +391,18 @@ The asymmetry is deliberate (ADR-3): in mode B there are two executors (Zen prev
 | Preview vs production semantic drift (mode B) | Authority rule (§9); divergences = generator bugs; deterministic generation makes them reproducible |
 | FEEL / complex DMN beyond IR profile | Restricted profile + review queue with raw fragment attached; profile grows only when all generators support it (§5.1) |
 | Integration seam underestimated | Named Phase-0/1 deliverable (§8); designed against real sample code, not in the abstract |
-| IR schema drift across sites/versions | Profile+schema versioning, forward-only migrations, adapter capability declaration (§5.4) |
+| IR schema drift across sites/versions | Profile+schema versioning, forward-only migrations, adapter capability declaration (§5.5) |
 | Engine decision reversal | Engine sits behind IR + `jdm-export`; swap = new export adapter + runtime packaging, upstream untouched (ADR-1/2) |
+| Repository row status diverges from content JSON | Lifecycle/revision metadata lives only in the ADR-6 envelope; content hashes are immutable |
+| Same rule produces different release evidence | ADR-8 manifest hashes golden-suite, lookup snapshot, site config, generator, content, and outputs |
+| Delivery branch is not the code actually executed | Seam is merged into the baseline first; target regression tests run from the generated delivery branch |
 
 ## 12. Phase Mapping (deliverables)
 
 | Phase | Deliverables |
 |---|---|
-| **0 — Design & samples** | IR v1 schema + profile; adapter/generator contracts; integration-seam design against sample Java; site-profile format; confirm pilot's engine assets; **mining-model benchmark** (value vs frontier tiers on real sample slices: extraction precision/recall per cost) |
-| **1 — PoC (mode B)** | `db-postgres` (via MCP lib) + `code-java` (Joern) adapters; IR repository + review workflow; embedded-Zen preview; `java-source` + `test-generator`; diff/PR + CI golden tests; demo per PRD §11 |
+| **0 — Design & samples** | ADR-6..8 semantics + IR conformance corpus; adapter/generator contracts; PGM-context and target-delivery config; integration-seam design against synthetic/sample Java; confirm pilot's engine assets; **mining-model benchmark** when real samples arrive |
+| **1 — PoC (mode B)** | `db-postgres` (via MCP lib) + `code-java` (Joern) adapters; a bounded supplementary `docs-manual` adapter; IR repository + review workflow; versioned golden suites; embedded-Zen preview; `java-source` + `test-generator`; seam-enabled baseline; diff/PR-ready branch + CI golden/target tests; demo per PRD §11 |
 | **2 — Productize + mode A** | Hardened DB MCP library; `engine-dmn` adapter; mode-A runtime delivery (IR→JDM→Zen); governance hardening; second DBMS/language as plug-in proof |
 | **3 — Scale** | More adapters (stored-proc, UI mining, DRL/ODM import, `dmn-export`, C#); more sites/products |
 
@@ -298,7 +415,7 @@ Concrete choices per component (rationale in ADR-5; all self-hostable / air-gap-
 | Component | Primary choice | Notes / alternatives |
 |---|---|---|
 | Platform API & orchestration | **Python 3.12 + FastAPI + Pydantic v2** | IR schema = Pydantic models (JSON Schema exported from them — one definition, validated everywhere). Matches existing team stack. |
-| Rule repository storage | **PostgreSQL 16** — IR as `JSONB`, append-only version rows + audit tables; SQLAlchemy + Alembic | Dogfoods the customer's own DBMS. Alternative (open question §14): git-backed IR files if review ergonomics demand it. |
+| Rule repository storage | **PostgreSQL 16** — immutable content as `JSONB`, revision envelopes, lifecycle events, versioned golden suites, and audit tables; SQLAlchemy + Alembic | PostgreSQL is the Phase-1 system of record. Git stores generated artifacts and review diffs, not canonical decision content. |
 | Governance UI | **Vue 3 + TypeScript + Vite + Pinia** | Team consistency with the existing `frontend/` app (React would work; no reason to split stacks). **ag-grid-community** (MIT) for editable decision tables; **monaco-editor** for JSON/rule-diff views. |
 | AuthN/Z | **OIDC-pluggable** (Keycloak as self-host reference) | Maker-checker enforced in the app layer, not the IdP. |
 | Packaging | **Docker Compose** (api, ui, postgres, joern, decision-service); `uv` for Python, `pnpm` for UI | Compose-first for on-prem/air-gap; k8s optional, never required. |
@@ -309,7 +426,7 @@ Concrete choices per component (rationale in ADR-5; all self-hostable / air-gap-
 | Adapter | Primary choice | Notes / alternatives |
 |---|---|---|
 | `code-java` mining | **Joern** (`javasrc2cpg` frontend; CPGQL in server mode, driven from Python) | The CPG store is Joern's own — **no Neo4j/Neptune needed**; the graph is throwaway scaffolding (§6.3). tree-sitter as a cheap pre-scan fallback. |
-| LLM rule mining | **Tiered + benchmark-selected, provider-swappable** — bulk extraction on a value-tier model; hard slices & verification on a frontier-tier model | Mining is token-heavy, repetitive, structured-output work with a downstream safety net (human review + golden tests) — the cost/quality trade-off favors value models for the bulk tier. Candidates: **DeepSeek, Kimi (Moonshot), GLM (Z.ai), Qwen** (value/open-weights) vs **Claude/GPT** (frontier). Defaults are decided by the **Phase-0 mining benchmark** on real sample slices (extraction precision/recall vs cost), not by vendor claims. Structured output validated by the same Pydantic IR models regardless of provider. LLM output is candidate-only (ADR-4). |
+| LLM rule mining | **Tiered + benchmark-selected, provider-swappable** — bulk extraction on a value-tier model; hard slices & verification on a frontier-tier model | Mining is token-heavy, repetitive, structured-output work with a downstream safety net (human review + golden tests). Phase 1 uses recorded mock responses; a real-provider default is selected only by the gated benchmark on customer-approved slices. Structured output is validated by the same Pydantic IR models regardless of provider. LLM output is candidate-only (ADR-4). |
 | LLM deployment per site | API where policy allows; **self-hosted open-weights (vLLM)** for air-gapped sites | Open-weights options (DeepSeek/Qwen/GLM/Kimi) are the only viable path for air-gapped finance sites — no closed API (Claude included) can serve them. Conversely, some sites may restrict specific foreign endpoints; the site profile (§10) selects the provider, the pipeline code never changes. |
 | `db-postgres` + DB MCP library | **Official Python MCP SDK (FastMCP)** + **psycopg 3** | The reusable, connection-info-driven MCP asset (PRD §8). Other DBMS later as drivers: `oracledb`, `pyodbc`/MSSQL. |
 | `engine-dmn` | **lxml** against the DMN 1.3+ XSD for decision tables; hand-rolled parser for the *restricted* FEEL subset | Complex FEEL → review queue (§6.4), so no full FEEL parser in MVP. If XML handling gets hairy, Camunda's `dmn-model` via the Java toolchain. |
@@ -319,7 +436,7 @@ Concrete choices per component (rationale in ADR-5; all self-hostable / air-gap-
 
 | Component | Primary choice | Notes / alternatives |
 |---|---|---|
-| `java-source` generator | **Java 17 toolchain: JavaPoet** (AST-safe class generation) + **google-java-format** (deterministic formatting) — packaged as a Gradle-built CLI: JSON IR in → `.java` out | MVP shortcut: Jinja2 templates from Python are acceptable to start, migrate to JavaPoet when the generated surface grows. Determinism is non-negotiable either way (ADR-4). |
+| `java-source` generator | **Java 17 toolchain: JavaPoet** (AST-safe class generation) + **google-java-format** (deterministic formatting) — packaged as a Gradle-built CLI: release manifest + JSON IR in → `.java` out | JavaPoet is the Phase-1 choice. Site-specific style differences are formatter/import/package configuration, not alternate free-form templates. |
 | Integration-seam cut-over (§8) | **OpenRewrite** recipes — replace the mined region with the façade call | Semi-automated, always lands as a human-reviewed PR. This is *refactoring existing code*; distinct from generation (JavaPoet) and mining (Joern). |
 | `test-generator` | JUnit 5 sources via the same Java toolchain; JSON fixtures for Zen (mode A) | Golden-test authority per §9. |
 | `jdm-export` | Pure Python JSON transform, round-trip-validated against embedded Zen | Trivial by design — IR v1 ⊂ JDM. |
@@ -332,9 +449,23 @@ Concrete choices per component (rationale in ADR-5; all self-hostable / air-gap-
 - **No message broker** (Kafka etc.) — extraction is batch; FastAPI + task queue in-process is enough at this scale.
 - **No rule-engine BRMS suite** (GoRules BRMS paid tier, Camunda platform) — governance UI is ours; only the MIT Zen evaluator is consumed.
 
-## 14. Open Design Questions
+## 14. Phase-1 Decisions And Remaining Customer Inputs
 
-1. Rule packaging granularity — one IR decision per legacy decision point, or aggregated per product/flow? (drives repo UX and generated-module layout; decide in Phase 0 with sample code)
-2. Lookup data at runtime — how generated code and Zen runtime each bind `lookup://` refs at a given site (provided interface vs snapshot tables).
-3. Repository storage engine — PostgreSQL-backed store (leading option, matches stack) vs git-backed IR files; decide by governance/audit ergonomics in Phase 0.
-4. Template vs AST-builder for `java-source` — decide against real sample code style (must blend with site conventions).
+### 14.1 Closed for implementation
+
+1. **Packaging:** one IR decision per independently evaluated decision table. Product/flow behavior is composed by the site façade using the restricted ADR-7 aggregators.
+2. **Lookups:** IR declares typed key/result bindings; production uses a site `LookupProvider`; golden gates use immutable lookup snapshots and record their hashes.
+3. **Repository:** PostgreSQL is the canonical Phase-1 store; Git is the delivery/review store for generated artifacts.
+4. **Java generation:** JavaPoet + google-java-format is binding for Phase 1.
+5. **Engine:** Zen is the advisory preview executor and the future Mode-A executor behind `jdm-export`; generated Java remains Mode-B authority.
+6. **Development isolation:** local/CI containers are the default for automated tests. Shared EC2/RDS resources are optional integration targets and require explicit human authorization before mutation or service-impacting changes.
+
+### 14.2 Still customer-gated
+
+- Real source/schema samples and the pilot product/flow.
+- Site-specific target repository conventions and the human-reviewed seam design.
+- Approval roles/evidence requirements beyond the Phase-1 maker-checker rule.
+- Provider policy and the real-slice mining benchmark.
+- Production lookup freshness/SLA and release-channel policy.
+
+These inputs block real-site rollout and benchmark claims, but not the synthetic Phase-1 fixture or the generic contracts above.

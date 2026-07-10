@@ -1,454 +1,446 @@
 # Implementation Plan — Business Rules Platform
 
-> **Audience: an AI coding agent.** This file is the execution plan and progress tracker for building the platform described in `prd.md` (product) and `architecture.md` (design source of truth). The customer approved the architecture on 2026-07-04. Follow the protocol in §0 exactly. When this plan and your own judgment disagree, **this plan wins**; if the plan seems wrong, log a `PROPOSAL:` (§0.2) instead of deviating.
+> **Audience: AI coding agents and reviewers. Status: v1.1 implementation baseline (2026-07-10).** This plan implements `prd.md` and `architecture.md` v1.1. The Telecom Knowledge Assistant PRD (`../agent_testcase/services/knowledge-api/prd.md`, §4.10) is context only: it establishes this as a separate PGM source-generation track and contributes trust, provenance, Korean-preservation, review, and extensibility principles. It does not authorize reuse of chat/RAG/Neptune components.
 
 ---
 
-## 0. Agent Protocol
+## 0. Execution Protocol
 
-### 0.1 Required reading order
-1. `AGENTS.md` (this directory) — scope boundaries.
-2. `architecture.md` — full read. ADR-1..5 are binding constraints.
-3. `prd.md` §5–§9 — functional requirements.
-4. This file, top to bottom.
+### 0.1 Required reading
 
-### 0.2 How to work
-1. Complete the **E-tasks (§3.0)** first if any are unchecked.
-2. Then pick the **first unchecked T-task, in numeric order**, whose `Depends` are all checked. Do not skip ahead across milestones. Exception: T-403/T-404 (UI) may be done any time after M2 is complete.
-3. A task is **done only when every `Accept` command passes**. Run them literally — do not reason your way past them. If an Accept command cannot run (missing tool), the task is BLOCKED, not done.
-4. Mark done: change `- [ ]` to `- [x]` and append ` ✅ YYYY-MM-DD <short-commit-hash>` to the task's title line. Then append one line to the Progress Log (§7).
-5. One task per commit where practical. Commit message format: `feat(platform): T-303 db-postgres adapter` (use `fix`/`test`/`chore` when more accurate). Branch: work directly on `main` unless a human says otherwise.
-6. **BLOCKED:** if stuck > ~30 minutes on environment/tooling, or a requirement is genuinely ambiguous: append `BLOCKED: T-### | what you tried | what is needed` to the Progress Log, leave the box unchecked, move to the next unblocked task.
-7. **PROPOSAL:** to change anything in `architecture.md`/`prd.md`/this plan's design, append `PROPOSAL: <what & why>` to the Progress Log and continue without the change. A human reviews proposals.
-8. Never delete or rewrite existing Progress Log lines. Append only.
+1. `AGENTS.md` and `prd.md` in this directory.
+2. `architecture.md`, including ADR-1..8 and §14.
+3. Knowledge-assistant PRD §4.10 and §5.2–§5.4 for separation/trust context only.
+4. This plan, top to bottom.
 
-### 0.3 Ground rules (violating any of these = task not done, even with green tests)
-- **IR is the only system of record** (ADR-1). JDM, DMN, generated Java are derived artifacts — never primary storage.
-- **Deterministic generation** (ADR-4): same approved IR in → byte-identical files out. LLM output is *candidate rules only* (`status=PENDING_REVIEW`); LLM text never enters generated artifacts, templates, or production code paths.
-- Every extracted candidate has `sourceReferences` (exact file+lines, or table name) and `confidence`. Nothing is auto-approved. Approver ≠ submitter (maker-checker), enforced in code.
-- Mode-B golden tests execute the **generated Java** (compile + run). Zen preview is advisory (architecture §9).
-- **Korean text survives byte-exact** end to end. Fixtures deliberately contain Korean strings; tests must assert on them. Set `PYTHONUTF8=1` and `JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8` (E-001).
-- Nothing site-specific in core code. Site differences live in `config/sites/*.yaml` and adapters only.
-- Secrets/connection strings via environment or gitignored `.env` only. Never hardcode, never log, never commit.
-- All new code: English identifiers/comments; type hints everywhere (Python), `from __future__ import annotations` not required (3.12); `ruff` clean; tests colocated under `tests/` mirroring `src/` paths.
+### 0.2 Task selection and progress
 
-### 0.4 Environment assumptions
-- **Reuse-first on AWS.** The primary dev/integration host is the **existing project EC2 instance** (the one already running the knowledge-assistant backend) — it already has Python and other tooling installed for that project. **Verify what exists before installing anything** (E-tasks start with checks, not installs). The database is **AWS RDS PostgreSQL**, not a local install.
-- **Shared-host etiquette (hard rules):** the EC2 also serves the knowledge-assistant (hybrid-RAG) deployment. Do NOT: upgrade/replace system Python or global packages, stop/restart its services, edit its env files, or bind its ports. All BRP Python work lives in this repo's own uv-managed venvs; BRP API binds **port 8100** (assume 8000 is taken). If a needed system-level change could affect the other project, log `BLOCKED:`/`PROPOSAL:` instead of doing it.
-- **Local Windows dev is the secondary path** (bare-metal per §2.1 winget column; Docker optional fallback). Git Bash runs `.sh`; every script in `scripts/` must have a `.ps1` twin so both environments work.
-- Run Python commands from `platform/` (or `mcp-db-connector/`), Gradle from `java-toolchain/` or `fixtures/legacy-enrollment/`, pnpm from `ui/`, unless a task says otherwise.
+1. Dependencies are authoritative. Pick the lowest-numbered unchecked task whose `Depends` are checked; an unrelated blocked environment task does not freeze the whole plan.
+2. A task is done only when every listed acceptance command/test passes. If a required tool is missing, leave the task unchecked and log `BLOCKED`.
+3. Work on a feature branch unless a human explicitly authorizes direct work on `main`. One task per commit where practical.
+4. Mark completion as `- [x] ... ✅ YYYY-MM-DD <short-commit-hash>` and append one Progress Log line. E-tasks use their E-id in the same format.
+5. Design changes require a `PROPOSAL` log entry and human review. Do not silently widen IR semantics, add a provider, or weaken a gate.
+6. Existing Progress Log lines are append-only.
 
----
+Progress format:
 
-## 1. Context Snapshot (self-contained)
-
-We build a **rule-governance + source-generation platform** for finance/insurance enrollment logic (`가입 Rule`):
-
-- **Initial load (one-time per site):** extract rules from legacy assets — PostgreSQL config tables (ETL, trust=1.0), Java source (Joern locates & slices decision logic → LLM drafts candidate rules), manuals, DMN — into a governed **Rule Repository** storing the **Canonical Rule IR v1**.
-- **Operation (ongoing):** business users edit rules; after maker-checker approval, delivery happens per site:
-  - **Mode B (Phase 1, this plan's target):** deterministically regenerate a Java rule module → compile → generated golden tests pass → branch/PR into the target repo.
-  - **Mode A (Phase 2, gated):** publish approved rules (IR→JDM) to an embedded GoRules Zen decision service.
-
-**Canonical Rule IR v1 example** (full spec: `architecture.md` §5 and `docs/ir-v1.schema.json` after T-102):
-
-```json
-{
-  "decisionId": "enrollment_eligibility",
-  "decisionName": "가입 자격 판정",
-  "profile": "RULE_IR_V1",
-  "version": 1,
-  "status": "PENDING_REVIEW",
-  "product": "CANCER_BASIC",
-  "effective": { "from": "2026-08-01", "to": null },
-  "hitPolicy": "FIRST",
-  "inputs":  [ { "name": "customer.age", "type": "number" },
-               { "name": "product.code", "type": "string" } ],
-  "outputs": [ { "name": "eligible", "type": "boolean" },
-               { "name": "reasonCode", "type": "string" } ],
-  "lookups": [ { "name": "rate_table", "ref": "lookup://rate_table" } ],
-  "rules": [ {
-      "ruleId": "R001",
-      "when": [ { "field": "customer.age", "operator": "<", "value": 18 } ],
-      "then": [ { "field": "eligible", "value": false },
-                { "field": "reasonCode", "value": "UNDER_AGE" } ],
-      "sourceReferences": [ { "type": "JAVA_SOURCE", "repository": "legacy-enrollment",
-        "file": "src/main/java/legacy/EnrollmentValidator.java", "lineStart": 24, "lineEnd": 29 } ],
-      "confidence": 0.82
-  } ]
-}
+```text
+YYYY-MM-DD HH:MM | E-###|T-### | done|BLOCKED|PROPOSAL | <commit-or-n/a> | note
 ```
 
-Restricted v1 profile: operators `=, !=, >, >=, <, <=, IN, NOT_IN, BETWEEN, EXISTS`; AND/OR groups (max depth 3); hit policies `FIRST | UNIQUE | COLLECT`; explicit `lookup://` refs only; **no** FEEL, no side effects, no function calls. Anything inexpressible → review-queue item with the raw fragment attached, never silently dropped.
+### 0.3 Non-negotiable invariants
 
-**Customer samples have NOT arrived.** M0 builds a synthetic legacy fixture app; all later tasks develop against it. Real samples slot in later as a second site profile — zero design change.
+- Canonical decision content is the only rule-system source of truth. JDM, DMN, Java, reports, and test source are derived.
+- Repository revision/status/effective/actor metadata lives in the ADR-6 envelope, never duplicated inside content JSON.
+- Extracted rules are candidates with exact immutable source provenance and confidence. User-authored rules use `USER_ACTION` provenance. Nothing is auto-approved.
+- Approver differs from creator and submitter. Every transition is audited.
+- Generated artifacts depend only on the recorded ADR-8 `ReleaseInput` and are byte-identical for identical inputs.
+- Mode-B authority is compiled generated Java plus target-application regression tests. Zen output is labeled advisory.
+- Korean strings survive byte-exact from fixtures/evidence through JSONB, Zen, Java, logs, diffs, and reports.
+- Site differences, PGM mappings, composition, lookup binding, and delivery paths live in validated config or adapters, never hard-coded core branches.
+- Secrets are read from environment/secret stores. Never place passwords in command arguments, committed files, logs, or progress entries.
+
+### 0.4 Development isolation
+
+- Local/CI PostgreSQL containers and synthetic fixtures are the default automated-test path.
+- Shared EC2/RDS resources are optional integration targets. Any service-impacting change, database/role creation, security-group edit, instance resize, or external push/PR requires explicit human authorization.
+- Never modify the knowledge-assistant service, environment, ports, databases, ingestion, or deployment.
+- Python commands run from `platform/` or `mcp-db-connector/`; Gradle from `java-toolchain/` or `fixtures/legacy-enrollment/`; pnpm from `ui/`.
+- Every committed `.sh` under `scripts/` has a behavior-equivalent `.ps1`. Acceptance tests invoke the platform-neutral Python/Gradle entrypoint where practical.
 
 ---
 
-## 2. Conventions & Configuration
+## 1. Phase-1 Reference Outcome
 
-### 2.1 Shared AWS resources (reuse — record actual values at E-001/E-002, do not guess)
+The synthetic reference site maps one legacy API program (`EnrollmentValidator#evaluate`) to three independently evaluated decisions:
 
-| Resource | Value (verified 2026-07-04 via AWS CLI) | Notes |
-|---|---|---|
-| EC2 dev host | `i-07af453b12aa01ff2` · EIP `13.251.6.169` · ap-southeast-1a · **t3.small (2 vCPU / 2 GB)** · 32 GB gp3 | runs `knowledge-api` + `knowledge-api-worker` (systemd, port 8080); EIP survives stop/start resize. ⚠ 2 GB RAM is too small for Joern — see resize note in E-001. SSH user: `_______` (fill at E-001) |
-| Existing Python on EC2 | version found: `_______` (fill at E-001) | the knowledge-api already uses uv there; reuse if ≥3.12 |
-| RDS PostgreSQL | `csax-rag-utils-ap-se1.cf2as4mo2yxu.ap-southeast-1.rds.amazonaws.com:5432` · **postgres 17.9** · db.t4g.small · 20 GB · publicly accessible · SG `sg-083fc997dd34f03e6` | **reuse this instance** — create a separate `brp` database + `brp` role (E-002); do NOT touch the RAG project's databases |
-| BRP API port on EC2 | **8100** | 8080 is taken by knowledge-api |
+1. `enrollment_eligibility` (`FIRST`) — age/product/region rejection with an eligible default; region uses a typed lookup.
+2. `premium_adjustments` (`COLLECT`) — matching rows emit loading percentages; the site façade applies `SUM`.
+3. `required_documents` (`COLLECT`) — matching rows emit document codes; the façade applies `DISTINCT`.
 
-### 2.1b Version pins & install paths
+This makes legacy increments and list mutations explicit without admitting side effects into IR. `STARTS_WITH` is part of IR v1 and covers the cancer-product branch. The final demo edits the under-age threshold, generates a delivery branch from a seam-enabled baseline, runs generated tests and the legacy application's tests on that branch, and executes the legacy entry point to prove the outcome changed.
 
-| Tool | Version | EC2 (Amazon Linux/Ubuntu — check first, install only if missing) | Windows local (secondary) |
-|---|---|---|---|
-| Python | 3.12.x | reuse existing; else `uv python install 3.12` (user-local) | `winget install Python.Python.3.12` |
-| uv | latest | `curl -LsSf https://astral.sh/uv/install.sh \| sh` (user-local) | `winget install astral-sh.uv` |
-| JDK | Temurin/Corretto 17 | check `java -version`; else `sudo dnf install java-17-amazon-corretto` (or apt temurin-17-jdk) | `winget install EclipseAdoptium.Temurin.17.JDK` |
-| Gradle | 8.7 via wrapper | committed `gradlew` — never a global install | same |
-| Node | 22 LTS | check `node -v`; else via nvm (user-local) | `winget install OpenJS.NodeJS.LTS` |
-| pnpm | 9.x | `corepack enable && corepack prepare pnpm@9 --activate` | same |
-| PostgreSQL | 16+ (the shared RDS runs **17.9** — target that; keep SQL/migrations compatible with 16) | **AWS RDS `csax-rag-utils-ap-se1`** (E-002) — no server install anywhere | connect to the same RDS; `psql` client tools only |
-| Joern | pin latest 4.x — **record: `_______`** | release zip → `~/tools/joern` (Linux is Joern's native platform — prefer running mining on EC2) | zip → `C:\tools\joern`; fallback Docker → WSL2 |
-| zen-engine (PyPI) | pin at T-401 — record: `_______` | `uv add zen-engine` | same |
+Customer samples remain gated. The synthetic reference proves contracts and flow, not mining accuracy on a real site.
 
-### 2.2 Python dependencies (platform/pyproject.toml)
-`fastapi`, `uvicorn[standard]`, `pydantic>=2.7`, `sqlalchemy>=2.0`, `alembic`, `psycopg[binary]`, `pyyaml`, `httpx`, `typer` (CLI), `structlog`; dev: `pytest`, `pytest-asyncio`, `ruff`, `mypy`. Pin exact versions in the lockfile (uv does this automatically); do not add dependencies beyond these without a `PROPOSAL:`.
+---
 
-### 2.3 Environment variables (`.env.example`, committed; `.env` gitignored)
+## 2. Configuration And Environment Contracts
 
-```
-# RDS is the primary DB (endpoint from §2.1); localhost only for offline local dev
-BRP_DB_URL=postgresql+psycopg://brp:<password>@<rds-endpoint>:5432/brp
+### 2.1 Environment variables
+
+```dotenv
+# SQLAlchemy/psycopg application URL
+BRP_DATABASE_URL=postgresql+psycopg://brp:brp@localhost:55432/brp
+# libpq URL used only by psql scripts
+BRP_PSQL_URL=postgresql://brp:brp@localhost:55432/brp
 BRP_API_PORT=8100
-BRP_LLM_PROVIDER=mock            # mock | anthropic | openai_compat (covers DeepSeek/Kimi/GLM/Qwen endpoints)
+BRP_LLM_PROVIDER=mock
 BRP_LLM_BULK_MODEL=
 BRP_LLM_FRONTIER_MODEL=
 BRP_LLM_API_KEY=
-BRP_LLM_BASE_URL=                # for openai_compat providers
-BRP_LLM_LIVE=0                   # 1 enables live-API tests
-JOERN_HOME=C:\tools\joern
+BRP_LLM_BASE_URL=
+BRP_LLM_LIVE=0
+JOERN_MODE=native
+JOERN_HOME=
 PYTHONUTF8=1
+JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8
 ```
 
-### 2.4 Config file shapes
+`.env.example` contains safe local values only. Integration secrets use a separate uncommitted `.env.integration` or the runtime secret store.
 
-**Site profile** — `config/sites/fixture.yaml`:
+### 2.2 Site profile
+
+`config/sites/fixture.yaml` must validate against a Pydantic model and contain no secret values:
+
 ```yaml
 site: fixture
-delivery_mode: B                 # A | B
+delivery_mode: B
 language: java
-db:
-  kind: postgres
-  conn_env: BRP_DB_URL           # name of env var holding the connection string
-adapters: [db-postgres, code-java]
-code:
-  repo_path: ../fixtures/legacy-enrollment
-  entry_points:                  # Joern seed patterns
-    - class: "legacy.EnrollmentValidator"
-      method: "evaluate"
+source:
+  db:
+    kind: postgres
+    connection_env: BRP_DATABASE_URL
+  repositories:
+    - alias: legacy-enrollment
+      path: ../fixtures/legacy-enrollment
+      revision: HEAD
+  program_contexts:
+    - program_id: ENROLLMENT-API
+      kind: API
+      repository: legacy-enrollment
+      class: legacy.EnrollmentValidator
+      method: evaluate
+adapters: [db-postgres, code-java, docs-manual]
 mapping_spec: config/mappings/fixture-tables.yaml
+target:
+  repository: ../out/fixture-remote.git
+  base_branch: main
+  generated_source_path: src/generated/java
+  generated_test_path: src/generatedTest/java
+  java_package: brp.rules.generated
+  build_command: ./gradlew test
+  pr_provider: local-report
+  composition:
+    facade: legacy.rules.EnrollmentRuleModule
+    decisions:
+      premium_adjustments: { field: premiumLoadingPct, aggregate: SUM }
+      required_documents: { field: requiredDoc, aggregate: DISTINCT }
 ```
 
-**Table mapping spec** — `config/mappings/fixture-tables.yaml`:
-```yaml
-tables:
-  - table: region_eligibility
-    decision_key: region_eligibility
-    condition_columns: [region_code]
-    action_columns:   [eligible]
-  - table: rate_table
-    decision_key: premium_rate
-    condition_columns: [product_code, age_band, smoker]
-    action_columns:   [base_rate, loading_pct]
-```
+### 2.3 API surface
 
-### 2.5 API surface (built in M2/M4; keep paths exactly)
+Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are development identity only, not production authentication.
 
-| Method & path | Purpose |
+| Method and path | Purpose |
 |---|---|
-| `POST /decisions` | create decision (first draft version, PENDING_REVIEW) |
-| `GET /decisions` · `GET /decisions/{key}` | list / fetch (latest version + status) |
-| `POST /decisions/{key}/versions` | new draft version (body = full IR) |
-| `POST /decisions/{key}/versions/{v}/submit` | submit for approval (actor header `X-BRP-Actor`) |
-| `POST /decisions/{key}/versions/{v}/approve` · `/reject` | maker-checker transition (403 if actor == submitter) |
-| `GET /decisions/{key}/audit` | audit trail |
-| `GET /decisions/{key}/diff?from=&to=` | structured rule diff |
-| `POST /preview/{key}` | body = input payload → decision output via Zen |
-| `POST /golden/{key}/run` | run golden cases → pass/fail report |
-
-Actor identity for Phase 1 = `X-BRP-Actor: <name>` header (real auth is Phase 2 / T-805). Reject requests without it (400).
-
-### 2.6 Windows pitfalls (read once, save pain)
-- Always set `PYTHONUTF8=1` (Korean text in tests will corrupt otherwise). Terminal output may still render mojibake — **trust file contents/pytest assertions, not terminal rendering** (see root `CLAUDE.md` memory note).
-- Write files as UTF-8 **without BOM**; `.gitattributes`: `*.java text working-tree-encoding=UTF-8`, `* text=auto`.
-- Scripts: every `scripts/x.sh` needs `scripts/x.ps1`. `.sh` runs under Git Bash.
-- `psycopg[binary]` avoids needing a C compiler.
-- Gradle on Windows: use `gradlew.bat` from PowerShell, `./gradlew` from Git Bash — both committed.
-- Joern's launcher scripts are Unix-flavored; on native Windows run `joern.bat` if present, else use the Docker/WSL fallback and set `JOERN_MODE=docker` consumed by our wrapper (T-304 builds the wrapper with both modes).
+| `POST /decisions` | Create decision and immutable DRAFT revision from content + effective interval |
+| `GET /decisions` · `GET /decisions/{key}` | List/fetch envelope plus content |
+| `POST /decisions/{key}/revisions` | Create a new DRAFT from full content |
+| `POST /decisions/{key}/revisions/{r}/submit` | Submit revision |
+| `POST /decisions/{key}/revisions/{r}/approve` · `/reject` · `/retire` | Govern lifecycle |
+| `GET /decisions/{key}/audit` | Append-only lifecycle/content audit |
+| `GET /decisions/{key}/diff?from=&to=` | Semantic content diff |
+| `POST /preview/{key}?revision=` | Zen advisory preview |
+| `POST /golden-suites/{key}` | Create suite revision |
+| `POST /golden-suites/{key}/{r}/submit` · `/approve` | Govern suite revision |
+| `POST /golden/{key}/run?executor=zen-advisory|generated-java` | Run a named executor; response identifies authority |
 
 ---
 
-## 3. Milestones & Tasks
+## 3. Milestones And Tasks
 
-Format per task — **Do** (steps), **Files** (what to create/touch), **Accept** (commands that must pass; run from the stated directory), **Depends**.
+### 3.0 E — Safe local environment
 
-### 3.0 E — Environment (reuse-first on the existing EC2; install only what's missing)
+- [x] **E-000 — Align governing status.** ✅ 2026-07-10 4e1fa4f
+  - Do: update stale planning-only statements in `AGENTS.md` to agree with the approved per-site Mode A/B decision and implementation status; preserve the isolated-track boundary.
+  - Accept: `rg -n "unconfirmed|planning track" AGENTS.md` returns no stale instruction; `rg -n "separate|isolated" AGENTS.md` confirms the boundary remains.
 
-- [ ] **E-001 — Inventory & base tools on the EC2.**
-  - ⚠ **RAM note:** the EC2 is a t3.small (2 GB). BRP API + existing knowledge-api coexist fine, but **Joern mining will not fit** — before running any Joern task (E-003, T-007, T-304+) the instance must be resized (recommended **t3.large**, 8 GB; EIP is retained across stop/start; coordinate the few minutes of knowledge-api downtime with the team) or mining must run on a separate machine (local Windows box / ephemeral EC2). A human decides the resize — raise `BLOCKED:` if you reach a Joern task while still on 2 GB.
-  - Do: on the existing EC2 (§2.1): run `python3 --version && java -version && node -v && git --version && psql --version` and **record every found version in the §2.1 table**. Install only the gaps, per the §2.1b EC2 column, always user-local (uv-managed Python, nvm Node) — **never upgrade or replace anything the knowledge-assistant uses** (§0.4 etiquette). Add `PYTHONUTF8=1` and `JAVA_TOOL_OPTIONS=-Dfile.encoding=UTF-8` to the BRP shell profile (or `.env`), not to system-wide config. If also working locally on Windows, repeat with the Windows column.
-  - Accept: `uv --version` · `uv run python --version` prints 3.12.x · `java -version` prints 17.x · `node -v` ≥ v20 · `pnpm -v` prints 9.x — all on the host you will actually build on.
-- [ ] **E-002 — RDS PostgreSQL (reuse `csax-rag-utils-ap-se1`).**
-  - Do: **no new RDS instance.** On the existing instance (endpoint in §2.1, postgres 17.9): create role `brp` (strong password → `.env`, never committed) and database `brp` owned by it: `psql "<admin-url>" -c "CREATE ROLE brp LOGIN PASSWORD '<pw>'; CREATE DATABASE brp OWNER brp;"`. Do NOT touch any existing database on that instance. Verify the SG (`sg-083fc997dd34f03e6`) already allows your client (it is publicly accessible; the EC2 path should already work). Keep an eye on shared 20 GB storage — if `brp` data grows past ~5 GB, raise a `PROPOSAL:` to split to a dedicated instance.
-  - Accept: `psql "$BRP_DB_URL" -c "select version();"` exit 0, prints PostgreSQL 17.x.
-- [ ] **E-003 — Joern.**
-  - Do: prefer the **EC2 (Linux)** — Joern's native platform: download the pinned 4.x release, extract to `~/tools/joern`, set `JOERN_HOME`; record the version in §2.1b. (Windows local: zip to `C:\tools\joern`; if the native launcher misbehaves → Docker image → WSL2; set `JOERN_MODE` accordingly in `.env`.)
-  - Accept: `"$JOERN_HOME"/joern --version` (or the docker equivalent) prints the pinned version.
+- [ ] **E-001 — Inventory local tools.**
+  - Do: record actual Python, uv, Java, Node, pnpm, Git, Docker, and optional psql versions in `docs/environment.md`. Required: Python 3.12, Java 17, Node 20+, pnpm 9, Docker/Compose or a supplied test PostgreSQL URL. Do not install or mutate shared hosts.
+  - Accept: `uv --version`; `uv run --python 3.12 python --version`; `java -version`; `node -v`; `pnpm -v`; `git --version`; and either `docker compose version` or a successful documented external test-DB probe.
 
-### M0 — Scaffold & Foundations
-*Exit: all builds green; fixture app tests pass; Joern parses the fixture.*
+- [ ] **E-002 — Local PostgreSQL and safe URLs.**
+  - Do: add Compose PostgreSQL 16 on port 55432, create the `brp` database/user through container initialization, and implement `scripts/check-pg.py` using psycopg so shell scripts never need to translate SQLAlchemy URLs. `.sh`/`.ps1` wrappers call the Python script. RDS integration is opt-in and not part of local acceptance.
+  - Accept: `docker compose -f docker/docker-compose.yml up -d --wait postgres`; then `uv run --project platform python scripts/check-pg.py` exits 0 using `BRP_DATABASE_URL`.
+  - Depends: T-001.
 
-- [ ] **T-001 — Monorepo scaffold + Python project.**
-  - Do: create the §"Target Repository Layout" of the previous section — see `architecture.md` §13 for stack rationale — exactly as below:
-    ```
-    platform/  java-toolchain/  mcp-db-connector/  ui/  fixtures/legacy-enrollment/
-    docker/  docs/  scripts/  config/sites/  config/mappings/  .github/workflows/
-    ```
-    `platform/`: `uv init --package`, package name `brp`, deps per §2.2, `ruff.toml` (line-length 100), `pytest.ini` (testpaths=tests, asyncio_mode=auto). Root `README.md` linking prd/architecture/this plan. `.gitattributes` per §2.6. Commit `.env.example` per §2.3.
-  - Files: as above + `platform/src/brp/__init__.py`.
-  - Accept (from `platform/`): `uv run ruff check .` exit 0 · `uv run pytest` exit 0 (0 collected is fine).
-- [ ] **T-002 — DB bootstrap scripts.**
-  - Do: `scripts/check-pg.sh|.ps1` = connect using `BRP_DB_URL` (normally the RDS endpoint from E-002), `select 1`, exit code. `scripts/db-load-fixture.sh|.ps1` = apply `fixtures/legacy-enrollment/db/schema.sql` + `seed.sql` to the `brp` DB. Also add `docker/docker-compose.yml` (postgres:16 with healthcheck) as the *offline fallback only* — CI also uses a containerized PG service, dev uses RDS.
-  - Accept: `scripts/check-pg.sh` exit 0 against the RDS endpoint.
-  - Depends: E-002.
+- [ ] **E-003 — Joern runtime.**
+  - Do: pin an exact Joern 4.x release and configure native or Docker mode. Record the version and checksum. This task may remain blocked while non-Joern tasks proceed.
+  - Accept: `uv run --project platform python scripts/joern_smoke.py --version-only` prints the pinned version.
+  - Depends: T-001.
+
+### M0 — Scaffold and executable legacy fixture
+
+*Exit: every project builds locally; CI definitions are locally validated; the fixture behavior and expected decision decomposition are explicit.*
+
+- [ ] **T-001 — Monorepo scaffold.**
+  - Do: create `platform/`, `java-toolchain/`, `mcp-db-connector/`, `ui/`, `fixtures/legacy-enrollment/`, `fixtures/manuals/`, `docker/`, `docs/`, `scripts/`, `config/sites/`, `config/mappings/`, and `.github/workflows/`. Initialize package `brp`; add dependencies from architecture §13 plus `mcp`, `pypdf`, `python-docx`, and `openpyxl`. Add `.env.example`, `.gitattributes`, `.gitignore`, and a real smoke test.
+  - Accept (from `platform/`): `uv run ruff check .`; `uv run pytest tests/test_smoke.py`.
+  - Depends: E-000, E-001.
+
+- [ ] **T-002 — Database bootstrap and fixture loaders.**
+  - Do: add idempotent schema/seed loaders invoked through Python/psycopg and thin `.sh`/`.ps1` wrappers. No password appears in process arguments or logs.
+  - Accept: run `uv run --project platform python scripts/load_fixture_db.py --reset` twice; both exit 0 and row counts match.
+  - Depends: T-001, E-002.
+
 - [ ] **T-003 — Java toolchain scaffold.**
-  - Do: `java-toolchain/`: Gradle 8.7 wrapper committed, Java 17 toolchain block, modules `codegen-cli` (application plugin, mainClass `brp.codegen.Main`) and `seam-recipes` (java-library); Spotless plugin with googleJavaFormat; an empty smoke test each.
-  - Accept (from `java-toolchain/`): `./gradlew build` exit 0.
-  - Depends: E-001.
-- [ ] **T-004 — UI scaffold.**
-  - Do: `ui/`: Vite + Vue 3 + TS + Pinia + vue-router; deps `ag-grid-community ag-grid-vue3 monaco-editor`; placeholder `DecisionsPage.vue`; vitest configured.
-  - Accept (from `ui/`): `pnpm install && pnpm build && pnpm test -- --run` exit 0.
-  - Depends: E-001.
-- [ ] **T-005 — Synthetic legacy fixture app.** *(the stand-in for the customer's system — build it exactly as specced)*
-  - Do: `fixtures/legacy-enrollment/` = standalone Gradle Java 17 app:
-    - `legacy.model.EnrollmentRequest` fields: `int age; String productCode; boolean smoker; String regionCode; int occupationClass;`
-    - `legacy.model.EnrollmentResult` fields: `boolean eligible; String reasonCode; int premiumLoadingPct; List<String> requiredDocs;`
-    - `legacy.EnrollmentValidator#evaluate(EnrollmentRequest, Connection)` implementing **exactly these decision points** (keep them as plain if/switch — this is deliberately "bad" legacy style):
-      1. `age < 18` → reject `UNDER_AGE`
-      2. `"CANCER_BASIC".equals(productCode) && age > 65` → reject `OVER_AGE_LIMIT`
-      3. `smoker && productCode.startsWith("CANCER")` → `premiumLoadingPct += 20`
-      4. `regionCode` not present with `eligible=true` in DB table `region_eligibility` → reject `REGION_NOT_COVERED` (JDBC lookup)
-      5. `switch (occupationClass)`: class 4 or 5 → add `"DOC_HEALTH_CHECK"` to `requiredDocs`
-      6. nested: `age between 60 and 65 && "CANCER_BASIC".equals(productCode)` → `premiumLoadingPct += 30` **and** add `"DOC_HEALTH_CHECK"`
-    - `db/schema.sql` + `db/seed.sql`: `product_master(product_code pk, product_name_kr, min_age, max_age)` seeded with `('CANCER_BASIC','암보험 기본형',18,65)` and `('SAVINGS_PLUS','저축보험 플러스',19,70)`; `rate_table(product_code, age_band, smoker, base_rate, loading_pct)` ≥6 rows; `region_eligibility(region_code pk, region_name_kr, eligible)` ≥5 rows incl. `('JEJU','제주',false)`; `occupation_class(class_code pk, name_kr, required_doc)`.
-    - JUnit 5 tests pinning current behavior for ≥10 input combinations (these are the future golden seeds), using an in-memory H2 in PostgreSQL mode OR the real local PG via env — pick H2 for test isolation, but keep SQL ANSI so both work.
-  - Accept (from `fixtures/legacy-enrollment/`): `./gradlew test` exit 0.
-  - Depends: E-001.
-- [ ] **T-006 — CI.**
-  - Do: `.github/workflows/ci.yml`: jobs = platform (uv sync, ruff, pytest with a postgres service container), java-toolchain (`./gradlew build`), fixture (`./gradlew test`), ui (pnpm build+test). Cache uv/gradle/pnpm.
-  - Accept: push → CI green; record the run URL in the Progress Log line.
+  - Do: Gradle 8.7 wrapper, Java 17 toolchain, modules `codegen-cli`, `brp-rules-runtime`, and `seam-recipes`; JUnit 5; JavaPoet; Jackson; OpenRewrite; Spotless/google-java-format.
+  - Accept (from `java-toolchain/`): `./gradlew build` (or `gradlew.bat build` on Windows).
+  - Depends: T-001.
+
+- [ ] **T-004 — Governance UI scaffold.**
+  - Do: Vue 3 + TypeScript + Vite + Pinia + router, ag-grid-community, Monaco, Vitest, and a placeholder decision page.
+  - Accept (from `ui/`): `pnpm install --frozen-lockfile`; `pnpm build`; `pnpm test -- --run`.
+  - Depends: T-001.
+
+- [ ] **T-005 — Synthetic legacy application and expected decomposition.**
+  - Do: build the Java 17 fixture with the six legacy constructs from the original plan: under-age, product/age limit, `startsWith` smoker loading, region JDBC lookup, occupation document, and senior loading/document. Add at least 10 behavior tests and `fixtures/legacy-enrollment/expected-decisions.yaml` mapping all six constructs to the three §1 decisions and façade aggregators. Add an unrelated class for Joern exclusion tests.
+  - Accept (from `fixtures/legacy-enrollment/`): `./gradlew test`; schema test confirms exactly six mapped constructs and no unclassified construct.
+  - Depends: T-002, T-003.
+
+- [ ] **T-006 — CI workflow.**
+  - Do: jobs for platform (PostgreSQL service), connector, Java toolchain, fixture, and UI; pinned action majors and caches. CI must not contact shared AWS resources.
+  - Accept: `uv run --project platform pytest platform/tests/ci/test_workflow.py`; `uv run --project platform python scripts/run_ci_matrix.py`. When a remote is available, record the first green run URL before closing M0.
   - Depends: T-001..T-005.
-- [ ] **T-007 — Joern smoke.**
-  - Do: `scripts/joern-smoke.sh|.ps1`: build CPG for the fixture app, run a CPGQL query counting methods, assert `EnrollmentValidator.evaluate` exists. Must work in both `JOERN_MODE=native|docker`.
-  - Accept: `scripts/joern-smoke.sh` exit 0 and prints a method count > 0.
+
+- [ ] **T-007 — Joern fixture smoke.**
+  - Do: platform-neutral Python wrapper plus `.sh`/`.ps1` launchers; build a CPG and assert the fixture entry point exists.
+  - Accept: `uv run --project platform python scripts/joern_smoke.py --site config/sites/fixture.yaml` prints a positive method count and the entry point.
   - Depends: E-003, T-005.
 
-### M1 — Canonical Rule IR v1
-*Exit: IR models enforce the restricted profile; JSON Schema published; fixtures round-trip byte-stably.*
+### M1 — Canonical IR v1 and site contracts
 
-- [ ] **T-101 — IR Pydantic models.**
-  - Do: `src/brp/ir/models.py` implementing §1's shape: enums for operators/hit-policies/status/source-ref-types; `ConditionGroup` with `all|any` recursion capped at depth 3 (validator); `Decision.profile` literal `"RULE_IR_V1"`; candidates (`PENDING_REVIEW`) must have ≥1 sourceReference (validator); values are JSON scalars or lists only (no expressions/callables).
-  - Files: `src/brp/ir/models.py`, `tests/ir/test_models.py`.
-  - Accept (from `platform/`): `uv run pytest tests/ir/test_models.py` — must include tests rejecting: unknown operator, depth-4 nesting, candidate without sourceReferences, non-scalar action value.
-  - Depends: T-001.
-- [ ] **T-102 — JSON Schema export.**
-  - Do: `src/brp/ir/schema_export.py` + CLI `uv run python -m brp.ir.schema_export` writing `docs/ir-v1.schema.json`; test asserts committed file == freshly generated.
-  - Accept: `uv run pytest tests/ir/test_schema_export.py`.
-  - Depends: T-101.
-- [ ] **T-103 — IR fixtures + round-trip.**
-  - Do: `tests/fixtures/ir/*.json`: the §1 example plus ≥4 edge cases (COLLECT policy; BETWEEN; NOT_IN with Korean values `["제주","울릉"]`; nested groups depth 3; effective-dated version). Round-trip test: parse → dump → parse → equal, and dumped bytes stable across two dumps.
-  - Accept: `uv run pytest tests/ir/test_roundtrip.py`.
+*Exit: the schema and conformance corpus fully define types, operators, lookup behavior, hit policies, provenance, canonical bytes, PGM context, and composition.*
+
+- [ ] **T-101 — IR conformance corpus.**
+  - Do: before models, commit JSON cases covering every ADR-7 operator/type combination, invalid combinations, FIRST default, UNIQUE collision, COLLECT ordering/empty result, lookup hit/miss, nested groups depth 3/4, Korean strings, and the three fixture decisions.
+  - Accept: `uv run pytest tests/conformance/test_corpus_shape.py` confirms every operator and hit policy has positive and negative cases.
+  - Depends: T-001, T-005.
+
+- [ ] **T-102 — Pydantic decision-content models.**
+  - Do: implement discriminated operands and source references, condition groups, typed outputs/defaults, program contexts, rules, and origin/confidence invariants. Reject repository status/revision/effective fields inside content. Enforce operator/type rules and Java-safe logical names.
+  - Accept: `uv run pytest tests/ir/test_models.py tests/conformance/test_pydantic.py`.
   - Depends: T-101.
 
-### M2 — Rule Repository
-*Exit: append-only versioned store with maker-checker + audit, exposed via the §2.5 API.*
+- [ ] **T-103 — JSON Schema and canonical serialization.**
+  - Do: export `docs/ir-v1.schema.json`; define canonical bytes as UTF-8 JSON with sorted object keys, compact separators, preserved list order, normalized decimals/dates, and no insignificant whitespace. Test across reordered input keys and two fresh processes.
+  - Accept: `uv run pytest tests/ir/test_schema_export.py tests/ir/test_canonical.py`.
+  - Depends: T-102.
 
-- [ ] **T-201 — Schema & migrations.**
-  - Do: SQLAlchemy models + Alembic migration for:
-    ```sql
-    decisions(id uuid pk, decision_key text unique not null, name text, product text,
-              created_by text, created_at timestamptz)
-    decision_versions(id uuid pk, decision_id fk, version int not null, ir jsonb not null,
-              status text not null, submitted_by text, approved_by text,
-              created_at timestamptz, unique(decision_id, version))
-    audit_log(id bigserial pk, decision_id fk, version int, actor text not null,
-              action text not null, detail jsonb, at timestamptz default now())
-    ```
-    No UPDATE path for `decision_versions.ir` — enforce via service layer + a DB trigger raising on UPDATE of `ir`.
-  - Accept: `uv run alembic upgrade head` exit 0 against local PG, then `uv run pytest tests/repository/test_schema.py` (asserts trigger blocks IR update).
-  - Depends: T-101, T-002.
-- [ ] **T-202 — Repository service.**
-  - Do: `src/brp/repository/service.py`: `create_decision(ir, actor)`, `add_version(key, ir, actor)`, `get(key)`, `get_version(key, v)`, `list()`, `latest_approved(key)`. Every write inserts a new version row.
-  - Accept: `uv run pytest tests/repository/test_service.py`.
+- [ ] **T-104 — Site, mapping, target, and composition models.**
+  - Do: validate §2.2, connection-env indirection, PGM kinds, repository aliases, target paths, commands, lookup bindings, and restricted aggregators. Reject secrets and path traversal in config.
+  - Accept: `uv run pytest tests/config/test_site_profile.py`; fixture profile parses and malicious/unknown settings fail.
+  - Depends: T-102.
+
+### M2 — Governed repository and API
+
+*Exit: immutable content/revisions, event-backed lifecycle, effective dating, review queue, and semantic diff are transactionally enforced.*
+
+- [ ] **T-201 — Schema and migrations.**
+  - Do: tables for decisions, immutable content blobs keyed by hash, revision envelopes, lifecycle events, review-queue items, golden suites/revisions/cases, and lookup snapshots. Trigger blocks content/hash/revision/effective updates; lifecycle projection changes require a matching event in the same transaction.
+  - Accept: reset local DB; `uv run alembic upgrade head`; `uv run pytest tests/repository/test_schema.py` including forbidden-update tests.
+  - Depends: T-002, T-103.
+
+- [ ] **T-202 — Revision repository service.**
+  - Do: create decision/revision, fetch by revision, list, resolve approved revision by explicit revision or `as_of`, and deduplicate content blobs. Server assigns revision numbers under row lock; client content cannot override them.
+  - Accept: `uv run pytest tests/repository/test_revision_service.py` including concurrent revision creation.
   - Depends: T-201.
-- [ ] **T-203 — Lifecycle + maker-checker.**
-  - Do: transitions `PENDING_REVIEW→(submit)→SUBMITTED→(approve|reject)→APPROVED|REJECTED`, `APPROVED→(retire)→RETIRED`; approve/reject require actor ≠ submitted_by (raise `SelfApprovalError`); illegal transitions raise.
-  - Accept: `uv run pytest tests/repository/test_lifecycle.py` incl. explicit self-approval-rejected test.
+
+- [ ] **T-203 — Lifecycle, maker-checker, and effective dates.**
+  - Do: implement ADR-6 state machine; require reasons for reject/retire; approver differs from creator and submitter; approval rejects overlapping effective intervals. Call an injected `ReleaseEvidencePolicy` before approval so T-402 can wire the governed golden-suite requirement without coupling the lifecycle service to golden storage.
+  - Accept: `uv run pytest tests/repository/test_lifecycle.py` including self-approval, maker-as-approver, overlap, future/as-of, and illegal transition cases.
   - Depends: T-202.
-- [ ] **T-204 — Audit trail.**
-  - Do: every version insert + transition writes `audit_log` (actor, action, detail = {from,to,version,summary}); `get_audit(key)`.
-  - Accept: `uv run pytest tests/repository/test_audit.py`.
+
+- [ ] **T-204 — Audit and review queue.**
+  - Do: append actor, correlation id, content hash, before/after states, reason, and timestamp for every write; persist unmappable raw fragments with exact provenance and disposition history.
+  - Accept: `uv run pytest tests/repository/test_audit.py tests/repository/test_review_queue.py`.
   - Depends: T-203.
-- [ ] **T-205 — FastAPI routes** per §2.5 (repository subset).
-  - Do: `src/brp/api/app.py` + routers; `X-BRP-Actor` header required (400 otherwise); errors → RFC7807-ish JSON.
-  - Accept: `uv run pytest tests/api/test_repository_api.py` (httpx ASGI client; covers 400-no-actor, 403-self-approve).
+
+- [ ] **T-205 — Repository API.**
+  - Do: implement §2.3 repository routes with RFC 7807 errors. Actor required on writes only. Return envelope and content as distinct fields.
+  - Accept: `uv run pytest tests/api/test_repository_api.py` covering actor rules, maker-checker, content/status separation, effective resolution, and Korean round-trip.
   - Depends: T-203, T-204.
-- [ ] **T-206 — Structured diff.**
-  - Do: `src/brp/governance/diff.py`: version A vs B → `{added:[ruleId], removed:[ruleId], changed:[{ruleId, field_changes:[...]}]}` (semantic, not text). Route `GET /decisions/{key}/diff`.
+
+- [ ] **T-206 — Semantic diff.**
+  - Do: diff inputs, outputs, defaults, lookups, program contexts, groups, rules, and provenance; stable paths and ordering; route by revision.
   - Accept: `uv run pytest tests/governance/test_diff.py`.
   - Depends: T-202.
 
-### M3 — Source Adapters
-*Exit: fixture DB tables and fixture Java code both land as candidate rules in the repository, idempotently.*
+### M3 — Source adapters
 
-- [ ] **T-301 — SourceAdapter contract + site profiles.**
-  - Do: `src/brp/adapters/base.py`: `class SourceAdapter(ABC)` with `discover(site: SiteProfile) -> list[Source]` and `extract(source: Source) -> list[Decision]` (candidates); registry `@register_adapter("name")`; `SiteProfile` Pydantic model loading §2.4 yaml.
-  - Accept: `uv run pytest tests/adapters/test_contract.py` (registry resolves; fixture.yaml parses).
-  - Depends: T-101.
-- [ ] **T-302 — MCP DB connector library.** *(standalone reusable asset — own package, own tests)*
-  - Do: `mcp-db-connector/` (uv package `brp-mcp-db`): FastMCP server exposing `list_tables()`, `get_table_schema(table)`, `sample_rows(table, limit<=50)`, `get_stored_proc_source(name)`; connection from env var named in config; read-only (SET default_transaction_read_only); no site specifics.
-  - Accept (from `mcp-db-connector/`): `uv run pytest` — integration tests against local PG loaded via `scripts/db-load-fixture.sh`.
+*Exit: DB, Java, and a bounded manual source all produce traced candidate batches; repeated ingestion is idempotent.*
+
+- [ ] **T-301 — Adapter and extraction-batch contracts.**
+  - Do: `SourceAdapter.discover()` and `extract() -> ExtractionBatch{decisions, unmappable, diagnostics, source_snapshot}`; registry and capability versions.
+  - Accept: `uv run pytest tests/adapters/test_contract.py`.
+  - Depends: T-102, T-104.
+
+- [ ] **T-302 — Secure reusable MCP DB connector.**
+  - Do: standalone FastMCP package for list tables, schema, bounded sample rows, and stored-procedure source. Use a SELECT-only role, read-only transactions, catalog allowlists, driver identifier quoting, row/time limits, and redacted logs.
+  - Accept (from `mcp-db-connector/`): `uv run pytest`; tests prove reads work, writes fail, injection identifiers fail, limit >50 fails, and secrets never appear in captured logs.
   - Depends: T-002.
-- [ ] **T-303 — `db-postgres` adapter.**
-  - Do: mapping-spec-driven ETL (§2.4 mapping yaml): each mapped table row → one candidate rule (conditions from condition_columns, actions from action_columns, `confidence=1.0`, `SourceReference{type=DB_TABLE, file=<table>, lineStart=<row pk repr>}`), one Decision per `decision_key`. Uses the MCP connector as its DB access.
-  - Accept: `uv run pytest tests/adapters/test_db_postgres.py` — snapshot test: fixture `region_eligibility` + `rate_table` → expected candidate JSON (Korean values byte-equal).
+
+- [ ] **T-303 — PostgreSQL table adapter.**
+  - Do: mapping-driven rows to rules with `DB_ROW` primary-key JSON and snapshot hash; confidence 1.0; deterministic ordering and typed values.
+  - Accept: `uv run pytest tests/adapters/test_db_postgres.py`; Korean values and composite primary keys round-trip byte-exact.
   - Depends: T-301, T-302.
+
 - [ ] **T-304 — Joern locate.**
-  - Do: `src/brp/adapters/code_java/joern.py`: wrapper honoring `JOERN_MODE=native|docker`; build CPG for `site.code.repo_path`; seed from `site.code.entry_points`; call-graph reachability → `list[MethodRef{class, method, file, lineStart, lineEnd}]`.
-  - Accept: `uv run pytest tests/adapters/test_joern_locate.py` — finds `EnrollmentValidator.evaluate` + its private helpers; excludes a planted `legacy.UnrelatedUtil` class (add it to the fixture in this task if missing).
+  - Do: pin source commit, build CPG, map PGM context, traverse reachable private helpers, and exclude unrelated code.
+  - Accept: `uv run pytest tests/adapters/test_joern_locate.py`.
   - Depends: T-007, T-301.
-- [ ] **T-305 — Joern slice.**
-  - Do: within kept methods: identify decision constructs (if/switch/ternary + JDBC-lookup calls); backward-slice each into `Slice{sliceId, file, lineStart, lineEnd, code, entryPoint, kind}`; write `slice-manifest.json`; split oversized methods per decision point (max slice 120 lines).
-  - Accept: `uv run pytest tests/adapters/test_joern_slice.py` — manifest covers all 6 specced fixture decision points; line ranges match the fixture source.
+
+- [ ] **T-305 — Joern decision slices.**
+  - Do: slice if/switch/ternary/JDBC constructs, max 120 lines, exact immutable source reference, manifest and diagnostics.
+  - Accept: `uv run pytest tests/adapters/test_joern_slice.py`; all six expected constructs are covered exactly once.
   - Depends: T-304.
-- [ ] **T-306 — Tiered LLM client.**
-  - Do: `src/brp/llm/client.py`: providers `mock` (fixture-replay), `anthropic`, `openai_compat` (base_url — covers DeepSeek/Kimi/GLM/Qwen endpoints); tiers `bulk`/`frontier` from env (§2.3); `extract_candidates(slice, schema) -> list[Decision]` enforcing structured output by validating against the candidate-IR schema with ≤3 retries (re-prompt with validation errors); token/cost counters logged.
-  - Accept: `uv run pytest tests/llm/` — mock provider: happy path, invalid-JSON-then-retry path, gives-up-after-3 path. Live smoke exists but auto-skips unless `BRP_LLM_LIVE=1`.
-  - Depends: T-101.
-- [ ] **T-307 — `code-java` mining.**
-  - Do: prompt template at `src/brp/adapters/code_java/prompts/mine_slice.md` (contains: role, IR schema, slice code+file+lines, "output candidate rules only; if the logic cannot be expressed in the restricted profile, return it in `unmappable` with the raw fragment"); pipeline slice→prompt→client(bulk tier)→candidates with `SourceReference{JAVA_SOURCE, file, lines from slice}`; `unmappable` items become review-queue records; near-dup collapse (identical normalized conditions+actions).
-  - Accept: `uv run pytest tests/adapters/test_code_java.py` — with recorded mock responses: fixture yields ≥6 candidates incl. `UNDER_AGE` (correct file/lines) and the Korean product-name value intact; dedup case passes; unmappable case lands in review queue.
+
+- [ ] **T-306 — Provider-swappable LLM client.**
+  - Do: mock, Anthropic-compatible, and OpenAI-compatible HTTP providers through `httpx`; structured validation; at most three attempts; token/latency counters; no prompt/response source text in normal logs. Live tests opt-in only.
+  - Accept: `uv run pytest tests/llm/` covering valid, retry, exhaustion, redaction, Korean, and provider-contract cases.
+  - Depends: T-102.
+
+- [ ] **T-307 — Java rule mining.**
+  - Do: slices to candidate content/unmappable items. Recorded mocks map all six fixture constructs into the three §1 decisions: `STARTS_WITH`, lookup operand, COLLECT loading rows, and COLLECT document rows. Identical normalized rules collapse; provenance never collapses.
+  - Accept: `uv run pytest tests/adapters/test_code_java.py`; output matches `expected-decisions.yaml`, all rule references have exact commit/file/lines, and an unsupported raw call reaches review queue.
   - Depends: T-305, T-306.
-- [ ] **T-308 — Ingestion runner.**
-  - Do: Typer CLI `brp ingest --site config/sites/fixture.yaml`: run site adapters, write candidates via repository service as PENDING_REVIEW; idempotency = skip when an identical (decision_key, normalized-IR-hash) candidate already exists; summary table printed.
-  - Accept: `uv run pytest tests/e2e/test_ingest.py` — run twice: second run inserts 0; counts match expectations.
-  - Depends: T-303, T-307, T-205.
 
-### M4 — Governance & Validation
+- [ ] **T-308 — Supplementary manual adapter.**
+  - Do: native-first extraction for the synthetic DOCX/XLSX manual; preserve page/sheet/section/cell provenance; low default confidence; candidate-only. Reuse libraries, not the knowledge-assistant ingestion service.
+  - Accept: `uv run pytest tests/adapters/test_docs_manual.py`; Korean evidence and source locations survive, sparse/ambiguous text becomes review queue.
+  - Depends: T-301.
 
-- [ ] **T-401 — jdm-export + Zen preview.**
-  - Do: `src/brp/generators/jdm_export.py` (pure IR→JDM dict); `src/brp/governance/preview.py`: `evaluate(key, payload, version=None)` via `zen-engine`; route `POST /preview/{key}`; lookups resolved from a `LookupResolver` reading the fixture tables.
-  - Accept: `uv run pytest tests/governance/test_zen_preview.py` — age 17 → `UNDER_AGE`; age 20 non-smoker eligible; smoker loading case.
-  - Depends: T-103, T-205. Record zen-engine pin in §2.1.
-- [ ] **T-402 — Golden-test harness.**
-  - Do: models+tables `golden_cases(decision_key, input jsonb, expected jsonb, origin)`; importer seeding cases from the fixture app's JUnit expectations (T-005's ≥10 combos); runner via preview; route `POST /golden/{key}/run` → `{passed, failed:[{case, got, expected}]}`.
-  - Accept: `uv run pytest tests/governance/test_golden_harness.py`.
-  - Depends: T-401.
-- [ ] **T-403 — Minimal governance UI.** *(may run any time after M2)*
-  - Do: pages: decision list → detail (ag-grid decision table render/edit of `rules[]`), submit/approve buttons with an actor picker (two hardcoded actors to satisfy maker-checker), audit tab, diff view (from T-206). API base from env. Minimal styling — hardening is T-805.
-  - Accept (from `ui/`): `pnpm test -- --run` component smokes + `pnpm build`; save `docs/ui-m4-list.png`, `docs/ui-m4-detail.png` screenshots.
-  - Depends: T-205, T-206.
-- [ ] **T-404 — Preview panel in UI.**
-  - Do: on decision detail: JSON input form (monaco) → `POST /preview/{key}` → rendered output; a "run golden" button showing the T-402 report.
-  - Accept: vitest smoke; screenshot `docs/ui-m4-preview.png`.
-  - Depends: T-403, T-402.
+- [ ] **T-309 — Idempotent ingestion runner.**
+  - Do: `brp ingest --site`; hash source snapshot + adapter version + canonical candidate content; identical rerun inserts nothing, changed source creates a new draft and audit entry.
+  - Accept: `uv run pytest tests/e2e/test_ingest.py` with identical and changed-source runs.
+  - Depends: T-205, T-303, T-307, T-308.
 
-### M5 — Target Generators
+### M4 — Preview, golden governance, and UI
 
-- [ ] **T-501 — TargetGenerator contract + orchestration model.**
-  - Do: `src/brp/generators/base.py`: `supports(profile, target) -> bool`, `generate(decisions, target) -> GeneratedArtifact{files, manifest}`; manifest = inputs hash (canonical IR bytes), generator version, outputs+hashes.
-  - Accept: `uv run pytest tests/generators/test_contract.py`.
-  - Depends: T-101.
-- [ ] **T-502 — codegen-cli (JavaPoet).**
-  - Do (in `java-toolchain/codegen-cli`): CLI `java -jar codegen-cli.jar --ir <file.json> --out <dir>`:
-    - per decision → `brp.rules.generated.<PascalCase(decisionId)>Rules` final class, single public method `evaluate(<DecisionId>Input in, LookupProvider lookups) -> <DecisionId>Output`; input/output records generated from IR inputs/outputs; hit policies: FIRST = first match returns; UNIQUE = evaluate all, throw on >1 match; COLLECT = aggregate outputs list.
-    - file header: `// GENERATED — Business Rules Platform · decision <id> · v<version>` + `@Generated("brp")` + "do not edit" banner; google-java-format applied in-process.
-    - **Determinism:** identical IR file → byte-identical output (test runs generator twice, `diff -r` empty). Korean strings escaped correctly and asserted.
-  - Accept (from `java-toolchain/`): `./gradlew :codegen-cli:test` (golden-file tests + determinism + Korean preservation + all three hit policies).
-  - Depends: T-003, T-102.
-- [ ] **T-503 — Generated-module packaging + LookupProvider.**
-  - Do: `java-toolchain/generated-module-template/` Gradle template; `LookupProvider` interface (`lookup(name, key) -> Map<String,Object>`) lives in a tiny published `brp-rules-runtime` module; codegen output compiles against it; `scripts/gen-and-compile-fixture.sh|.ps1` = export an approved fixture IR → run codegen-cli → compile the module.
-  - Accept: `scripts/gen-and-compile-fixture.sh` exit 0.
-  - Depends: T-502.
-- [ ] **T-504 — test-generator.**
-  - Do: golden cases (T-402) → JUnit 5 source per decision (`<DecisionId>RulesGoldenTest`) exercising the **generated** class with a stub LookupProvider seeded from fixture tables; part of codegen-cli (`--emit-tests`).
-  - Accept: `scripts/gen-tests-fixture.sh` exit 0 — generated tests compile and pass.
-  - Depends: T-503, T-402.
+*Exit: preview is explicitly advisory; golden suites and lookup snapshots are governed release inputs; UI cannot bypass lifecycle rules.*
+
+- [ ] **T-401 — JDM export and Zen conformance.**
+  - Do: pure content-to-JDM transform and Zen adapter for ADR-7 semantics; lookup snapshot resolver; preview response includes `executor=ZEN`, `authority=ADVISORY` for Mode B.
+  - Accept: `uv run pytest tests/governance/test_zen_conformance.py tests/conformance/test_zen.py`.
+  - Depends: T-103, T-205.
+
+- [ ] **T-402 — Versioned golden suites and lookup snapshots.**
+  - Do: import fixture behavior cases with provenance; immutable suite revisions; maker-checker; snapshot lookup rows canonically and hash them; wire `ReleaseEvidencePolicy` so decision approval requires an approved suite revision.
+  - Accept: `uv run pytest tests/governance/test_golden_repository.py` including mutation rejection, suite self-approval rejection, and snapshot determinism.
+  - Depends: T-203, T-005.
+
+- [ ] **T-403 — Golden runner API.**
+  - Do: Zen advisory runner now; generated-Java executor plugs in at T-504. Response names executor, authority, suite revision/hash, lookup snapshots, passed/failed cases.
+  - Accept: `uv run pytest tests/api/test_golden_api.py`; Mode B Zen result can never report `AUTHORITATIVE`.
+  - Depends: T-401, T-402.
+
+- [ ] **T-404 — Minimal governance UI.**
+  - Do: decision list/detail, content/envelope separation, edit-as-new-revision, actor picker, submit/approve/reject, audit, semantic diff, review queue, golden-suite status, and advisory preview panel.
+  - Accept (from `ui/`): `pnpm test -- --run`; `pnpm build`; `pnpm test:e2e`; the e2e run captures list/detail/preview screenshots and fails on browser console errors.
+  - Depends: T-205, T-206, T-403.
+
+### M5 — Deterministic Java generation
+
+*Exit: one ReleaseInput produces byte-identical source/tests/manifests; generated Java passes the shared semantics corpus.*
+
+- [ ] **T-501 — Generator and ReleaseInput contracts.**
+  - Do: target generator capability contract; manifest hashes content/revision, golden suite, lookup snapshots, site config, composition, generator, and outputs.
+  - Accept: `uv run pytest tests/generators/test_contract.py tests/generators/test_release_input.py`.
+  - Depends: T-103, T-104, T-402.
+
+- [ ] **T-502 — JavaPoet decision generator.**
+  - Do: typed records, operands/operators, nested groups, lookup calls, FIRST/UNIQUE defaults, UNIQUE collision, COLLECT list, generated annotations/header, deterministic formatting.
+  - Accept (from `java-toolchain/`): `./gradlew :codegen-cli:test`; Java results match every conformance case and two fresh output directories are byte-identical.
+  - Depends: T-003, T-103.
+
+- [ ] **T-503 — Runtime, packaging, and composition façade.**
+  - Do: typed `LookupProvider`, missing/type exceptions, generated-module template, restricted site façade aggregators, and fixture JDBC provider.
+  - Accept: `uv run --project platform python scripts/gen_compile_fixture.py`; façade tests prove SUM, DISTINCT, FIRST_NON_NULL, Korean, lookup hit/miss.
+  - Depends: T-502, T-104.
+
+- [ ] **T-504 — Generated golden tests.**
+  - Do: suite revision + snapshots to JUnit exercising generated classes and façade. Register `generated-java` runner as Mode-B authority.
+  - Accept: `uv run --project platform pytest platform/tests/generators/test_generated_tests.py`; tests compile/run JUnit, plant a failing expectation, and verify manifest changes for suite/lookup changes.
+  - Depends: T-402, T-503.
+
 - [ ] **T-505 — Generation orchestration.**
-  - Do: Typer CLI `brp generate --site <yaml> --decision <key>`: fetch **latest APPROVED** (refuse otherwise, exit 2), write IR temp file, invoke codegen-cli (with `--emit-tests`), collect artifact + manifest into `out/generated/<key>/v<N>/`.
-  - Accept: `uv run pytest tests/e2e/test_generate.py` incl. refuses-PENDING (exit 2) test.
-  - Depends: T-502, T-203.
+  - Do: `brp generate --site --decision --revision|--as-of`; require approved effective revision and approved suite; assemble ReleaseInput; invoke CLI with tests; write versioned output atomically; refuse drafts and ambiguous effective revisions.
+  - Accept: `uv run pytest tests/e2e/test_generate.py` including pending, overlap, missing-suite, atomic-failure, and deterministic rerun cases.
+  - Depends: T-203, T-501, T-504.
 
-### M6 — Mode-B Delivery (round-trip on the fixture)
+- [ ] **T-506 — Preview/generated consistency.**
+  - Do: run conformance and golden suites through Zen and generated Java; report divergence as generator/export defect without changing Mode-B authority.
+  - Accept: `uv run pytest tests/e2e/test_consistency.py` including planted divergences.
+  - Depends: T-401, T-504.
 
-- [ ] **T-601 — Branch & diff flow.**
-  - Do: `brp deliver --site <yaml> --decision <key>`: clone/refresh target repo working copy → branch `rules/gen-<key>-v<N>` → copy generated module + tests into agreed paths → commit with manifest in message → emit `diff-report.md` (files + semantic rule diff from T-206).
-  - Accept: `uv run pytest tests/e2e/test_deliver_branch.py` (temp clone of fixture repo; asserts branch, commit, report).
-  - Depends: T-505.
-- [ ] **T-602 — Golden-test gate.**
-  - Do: deliver pipeline step: compile generated module + run generated JUnit **before** committing; on failure: no branch, non-zero exit, failure report.
-  - Accept: `uv run pytest tests/e2e/test_gate.py` — includes negative case (corrupt one expected output → gate blocks, no branch created).
-  - Depends: T-601, T-504.
-- [ ] **T-603 — Integration seam cut-over.**
-  - Do (in `java-toolchain/seam-recipes`): OpenRewrite recipe replacing the 6 mined regions in `EnrollmentValidator.evaluate` with delegation to `EnrollmentEligibilityRules` (+ premium/docs decisions as designed in the IR set) behind a small hand-written facade + JDBC LookupProvider impl; applied by `scripts/seam-fixture.sh|.ps1` on a branch of the fixture repo.
-  - Accept: `scripts/seam-fixture.sh` exit 0, then (from cut-over fixture branch) `./gradlew test` green — original behavior tests pass against the generated module.
-  - Depends: T-503.
-- [ ] **T-604 — Preview↔generated consistency check.**
-  - Do: `brp check-consistency --site <yaml>`: run every golden case through Zen preview AND the generated Java (via a small JUnit-console or CLI runner); diff outcomes; nonzero exit on divergence.
-  - Accept: `uv run pytest tests/e2e/test_consistency.py` — fixture: zero divergences; planted-divergence test detects it.
-  - Depends: T-602, T-401.
+### M6 — Seam-first Mode-B delivery
 
-### M7 — End-to-End PoC Demo (PRD §11 success criterion)
+*Exit: recurring delivery branches from a seam-enabled baseline and the target application executes regenerated code before a review branch is emitted.*
 
-- [ ] **T-701 — Scripted demo.**
-  - Do: `scripts/demo-mode-b.sh|.ps1`: (1) load fixture DB; (2) `brp ingest`; (3) scripted two-actor approve-all; (4) seam cut-over; (5) print outcome for `{age:18, product:CANCER_BASIC, region:SEOUL, class:1}` → ELIGIBLE; (6) edit R001 `< 18` → `< 19` via API as actor A, approve as actor B; (7) `brp deliver` (gate runs); (8) print outcome again → REJECTED(UNDER_AGE); (9) summary table (steps, timings, versions).
-  - Accept: script exit 0; stdout contains `BEFORE: ELIGIBLE` and `AFTER: REJECTED(UNDER_AGE)`.
-  - Depends: all of M2–M6 checked.
-- [ ] **T-702 — Demo documentation.**
-  - Do: `docs/demo.md` (prereqs = E-tasks; exact commands; expected output; troubleshooting incl. §2.6 pitfalls); update root README.
-  - Accept: fresh-checkout dry run following only `docs/demo.md` succeeds; log it in the Progress Log.
+- [ ] **T-601 — One-time seam baseline.**
+  - Do: create a local bare fixture remote; install the initially approved generated module; apply OpenRewrite recipe and reviewed façade/JDBC provider; commit seam to `main`; run pre/post behavior and shadow tests; tag `seam-baseline-v1`.
+  - Accept: `uv run --project platform pytest platform/tests/e2e/test_seam_baseline.py`; the test uses a fresh clone, runs fixture tests, proves `EnrollmentValidator` calls the generated façade, and asserts the tag.
+  - Depends: T-307, T-505.
+
+- [ ] **T-602 — Transactional delivery gate.**
+  - Do: clone/worktree from configured seam baseline; generate; copy only manifest-listed files; compile generated module; run generated golden tests and target application regression tests through the façade. On failure, leave no commit or delivery branch and emit a failure report.
+  - Accept: `uv run pytest tests/e2e/test_delivery_gate.py` with success plus corrupted expectation/source/config negatives.
+  - Depends: T-505, T-601.
+
+- [ ] **T-603 — Diff, branch, push, and review report.**
+  - Do: after gate success create `rules/gen-<key>-r<N>`, commit manifest and artifacts, push to configured remote, and emit `review-report.md` containing semantic rule diff, generated file diff, evidence hashes, tests, and exact base/head commits. Provider adapters may open GitHub/GitLab PRs later; fixture uses `local-report`.
+  - Accept: `uv run --project platform pytest platform/tests/e2e/test_delivery_branch.py`; tests assert branch/commit/push/report and that gate failure creates none.
+  - Depends: T-206, T-602.
+
+- [ ] **T-604 — Delivered-branch execution proof.**
+  - Do: check out the pushed delivery branch in a fresh clone, run its build/tests, invoke the legacy entry point, and capture output plus commit and manifest hashes.
+  - Accept: `uv run --project platform pytest platform/tests/e2e/test_delivered_execution.py`; the test changes `<18` to `<19`, verifies `main` and delivery-branch outcomes, and instruments `EnrollmentValidator` to prove both calls use the façade rather than Zen/direct generated classes.
+  - Depends: T-603.
+
+### M7 — End-to-end PoC
+
+- [ ] **T-701 — Repeatable Mode-B demo.**
+  - Do: one `.sh` and `.ps1` orchestrated by a shared Python CLI: reset local DB/remote; ingest; disposition unmappable items; approve suite and decisions with two actors; establish seam baseline; print legacy-app BEFORE; create/edit/submit/approve revision; deliver; run fresh delivery clone; print AFTER; show revision, suite, lookup, manifest, branch, commit, and timings.
+  - Accept: `bash scripts/demo-mode-b.sh`; `pwsh -File scripts/demo-mode-b.ps1`; both outputs include `BEFORE: ELIGIBLE`, `AFTER: REJECTED(UNDER_AGE)`, `EXECUTOR: GENERATED_JAVA`, and a delivery commit hash.
+  - Depends: all M2–M6 tasks.
+
+- [ ] **T-702 — Fresh-checkout documentation.**
+  - Do: `docs/demo.md`, architecture links, exact prerequisites/commands/expected output, troubleshooting, security boundaries, and explanation of advisory vs authoritative results.
+  - Accept: `uv run --project platform python scripts/verify_fresh_checkout.py --guide docs/demo.md`; record platform and commit in Progress Log.
   - Depends: T-701.
 
-### M8 — Phase 2 (GATED — a human must replace this ☐ with ☑ before any T-8xx starts)
+### M8 — Phase 2 (human-gated)
 
-- [ ] **T-801 — DMN import adapter** (decision tables → IR; restricted-FEEL subset; BPMN rejected with clear error; unmapped FEEL → review queue).
-- [ ] **T-802 — Mode-A decision service** (stateless FastAPI + embedded Zen, loads latest approved JDM per decision; publish/rollback endpoints).
-- [ ] **T-803 — Second DBMS driver** for the MCP connector (proves pluggability; suggest MySQL or Oracle per customer).
-- [ ] **T-804 — Mining-model benchmark harness** (value vs frontier tiers on real slices; metrics: rule-level precision/recall vs reviewed ground truth, cost per 1k rules; report). ⚠ needs customer samples + model-policy answer.
-- [ ] **T-805 — Governance UI hardening** (OIDC auth, role model, richer diff/batch review UX).
+- [ ] **PHASE-2-GATE — Human authorization.** No T-8xx task starts until a human checks this item and records scope/customer inputs.
+- [ ] **T-801 — DMN import adapter.** Restricted FEEL, exact asset provenance, BPMN rejection, review queue.
+- [ ] **T-802 — Mode-A Zen service.** Approved/effective revisions only, publish/rollback, authoritative Zen golden gate.
+- [ ] **T-803 — Second DBMS connector.** Prove driver plug-in and the same read-only/injection contract.
+- [ ] **T-804 — Real-slice mining benchmark.** Customer-approved samples, reviewed ground truth, precision/recall/cost/latency, provider policy.
+- [ ] **T-805 — Governance hardening.** OIDC, roles, evidence policy, batch review, deployment authorization.
 
 ---
 
-## 4. Blocked On Customer
+## 4. Customer-Gated Inputs
 
-| Item | Blocks | Status |
+| Input | Blocks | Does not block |
 |---|---|---|
-| Sample Java enrollment source + PostgreSQL schema (masked OK) | real-data validation of M3; T-804 | ⏳ requested 2026-07-02 |
-| Pilot product/flow selection | Phase-1 scoping on the real system | ⏳ review-doc Q1 |
-| Approval policy (who/how many/evidence) | T-805 config (M2 defaults are placeholders) | ⏳ review-doc Q4 |
-| Chinese-origin model policy | T-804 shortlist | ⏳ asked 2026-07-04 |
-| Coding-conventions sample | codegen style pass on T-502 templates | ⏳ review-doc Q7 |
+| Masked Java source, DB schema, and immutable sample revision | Real-site M3 validation; T-804 | Synthetic contracts and demo |
+| Pilot product/flow and PGM mappings | Real seam/site config | Generic `program_contexts` contract |
+| Approval roles/evidence policy | T-805 and production rollout | Phase-1 two-actor service invariant |
+| Provider/foreign-model policy | Live mining and T-804 | Recorded mock extraction |
+| Coding conventions and target repository commands | Real generator style/seam | Fixture JavaPoet path |
+| Lookup freshness and release-channel policy | Production SLA/rollout | Snapshot-based golden gate |
 
-## 5. Definition of Done (global)
+## 5. Global Definition Of Done
 
-Task checked ⇔ all Accept commands pass locally ⇔ CI green ⇔ no §0.3 ground-rule violations ⇔ Progress Log updated. Milestone done ⇔ every task checked **and** its exit line is demonstrably true.
+A task is complete only when its acceptance tests pass, changed projects remain lint/build clean, invariants in §0.3 hold, docs/config examples match behavior, CI is green when applicable, and the Progress Log is updated. A milestone is complete only when every task is checked and its exit statement is demonstrated.
 
-## 6. Out Of Scope (do not build, even if tempting)
+## 6. Out Of Scope
 
-Full FEEL support · BPMN import · a bespoke rule evaluator (use Zen; ADR-3) · graph database · message broker · real auth before T-805 · any UI beyond the minimal M4 scope · performance tuning before M7 passes.
+Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule system of record; full FEEL; BPMN-as-rules; stored-procedure/UI-code mining; arbitrary expressions or custom aggregators in IR; bespoke preview evaluator; production auth before T-805; automatic merge/deploy; performance tuning before M7.
 
-## 7. Progress Log (append-only; newest last)
+## 7. Progress Log
 
-Format: `YYYY-MM-DD HH:MM | T-### | done|BLOCKED|PROPOSAL | <commit> | one-line note`
-
-```
-(empty)
+```text
+2026-07-10 18:02 | E-000 | done | 4e1fa4f | Aligned implementation status, per-site delivery modes, and isolated-track boundary.
 ```
