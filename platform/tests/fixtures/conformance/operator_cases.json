@@ -1,0 +1,26 @@
+{
+  "cases": [
+    {"id": "eq_string", "operator": "EQ", "leftType": "string", "right": "CANCER_BASIC", "valid": true},
+    {"id": "eq_mismatch", "operator": "EQ", "leftType": "integer", "right": "18", "valid": false},
+    {"id": "ne_boolean", "operator": "NE", "leftType": "boolean", "right": true, "valid": true},
+    {"id": "ne_object", "operator": "NE", "leftType": "string", "right": {"bad": true}, "valid": false},
+    {"id": "gt_integer", "operator": "GT", "leftType": "integer", "right": 65, "valid": true},
+    {"id": "gt_boolean", "operator": "GT", "leftType": "boolean", "right": false, "valid": false},
+    {"id": "gte_decimal", "operator": "GTE", "leftType": "decimal", "right": 1.25, "valid": true},
+    {"id": "gte_string", "operator": "GTE", "leftType": "string", "right": "A", "valid": false},
+    {"id": "lt_date", "operator": "LT", "leftType": "date", "right": "2026-08-01", "valid": true},
+    {"id": "lt_list", "operator": "LT", "leftType": "integer", "right": [1], "valid": false},
+    {"id": "lte_integer", "operator": "LTE", "leftType": "integer", "right": 65, "valid": true},
+    {"id": "lte_null", "operator": "LTE", "leftType": "integer", "right": null, "valid": false},
+    {"id": "in_integer", "operator": "IN", "leftType": "integer", "right": [4, 5], "valid": true},
+    {"id": "in_empty", "operator": "IN", "leftType": "integer", "right": [], "valid": false},
+    {"id": "not_in_korean", "operator": "NOT_IN", "leftType": "string", "right": ["제주", "울릉"], "valid": true},
+    {"id": "not_in_mixed", "operator": "NOT_IN", "leftType": "string", "right": ["제주", 2], "valid": false},
+    {"id": "between_integer", "operator": "BETWEEN", "leftType": "integer", "right": [60, 65], "valid": true},
+    {"id": "between_reversed", "operator": "BETWEEN", "leftType": "integer", "right": [65, 60], "valid": false},
+    {"id": "exists_lookup", "operator": "EXISTS", "leftType": "boolean", "valid": true},
+    {"id": "exists_with_right", "operator": "EXISTS", "leftType": "boolean", "right": true, "valid": false},
+    {"id": "starts_with_string", "operator": "STARTS_WITH", "leftType": "string", "right": "CANCER", "valid": true},
+    {"id": "starts_with_integer", "operator": "STARTS_WITH", "leftType": "integer", "right": 1, "valid": false}
+  ]
+}

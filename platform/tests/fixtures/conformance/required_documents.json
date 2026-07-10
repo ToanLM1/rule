@@ -1,0 +1,37 @@
+{
+  "decisionId": "required_documents",
+  "decisionName": "필수 서류",
+  "profile": "RULE_IR_V1",
+  "schemaVersion": 1,
+  "product": "CANCER_BASIC",
+  "programContexts": [{"programId": "ENROLLMENT-API", "kind": "API", "entryPoint": "legacy.EnrollmentValidator#evaluate"}],
+  "hitPolicy": "COLLECT",
+  "inputs": [
+    {"name": "age", "sourcePath": "customer.age", "type": "integer", "required": true},
+    {"name": "productCode", "sourcePath": "customer.productCode", "type": "string", "required": true},
+    {"name": "occupationClass", "sourcePath": "customer.occupationClass", "type": "integer", "required": true}
+  ],
+  "outputs": [{"name": "requiredDoc", "type": "string"}],
+  "lookups": [],
+  "rules": [
+    {
+      "ruleId": "R001",
+      "when": {"all": [{"left": {"kind": "INPUT", "name": "occupationClass"}, "operator": "IN", "right": {"kind": "LITERAL", "value": [4, 5]}}]},
+      "then": [{"output": "requiredDoc", "value": "DOC_HEALTH_CHECK"}],
+      "origin": "EXTRACTED",
+      "sourceReferences": [{"type": "JAVA_SOURCE", "repository": "legacy-enrollment", "revision": "fixture-v1", "file": "src/main/java/legacy/EnrollmentValidator.java", "lineStart": 36, "lineEnd": 42}],
+      "confidence": 0.91
+    },
+    {
+      "ruleId": "R002",
+      "when": {"all": [
+        {"left": {"kind": "INPUT", "name": "age"}, "operator": "BETWEEN", "right": {"kind": "LITERAL", "value": [60, 65]}},
+        {"left": {"kind": "INPUT", "name": "productCode"}, "operator": "EQ", "right": {"kind": "LITERAL", "value": "CANCER_BASIC"}}
+      ]},
+      "then": [{"output": "requiredDoc", "value": "DOC_HEALTH_CHECK"}],
+      "origin": "EXTRACTED",
+      "sourceReferences": [{"type": "JAVA_SOURCE", "repository": "legacy-enrollment", "revision": "fixture-v1", "file": "src/main/java/legacy/EnrollmentValidator.java", "lineStart": 44, "lineEnd": 49}],
+      "confidence": 0.88
+    }
+  ]
+}
