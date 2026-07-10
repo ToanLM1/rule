@@ -1,0 +1,9 @@
+tables:
+  - table: region_eligibility
+    decision_key: region_eligibility
+    condition_columns: [region_code]
+    action_columns: [eligible]
+  - table: rate_table
+    decision_key: premium_rate
+    condition_columns: [product_code, age_band, smoker]
+    action_columns: [base_rate, loading_pct]
