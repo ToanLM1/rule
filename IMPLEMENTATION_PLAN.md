@@ -193,7 +193,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept (from `ui/`): `pnpm install --frozen-lockfile`; `pnpm build`; `pnpm run test -- --run`.
   - Depends: T-001.
 
-- [ ] **T-005 — Synthetic legacy application and expected decomposition.**
+- [x] **T-005 — Synthetic legacy application and expected decomposition.** ✅ 2026-07-10 067e78f
   - Do: build the Java 17 fixture with the six legacy constructs from the original plan: under-age, product/age limit, `startsWith` smoker loading, region JDBC lookup, occupation document, and senior loading/document. Add at least 10 behavior tests and `fixtures/legacy-enrollment/expected-decisions.yaml` mapping all six constructs to the three §1 decisions and façade aggregators. Add an unrelated class for Joern exclusion tests.
   - Accept (from `fixtures/legacy-enrollment/`): `./gradlew test`; schema test confirms exactly six mapped constructs and no unclassified construct.
   - Depends: T-002, T-003.
@@ -449,4 +449,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-10 18:22 | T-002 | done | 8f0019e | Added idempotent PostgreSQL fixture schema, Korean seed data, and cross-platform loaders.
 2026-07-10 18:27 | T-003 | done | 90c3a48 | Added Gradle 8.7 Java 17 modules, pinned wrapper checksum, formatting, and smoke tests.
 2026-07-10 18:30 | T-004 | done | 647c474 | Added Vue, Pinia, router, grid/editor dependencies, build config, and a passing component smoke test.
+2026-07-10 18:33 | T-005 | done | 067e78f | Added six legacy decision constructs, 12 behavior tests, H2 isolation, and expected decomposition metadata.
 ```
