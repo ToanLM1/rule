@@ -353,7 +353,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept (from `java-toolchain/`): `./gradlew :codegen-cli:test`; Java results match every conformance case and two fresh output directories are byte-identical.
   - Depends: T-003, T-103.
 
-- [ ] **T-503 — Runtime, packaging, and composition façade.**
+- [x] **T-503 — Runtime, packaging, and composition façade.** ✅ 2026-07-10 da0df40
   - Do: typed `LookupProvider`, missing/type exceptions, generated-module template, restricted site façade aggregators, and fixture JDBC provider.
   - Accept: `uv run --project platform python scripts/gen_compile_fixture.py`; façade tests prove SUM, DISTINCT, FIRST_NON_NULL, Korean, lookup hit/miss.
   - Depends: T-502, T-104.
