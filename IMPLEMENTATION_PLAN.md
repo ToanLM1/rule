@@ -348,7 +348,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/generators/test_contract.py tests/generators/test_release_input.py`.
   - Depends: T-103, T-104, T-402.
 
-- [ ] **T-502 — JavaPoet decision generator.**
+- [x] **T-502 — JavaPoet decision generator.** ✅ 2026-07-10 c66e0d3
   - Do: typed records, operands/operators, nested groups, lookup calls, FIRST/UNIQUE defaults, UNIQUE collision, COLLECT list, generated annotations/header, deterministic formatting.
   - Accept (from `java-toolchain/`): `./gradlew :codegen-cli:test`; Java results match every conformance case and two fresh output directories are byte-identical.
   - Depends: T-003, T-103.
