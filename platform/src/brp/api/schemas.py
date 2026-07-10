@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -48,6 +48,16 @@ class GoldenCaseRequest(ApiModel):
 class GoldenSuiteCreateRequest(ApiModel):
     cases: list[GoldenCaseRequest] = Field(min_length=1)
     lookup_snapshot_hashes: list[str] = Field(default_factory=list)
+
+
+class BatchDispositionRequest(ApiModel):
+    item_id: UUID
+    status: Literal["ACCEPTED", "REJECTED", "DEFERRED"]
+    reason: str = Field(min_length=1)
+
+
+class BatchReviewRequest(ApiModel):
+    dispositions: list[BatchDispositionRequest] = Field(min_length=1)
 
 
 class RevisionEnvelopeResponse(ApiModel):

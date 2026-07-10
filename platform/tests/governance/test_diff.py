@@ -11,6 +11,7 @@ from brp.api.app import create_app
 from brp.governance.diff import semantic_diff
 from brp.ir.models import DecisionContent
 from brp.repository.models import DecisionRevision
+from brp.security import SecuritySettings
 
 FIXTURE = (
     Path(__file__).resolve().parents[1] / "fixtures" / "conformance" / "enrollment_eligibility.json"
@@ -79,7 +80,7 @@ def test_named_input_change_is_semantic_not_whole_document() -> None:
 
 
 def test_diff_route_compares_repository_revisions() -> None:
-    api = TestClient(create_app(Evidence()))
+    api = TestClient(create_app(Evidence(), security=SecuritySettings.local_development()))
     key = f"diff_{uuid4().hex}"
     before = document()
     created = api.post(

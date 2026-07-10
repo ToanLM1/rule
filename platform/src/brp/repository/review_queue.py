@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
@@ -22,6 +23,13 @@ class ReviewStatus(StrEnum):
     ACCEPTED = "ACCEPTED"
     REJECTED = "REJECTED"
     DEFERRED = "DEFERRED"
+
+
+@dataclass(frozen=True)
+class BatchReviewDisposition:
+    item_id: UUID
+    status: ReviewStatus
+    reason: str
 
 
 class ReviewQueueService:
@@ -78,6 +86,49 @@ class ReviewQueueService:
         ]
         self.session.flush()
         return item
+
+    def dispose_batch(
+        self,
+        dispositions: list[BatchReviewDisposition],
+        *,
+        actor: str,
+        correlation_id: UUID | None = None,
+    ) -> list[ReviewQueueItem]:
+        if not dispositions:
+            raise ValueError("batch dispositions are required")
+        identifiers = [item.item_id for item in dispositions]
+        if len(identifiers) != len(set(identifiers)):
+            raise ValueError("batch item IDs must be unique")
+        records = list(
+            self.session.scalars(
+                select(ReviewQueueItem)
+                .where(ReviewQueueItem.id.in_(identifiers))
+                .order_by(ReviewQueueItem.id)
+                .with_for_update()
+            )
+        )
+        by_id = {item.id: item for item in records}
+        missing = [item_id for item_id in identifiers if item_id not in by_id]
+        if missing:
+            raise ReviewQueueItemNotFoundError(str(missing[0]))
+        for disposition in dispositions:
+            record = by_id[disposition.item_id]
+            if record.status not in {ReviewStatus.OPEN, ReviewStatus.DEFERRED}:
+                raise IllegalReviewDispositionError(f"item is already {record.status}")
+            if disposition.status is ReviewStatus.OPEN:
+                raise IllegalReviewDispositionError("disposition cannot return an item to OPEN")
+            if not disposition.reason.strip():
+                raise ValueError("disposition reason is required")
+        correlation = correlation_id or uuid4()
+        for disposition in dispositions:
+            record = by_id[disposition.item_id]
+            record.status = disposition.status
+            record.disposition_history = [
+                *record.disposition_history,
+                self._history(disposition.status, actor, disposition.reason, correlation),
+            ]
+        self.session.flush()
+        return [by_id[item_id] for item_id in identifiers]
 
     def get(self, item_id: UUID) -> ReviewQueueItem:
         item = self.session.get(ReviewQueueItem, item_id)

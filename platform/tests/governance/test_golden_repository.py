@@ -107,3 +107,23 @@ def test_golden_cases_reject_mutation() -> None:
             session.flush()
         session.rollback()
     engine.dispose()
+
+
+def test_configurable_release_evidence_case_and_lookup_requirements() -> None:
+    engine = create_database_engine()
+    key = f"configured_evidence_{uuid4().hex}"
+    with Session(engine) as session:
+        decision = RevisionRepository(session).create_decision(
+            key, content(key), "maker", datetime(2026, 8, 1, tzinfo=UTC)
+        )
+        golden = GoldenRepository(session)
+        suite = golden.create_revision(key, [case()], "maker")
+        golden.submit(suite, "maker")
+        golden.approve(suite, "checker")
+        with pytest.raises(ApprovalEvidenceError, match="at least 2"):
+            GoldenSuiteEvidencePolicy(minimum_cases=2).require_approved_evidence(session, decision)
+        with pytest.raises(ApprovalEvidenceError, match="lookup snapshot"):
+            GoldenSuiteEvidencePolicy(require_lookup_snapshot=True).require_approved_evidence(
+                session, decision
+            )
+    engine.dispose()

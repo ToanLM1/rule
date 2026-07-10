@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from brp.api.app import create_app
 from brp.repository.models import DecisionRevision
+from brp.security import SecuritySettings
 
 FIXTURE = Path(__file__).parents[1] / "fixtures/conformance/premium_adjustments.json"
 
@@ -18,7 +19,7 @@ class Evidence:
 
 
 def test_golden_api_names_advisory_executor_and_evidence() -> None:
-    api = TestClient(create_app(Evidence()))
+    api = TestClient(create_app(Evidence(), security=SecuritySettings.local_development()))
     key = f"golden_api_{uuid4().hex}"
     content = json.loads(FIXTURE.read_text(encoding="utf-8"))
     content["decisionId"] = key
@@ -83,7 +84,7 @@ def test_golden_api_names_advisory_executor_and_evidence() -> None:
 
 
 def test_mode_b_authority_is_reserved_for_generated_java() -> None:
-    api = TestClient(create_app(Evidence()))
+    api = TestClient(create_app(Evidence(), security=SecuritySettings.local_development()))
     response = api.post(
         "/golden/anything/run",
         params={"executor": "generated-java", "decision_revision": 1, "suite_revision": 1},
