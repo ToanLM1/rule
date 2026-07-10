@@ -51,3 +51,7 @@ class ReviewQueueItemNotFoundError(RepositoryError):
 
 class IllegalReviewDispositionError(RepositoryError):
     pass
+
+
+class ModeAPublicationError(RepositoryError):
+    pass

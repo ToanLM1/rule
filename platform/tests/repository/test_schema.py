@@ -54,6 +54,7 @@ def test_expected_tables_exist(session: Session) -> None:
         "golden_suite_revisions",
         "golden_cases",
         "lookup_snapshots",
+        "mode_a_publications",
     }.issubset(tables)
 
 

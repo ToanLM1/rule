@@ -17,6 +17,25 @@ def run_zen_advisory(
     decision_revision: DecisionRevision,
     suite_revision: GoldenSuiteRevision,
 ) -> dict[str, Any]:
+    return _run_zen_suite(session, decision_revision, suite_revision, authority="ADVISORY")
+
+
+def run_zen_mode_a(
+    session: Session,
+    decision_revision: DecisionRevision,
+    suite_revision: GoldenSuiteRevision,
+) -> dict[str, Any]:
+    """Execute Zen as the configured Mode-A production authority."""
+    return _run_zen_suite(session, decision_revision, suite_revision, authority="AUTHORITATIVE")
+
+
+def _run_zen_suite(
+    session: Session,
+    decision_revision: DecisionRevision,
+    suite_revision: GoldenSuiteRevision,
+    *,
+    authority: str,
+) -> dict[str, Any]:
     golden = GoldenRepository(session)
     snapshots = golden.lookup_snapshots(suite_revision.lookup_snapshot_hashes)
     resolver = DictLookupResolver(
@@ -52,7 +71,7 @@ def run_zen_advisory(
     passed_count = sum(1 for result in results if result["passed"])
     return {
         "executor": "ZEN",
-        "authority": "ADVISORY",
+        "authority": authority,
         "decisionRevision": decision_revision.revision,
         "suiteRevision": suite_revision.revision,
         "suiteHash": suite_revision.content_hash,

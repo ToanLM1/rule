@@ -236,3 +236,42 @@ class LookupSnapshot(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+
+
+class ModeAPublication(Base):
+    """Append-only activation record for an authoritative Zen release."""
+
+    __tablename__ = "mode_a_publications"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    decision_revision_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("decision_revisions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    suite_revision_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("golden_suite_revisions.id", ondelete="RESTRICT"),
+        nullable=False,
+    )
+    channel: Mapped[str] = mapped_column(String(100), nullable=False)
+    action: Mapped[str] = mapped_column(String(32), nullable=False)
+    actor: Mapped[str] = mapped_column(String(200), nullable=False)
+    previous_publication_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("mode_a_publications.id", ondelete="RESTRICT")
+    )
+    source_publication_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("mode_a_publications.id", ondelete="RESTRICT")
+    )
+    decision_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    suite_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    jdm_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    jdm_document: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    lookup_snapshot_hashes: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    validation_result: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    decision_revision: Mapped[DecisionRevision] = relationship(foreign_keys=[decision_revision_id])
+    suite_revision: Mapped[GoldenSuiteRevision] = relationship(foreign_keys=[suite_revision_id])

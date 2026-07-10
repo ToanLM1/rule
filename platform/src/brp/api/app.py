@@ -27,6 +27,7 @@ from brp.governance.golden import GoldenCaseData, GoldenRepository, GoldenSuiteE
 from brp.governance.runner import run_zen_advisory
 from brp.governance.zen import DictLookupResolver, preview
 from brp.ir.models import DecisionContent
+from brp.mode_a import ModeAService
 from brp.repository.errors import (
     ApprovalEvidenceError,
     ApprovedRevisionNotFoundError,
@@ -42,7 +43,12 @@ from brp.repository.lifecycle import (
     LifecycleService,
     ReleaseEvidencePolicy,
 )
-from brp.repository.models import DecisionRevision, GoldenSuite, GoldenSuiteRevision
+from brp.repository.models import (
+    DecisionRevision,
+    GoldenSuite,
+    GoldenSuiteRevision,
+    ModeAPublication,
+)
 from brp.repository.review_queue import ReviewQueueService
 from brp.repository.service import RevisionRepository
 
@@ -360,6 +366,59 @@ def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
             for item in ReviewQueueService(session).list_open()
         ]
 
+    @app.post("/mode-a/{decision_key}/publications", status_code=201)
+    def publish_mode_a(
+        decision_key: str,
+        actor: WriteActor,
+        session: SessionDependency,
+        decision_revision: int = Query(ge=1),
+        suite_revision: int = Query(ge=1),
+        channel: str = "production",
+    ) -> dict[str, object]:
+        record = ModeAService(session).publish(
+            decision_key,
+            decision_revision,
+            suite_revision,
+            actor,
+            channel=channel,
+        )
+        session.commit()
+        return mode_a_response(record)
+
+    @app.post("/mode-a/{decision_key}/rollbacks/{publication_id}", status_code=201)
+    def rollback_mode_a(
+        decision_key: str,
+        publication_id: int,
+        actor: WriteActor,
+        session: SessionDependency,
+        channel: str = "production",
+    ) -> dict[str, object]:
+        record = ModeAService(session).rollback(
+            decision_key, publication_id, actor, channel=channel
+        )
+        session.commit()
+        return mode_a_response(record)
+
+    @app.post("/mode-a/{decision_key}/execute")
+    def execute_mode_a(
+        decision_key: str,
+        body: PreviewRequest,
+        session: SessionDependency,
+        channel: str = "production",
+    ) -> dict[str, object]:
+        return ModeAService(session).execute(decision_key, body.input, channel=channel)
+
+    @app.get("/mode-a/{decision_key}/publications")
+    def mode_a_history(
+        decision_key: str,
+        session: SessionDependency,
+        channel: str = "production",
+    ) -> list[dict[str, object]]:
+        return [
+            mode_a_response(record)
+            for record in ModeAService(session).history(decision_key, channel=channel)
+        ]
+
     return app
 
 
@@ -377,6 +436,24 @@ def golden_response(record: GoldenSuiteRevision) -> dict[str, object]:
         "status": record.lifecycle_status,
         "contentHash": record.content_hash,
         "lookupSnapshotHashes": record.lookup_snapshot_hashes,
+    }
+
+
+def mode_a_response(record: ModeAPublication) -> dict[str, object]:
+    return {
+        "publicationId": record.id,
+        "action": record.action,
+        "channel": record.channel,
+        "decisionRevision": record.decision_revision.revision,
+        "suiteRevision": record.suite_revision.revision,
+        "decisionHash": record.decision_hash,
+        "suiteHash": record.suite_hash,
+        "jdmHash": record.jdm_hash,
+        "lookupSnapshotHashes": record.lookup_snapshot_hashes,
+        "previousPublicationId": record.previous_publication_id,
+        "sourcePublicationId": record.source_publication_id,
+        "actor": record.actor,
+        "createdAt": record.created_at.isoformat(),
     }
 
 
