@@ -420,7 +420,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/adapters/test_dmn.py`; tests cover FIRST/UNIQUE/COLLECT, Korean text, exact element provenance, restricted FEEL, unsupported FEEL review items, and BPMN rejection.
   - Depends: T-301, T-309.
 
-- [ ] **T-802 — Mode-A Zen service.**
+- [x] **T-802 — Mode-A Zen service.** ✅ 2026-07-11 0f34366
   - Do: publish only approved/effective decision revisions with approved golden evidence; run the golden suite authoritatively on Zen before activation; keep an immutable publication history; resolve the active release; rollback by appending a publication that points to a previously validated revision.
   - Accept: `uv run pytest tests/mode_a/`; tests cover publish, draft/ineffective/missing-suite denial, authoritative golden failure, Korean lookup snapshots, active execution, audit, and rollback.
   - Depends: T-401, T-402, T-403, T-801.
@@ -511,4 +511,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-11 01:05 | T-701 | done | 22d2015 | Ran the shared Mode-B demo: ELIGIBLE to UNDER_AGE via delivered generated Java.
 2026-07-11 01:09 | T-702 | done | 8a67713 | Verified the Windows 11 fresh-checkout guide structure and recorded local-only boundaries.
 2026-07-11 01:27 | T-801 | done | 93e21d7 | Added restricted DMN decision-table import with exact provenance, Korean text, review routing, and BPMN rejection.
+2026-07-11 01:43 | T-802 | done | 0f34366 | Added authoritative Zen publication, immutable evidence history, active execution, audit, and append-only rollback.
 ```
