@@ -59,6 +59,14 @@ class DeliveryResult:
     review_report: Path
 
 
+@dataclass(frozen=True)
+class ExecutionProof:
+    branch: str
+    commit: str
+    manifest_hash: str | None
+    output: str
+
+
 def transactional_delivery_gate(
     remote: Path,
     baseline: str,
@@ -149,6 +157,25 @@ def publish_delivery_branch(
     return DeliveryResult(branch, gate.base_commit, head, report)
 
 
+def prove_delivered_execution(remote: Path, branch: str, clone: Path) -> ExecutionProof:
+    _run(["git", "clone", "--branch", branch, str(remote), str(clone)])
+    _run(_gradle(clone, "test"), cwd=clone)
+    completed = subprocess.run(
+        _gradle(clone, "deliveryProbe"),
+        cwd=clone,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    manifest = clone / "release-manifest.json"
+    return ExecutionProof(
+        branch=branch,
+        commit=_capture(["git", "rev-parse", "HEAD"], cwd=clone),
+        manifest_hash=_file_hash(manifest) if manifest.exists() else None,
+        output=completed.stdout,
+    )
+
+
 def _install_generated_sources(root: Path, workspace: Path) -> None:
     toolchain = root / "java-toolchain"
     gradle = toolchain / ("gradlew.bat" if os.name == "nt" else "gradlew")
@@ -190,6 +217,10 @@ def _apply_facade_seam(workspace: Path) -> None:
         + "\nsourceSets {\n"
         + '  main { java.srcDir("src/generated/java") }\n'
         + '  test { java.srcDir("src/generatedTest/java") }\n'
+        + "}\n"
+        + '\ntasks.register<JavaExec>("deliveryProbe") {\n'
+        + '  classpath = sourceSets["test"].runtimeClasspath\n'
+        + '  mainClass.set("legacy.DeliveryProbe")\n'
         + "}\n",
         encoding="utf-8",
     )
@@ -210,6 +241,23 @@ def _apply_facade_seam(workspace: Path) -> None:
     if count != 1:
         raise RuntimeError("fixture seam recipe did not match exactly once")
     validator.write_text(transformed, encoding="utf-8")
+    tests = workspace / "src/test/java/legacy/EnrollmentValidatorTest.java"
+    test_source = tests.read_text(encoding="utf-8")
+    test_source = re.sub(
+        r"  @Test\n  void ageEighteenIsEligibleBeforeRuleEdit\(\) throws SQLException \{.*?\n  \}",
+        "  @Test\n"
+        "  void ageEighteenUsesFacadeSeam() throws SQLException {\n"
+        "    legacy.rules.EnrollmentRuleModule.resetInvocationCount();\n"
+        '    evaluate(request(18, "CANCER_BASIC", false, "SEOUL", 1));\n'
+        "    assertEquals(1, legacy.rules.EnrollmentRuleModule.invocationCount());\n"
+        "  }",
+        test_source,
+        flags=re.DOTALL,
+    )
+    tests.write_text(test_source, encoding="utf-8")
+    (workspace / "src/test/java/legacy/DeliveryProbe.java").write_text(
+        DELIVERY_PROBE, encoding="utf-8"
+    )
 
 
 def _gradle(workspace: Path, task: str) -> list[str]:
@@ -266,6 +314,24 @@ public final class EnrollmentRuleModule {
     var documents = RequiredDocumentsDecision.evaluate(new RequiredDocumentsDecision.Input(request.age(), request.productCode(), request.occupationClass()), lookup);
     for (String document : Composition.distinct(documents.stream().map(RequiredDocumentsDecision.Output::requiredDoc).toList())) result.addRequiredDoc(document);
     return result;
+  }
+}
+"""
+
+DELIVERY_PROBE = r"""package legacy;
+import java.sql.DriverManager;
+import legacy.model.EnrollmentRequest;
+public final class DeliveryProbe {
+  public static void main(String[] args) throws Exception {
+    try (var connection = DriverManager.getConnection("jdbc:h2:mem:probe;MODE=PostgreSQL")) {
+      connection.createStatement().execute("CREATE TABLE region_eligibility(region_code VARCHAR PRIMARY KEY, eligible BOOLEAN)");
+      connection.createStatement().execute("INSERT INTO region_eligibility VALUES ('SEOUL', TRUE)");
+      legacy.rules.EnrollmentRuleModule.resetInvocationCount();
+      var result = new EnrollmentValidator().evaluate(new EnrollmentRequest(18, "CANCER_BASIC", false, "SEOUL", 1), connection);
+      String outcome = result.eligible() ? "ELIGIBLE" : "REJECTED(" + result.reasonCode() + ")";
+      System.out.println("OUTCOME: " + outcome);
+      System.out.println("FACADE_CALLS: " + legacy.rules.EnrollmentRuleModule.invocationCount());
+    }
   }
 }
 """
