@@ -290,7 +290,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/adapters/test_joern_locate.py`.
   - Depends: T-007, T-301.
 
-- [ ] **T-305 — Joern decision slices.**
+- [x] **T-305 — Joern decision slices.** ✅ 2026-07-10 24a920b
   - Do: slice if/switch/ternary/JDBC constructs, max 120 lines, exact immutable source reference, manifest and diagnostics.
   - Accept: `uv run pytest tests/adapters/test_joern_slice.py`; all six expected constructs are covered exactly once.
   - Depends: T-304.
