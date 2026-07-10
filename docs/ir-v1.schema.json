@@ -1,0 +1,891 @@
+{
+  "$defs": {
+    "Action": {
+      "additionalProperties": false,
+      "properties": {
+        "output": {
+          "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+          "title": "Output",
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/JsonScalar"
+        }
+      },
+      "required": [
+        "output",
+        "value"
+      ],
+      "title": "Action",
+      "type": "object"
+    },
+    "Condition": {
+      "additionalProperties": false,
+      "properties": {
+        "left": {
+          "$ref": "#/$defs/Operand"
+        },
+        "operator": {
+          "$ref": "#/$defs/Operator"
+        },
+        "right": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Operand"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "left",
+        "operator"
+      ],
+      "title": "Condition",
+      "type": "object"
+    },
+    "ConditionGroup": {
+      "additionalProperties": false,
+      "properties": {
+        "all": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/Condition"
+                  },
+                  {
+                    "$ref": "#/$defs/ConditionGroup"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "All"
+        },
+        "any": {
+          "anyOf": [
+            {
+              "items": {
+                "anyOf": [
+                  {
+                    "$ref": "#/$defs/Condition"
+                  },
+                  {
+                    "$ref": "#/$defs/ConditionGroup"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Any"
+        }
+      },
+      "title": "ConditionGroup",
+      "type": "object"
+    },
+    "DbRowReference": {
+      "additionalProperties": false,
+      "properties": {
+        "connectionAlias": {
+          "minLength": 1,
+          "title": "Connectionalias",
+          "type": "string"
+        },
+        "primaryKey": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonScalar"
+          },
+          "minProperties": 1,
+          "title": "Primarykey",
+          "type": "object"
+        },
+        "schema": {
+          "minLength": 1,
+          "title": "Schema",
+          "type": "string"
+        },
+        "snapshotHash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Snapshothash",
+          "type": "string"
+        },
+        "snapshotId": {
+          "minLength": 1,
+          "title": "Snapshotid",
+          "type": "string"
+        },
+        "table": {
+          "minLength": 1,
+          "title": "Table",
+          "type": "string"
+        },
+        "type": {
+          "const": "DB_ROW",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "connectionAlias",
+        "schema",
+        "table",
+        "primaryKey",
+        "snapshotId",
+        "snapshotHash"
+      ],
+      "title": "DbRowReference",
+      "type": "object"
+    },
+    "DmnAssetReference": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "minLength": 1,
+          "title": "Assetid",
+          "type": "string"
+        },
+        "decisionId": {
+          "minLength": 1,
+          "title": "Decisionid",
+          "type": "string"
+        },
+        "elementId": {
+          "minLength": 1,
+          "title": "Elementid",
+          "type": "string"
+        },
+        "revision": {
+          "minLength": 1,
+          "title": "Revision",
+          "type": "string"
+        },
+        "type": {
+          "const": "DMN_ASSET",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "assetId",
+        "revision",
+        "decisionId",
+        "elementId"
+      ],
+      "title": "DmnAssetReference",
+      "type": "object"
+    },
+    "FieldDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/ScalarType"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ],
+      "title": "FieldDefinition",
+      "type": "object"
+    },
+    "HitPolicy": {
+      "enum": [
+        "FIRST",
+        "UNIQUE",
+        "COLLECT"
+      ],
+      "title": "HitPolicy",
+      "type": "string"
+    },
+    "InputDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "required": {
+          "default": true,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "sourcePath": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sourcepath"
+        },
+        "type": {
+          "$ref": "#/$defs/ScalarType"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ],
+      "title": "InputDefinition",
+      "type": "object"
+    },
+    "InputOperand": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "INPUT",
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "name"
+      ],
+      "title": "InputOperand",
+      "type": "object"
+    },
+    "JavaSourceReference": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "minLength": 1,
+          "title": "File",
+          "type": "string"
+        },
+        "lineEnd": {
+          "minimum": 1,
+          "title": "Lineend",
+          "type": "integer"
+        },
+        "lineStart": {
+          "minimum": 1,
+          "title": "Linestart",
+          "type": "integer"
+        },
+        "repository": {
+          "minLength": 1,
+          "title": "Repository",
+          "type": "string"
+        },
+        "revision": {
+          "minLength": 1,
+          "title": "Revision",
+          "type": "string"
+        },
+        "symbol": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Symbol"
+        },
+        "type": {
+          "const": "JAVA_SOURCE",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "repository",
+        "revision",
+        "file",
+        "lineStart",
+        "lineEnd"
+      ],
+      "title": "JavaSourceReference",
+      "type": "object"
+    },
+    "JsonScalar": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "JsonValue": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/JsonScalar"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/JsonScalar"
+          },
+          "type": "array"
+        }
+      ]
+    },
+    "LiteralOperand": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "LITERAL",
+          "title": "Kind",
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/JsonValue"
+        }
+      },
+      "required": [
+        "kind",
+        "value"
+      ],
+      "title": "LiteralOperand",
+      "type": "object"
+    },
+    "LookupDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "keys": {
+          "items": {
+            "$ref": "#/$defs/FieldDefinition"
+          },
+          "minItems": 1,
+          "title": "Keys",
+          "type": "array"
+        },
+        "name": {
+          "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "outputs": {
+          "items": {
+            "$ref": "#/$defs/FieldDefinition"
+          },
+          "minItems": 1,
+          "title": "Outputs",
+          "type": "array"
+        },
+        "ref": {
+          "pattern": "^lookup://.+",
+          "title": "Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "ref",
+        "keys",
+        "outputs"
+      ],
+      "title": "LookupDefinition",
+      "type": "object"
+    },
+    "LookupFieldOperand": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+          "title": "Field",
+          "type": "string"
+        },
+        "keys": {
+          "additionalProperties": {
+            "$ref": "#/$defs/LookupKeyOperand"
+          },
+          "title": "Keys",
+          "type": "object"
+        },
+        "kind": {
+          "const": "LOOKUP_FIELD",
+          "title": "Kind",
+          "type": "string"
+        },
+        "lookup": {
+          "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+          "title": "Lookup",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "lookup",
+        "keys",
+        "field"
+      ],
+      "title": "LookupFieldOperand",
+      "type": "object"
+    },
+    "LookupKeyOperand": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/InputOperand"
+        },
+        {
+          "$ref": "#/$defs/LiteralOperand"
+        }
+      ]
+    },
+    "ManualDocumentReference": {
+      "additionalProperties": false,
+      "properties": {
+        "cellRange": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cellrange"
+        },
+        "documentId": {
+          "minLength": 1,
+          "title": "Documentid",
+          "type": "string"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "revision": {
+          "minLength": 1,
+          "title": "Revision",
+          "type": "string"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section"
+        },
+        "sheet": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sheet"
+        },
+        "slide": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slide"
+        },
+        "type": {
+          "const": "MANUAL_DOC",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "documentId",
+        "revision"
+      ],
+      "title": "ManualDocumentReference",
+      "type": "object"
+    },
+    "Operand": {
+      "discriminator": {
+        "mapping": {
+          "INPUT": "#/$defs/InputOperand",
+          "LITERAL": "#/$defs/LiteralOperand",
+          "LOOKUP_FIELD": "#/$defs/LookupFieldOperand"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/InputOperand"
+        },
+        {
+          "$ref": "#/$defs/LiteralOperand"
+        },
+        {
+          "$ref": "#/$defs/LookupFieldOperand"
+        }
+      ]
+    },
+    "Operator": {
+      "enum": [
+        "EQ",
+        "NE",
+        "GT",
+        "GTE",
+        "LT",
+        "LTE",
+        "IN",
+        "NOT_IN",
+        "BETWEEN",
+        "EXISTS",
+        "STARTS_WITH"
+      ],
+      "title": "Operator",
+      "type": "string"
+    },
+    "OutputDefinition": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "type": {
+          "$ref": "#/$defs/ScalarType"
+        }
+      },
+      "required": [
+        "name",
+        "type"
+      ],
+      "title": "OutputDefinition",
+      "type": "object"
+    },
+    "ProgramContext": {
+      "additionalProperties": false,
+      "properties": {
+        "entryPoint": {
+          "minLength": 1,
+          "title": "Entrypoint",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ProgramKind"
+        },
+        "programId": {
+          "minLength": 1,
+          "title": "Programid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "programId",
+        "kind",
+        "entryPoint"
+      ],
+      "title": "ProgramContext",
+      "type": "object"
+    },
+    "ProgramKind": {
+      "enum": [
+        "SCREEN",
+        "BATCH",
+        "INTERFACE",
+        "API",
+        "SERVICE"
+      ],
+      "title": "ProgramKind",
+      "type": "string"
+    },
+    "Rule": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "origin": {
+          "$ref": "#/$defs/RuleOrigin"
+        },
+        "ruleId": {
+          "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+          "title": "Ruleid",
+          "type": "string"
+        },
+        "sourceReferences": {
+          "items": {
+            "$ref": "#/$defs/SourceReference"
+          },
+          "title": "Sourcereferences",
+          "type": "array"
+        },
+        "then": {
+          "items": {
+            "$ref": "#/$defs/Action"
+          },
+          "minItems": 1,
+          "title": "Then",
+          "type": "array"
+        },
+        "when": {
+          "$ref": "#/$defs/ConditionGroup"
+        }
+      },
+      "required": [
+        "ruleId",
+        "when",
+        "then",
+        "origin",
+        "sourceReferences"
+      ],
+      "title": "Rule",
+      "type": "object"
+    },
+    "RuleOrigin": {
+      "enum": [
+        "EXTRACTED",
+        "USER_AUTHORED"
+      ],
+      "title": "RuleOrigin",
+      "type": "string"
+    },
+    "ScalarType": {
+      "enum": [
+        "boolean",
+        "integer",
+        "decimal",
+        "string",
+        "date"
+      ],
+      "title": "ScalarType",
+      "type": "string"
+    },
+    "SourceReference": {
+      "discriminator": {
+        "mapping": {
+          "DB_ROW": "#/$defs/DbRowReference",
+          "DMN_ASSET": "#/$defs/DmnAssetReference",
+          "JAVA_SOURCE": "#/$defs/JavaSourceReference",
+          "MANUAL_DOC": "#/$defs/ManualDocumentReference",
+          "USER_ACTION": "#/$defs/UserActionReference"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/JavaSourceReference"
+        },
+        {
+          "$ref": "#/$defs/DbRowReference"
+        },
+        {
+          "$ref": "#/$defs/ManualDocumentReference"
+        },
+        {
+          "$ref": "#/$defs/DmnAssetReference"
+        },
+        {
+          "$ref": "#/$defs/UserActionReference"
+        }
+      ]
+    },
+    "UserActionReference": {
+      "additionalProperties": false,
+      "properties": {
+        "actor": {
+          "minLength": 1,
+          "title": "Actor",
+          "type": "string"
+        },
+        "at": {
+          "format": "date-time",
+          "title": "At",
+          "type": "string"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "type": {
+          "const": "USER_ACTION",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "actor",
+        "at",
+        "reason"
+      ],
+      "title": "UserActionReference",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "decisionId": {
+      "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+      "title": "Decisionid",
+      "type": "string"
+    },
+    "decisionName": {
+      "minLength": 1,
+      "title": "Decisionname",
+      "type": "string"
+    },
+    "defaultOutput": {
+      "anyOf": [
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonScalar"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Defaultoutput"
+    },
+    "hitPolicy": {
+      "$ref": "#/$defs/HitPolicy"
+    },
+    "inputs": {
+      "items": {
+        "$ref": "#/$defs/InputDefinition"
+      },
+      "minItems": 1,
+      "title": "Inputs",
+      "type": "array"
+    },
+    "lookups": {
+      "items": {
+        "$ref": "#/$defs/LookupDefinition"
+      },
+      "title": "Lookups",
+      "type": "array"
+    },
+    "outputs": {
+      "items": {
+        "$ref": "#/$defs/OutputDefinition"
+      },
+      "minItems": 1,
+      "title": "Outputs",
+      "type": "array"
+    },
+    "product": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Product"
+    },
+    "profile": {
+      "const": "RULE_IR_V1",
+      "title": "Profile",
+      "type": "string"
+    },
+    "programContexts": {
+      "items": {
+        "$ref": "#/$defs/ProgramContext"
+      },
+      "minItems": 1,
+      "title": "Programcontexts",
+      "type": "array"
+    },
+    "rules": {
+      "items": {
+        "$ref": "#/$defs/Rule"
+      },
+      "minItems": 1,
+      "title": "Rules",
+      "type": "array"
+    },
+    "schemaVersion": {
+      "const": 1,
+      "title": "Schemaversion",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "decisionId",
+    "decisionName",
+    "profile",
+    "schemaVersion",
+    "programContexts",
+    "hitPolicy",
+    "inputs",
+    "outputs",
+    "rules"
+  ],
+  "title": "DecisionContent",
+  "type": "object"
+}
