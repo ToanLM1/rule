@@ -222,7 +222,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/ir/test_models.py tests/conformance/test_pydantic.py`.
   - Depends: T-101.
 
-- [ ] **T-103 — JSON Schema and canonical serialization.**
+- [x] **T-103 — JSON Schema and canonical serialization.** ✅ 2026-07-10 8545e79
   - Do: export `docs/ir-v1.schema.json`; define canonical bytes as UTF-8 JSON with sorted object keys, compact separators, preserved list order, normalized decimals/dates, and no insignificant whitespace. Test across reordered input keys and two fresh processes.
   - Accept: `uv run pytest tests/ir/test_schema_export.py tests/ir/test_canonical.py`.
   - Depends: T-102.
@@ -455,4 +455,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-10 18:39 | T-007 | done | ddbf7a2 | Built the fixture CPG and found 39 methods plus the configured enrollment entry point.
 2026-07-10 18:42 | T-101 | done | c7e4c21 | Defined positive/negative cases for every IR operator, hit policy, lookup, nesting, provenance, and fixture decision.
 2026-07-10 18:46 | T-102 | done | 263de4f | Implemented strict Rule IR v1 content, operand, lookup, provenance, and cross-reference validation.
+2026-07-10 18:48 | T-103 | done | 8545e79 | Added committed JSON Schema and stable UTF-8 canonical bytes across key order and fresh processes.
 ```
