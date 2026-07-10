@@ -425,7 +425,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/mode_a/`; tests cover publish, draft/ineffective/missing-suite denial, authoritative golden failure, Korean lookup snapshots, active execution, audit, and rollback.
   - Depends: T-401, T-402, T-403, T-801.
 
-- [ ] **T-803 — Second DBMS connector.**
+- [x] **T-803 — Second DBMS connector.** ✅ 2026-07-11 1717f2a
   - Do: refactor the MCP connector behind a driver protocol and add SQLite as the dependency-free local second-DBMS proof; preserve catalog allowlists, identifier quoting, row limits, read-only enforcement, stored-object capability reporting, and redacted logs.
   - Accept (from `mcp-db-connector/`): `uv run pytest`; shared contract tests run for PostgreSQL and SQLite, with writes/injection/excess limits rejected for both and unsupported stored-procedure source reported explicitly.
   - Depends: T-302.
@@ -512,4 +512,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-11 01:09 | T-702 | done | 8a67713 | Verified the Windows 11 fresh-checkout guide structure and recorded local-only boundaries.
 2026-07-11 01:27 | T-801 | done | 93e21d7 | Added restricted DMN decision-table import with exact provenance, Korean text, review routing, and BPMN rejection.
 2026-07-11 01:43 | T-802 | done | 0f34366 | Added authoritative Zen publication, immutable evidence history, active execution, audit, and append-only rollback.
+2026-07-11 01:55 | T-803 | done | 1717f2a | Refactored the bounded connector behind a driver contract and proved PostgreSQL/SQLite read-only parity.
 ```
