@@ -295,7 +295,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/adapters/test_joern_slice.py`; all six expected constructs are covered exactly once.
   - Depends: T-304.
 
-- [ ] **T-306 — Provider-swappable LLM client.**
+- [x] **T-306 — Provider-swappable LLM client.** ✅ 2026-07-10 8239e84
   - Do: mock, Anthropic-compatible, and OpenAI-compatible HTTP providers through `httpx`; structured validation; at most three attempts; token/latency counters; no prompt/response source text in normal logs. Live tests opt-in only.
   - Accept: `uv run pytest tests/llm/` covering valid, retry, exhaustion, redaction, Korean, and provider-contract cases.
   - Depends: T-102.
