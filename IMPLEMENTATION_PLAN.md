@@ -310,7 +310,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/adapters/test_docs_manual.py`; Korean evidence and source locations survive, sparse/ambiguous text becomes review queue.
   - Depends: T-301.
 
-- [ ] **T-309 — Idempotent ingestion runner.**
+- [x] **T-309 — Idempotent ingestion runner.** ✅ 2026-07-10 88c108c
   - Do: `brp ingest --site`; hash source snapshot + adapter version + canonical candidate content; identical rerun inserts nothing, changed source creates a new draft and audit entry.
   - Accept: `uv run pytest tests/e2e/test_ingest.py` with identical and changed-source runs.
   - Depends: T-205, T-303, T-307, T-308.
