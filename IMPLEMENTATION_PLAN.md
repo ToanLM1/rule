@@ -399,12 +399,12 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
 
 ### M7 — End-to-end PoC
 
-- [ ] **T-701 — Repeatable Mode-B demo.**
+- [x] **T-701 — Repeatable Mode-B demo.** ✅ 2026-07-11 22d2015
   - Do: one `.sh` and `.ps1` orchestrated by a shared Python CLI: reset local DB/remote; ingest; disposition unmappable items; approve suite and decisions with two actors; establish seam baseline; print legacy-app BEFORE; create/edit/submit/approve revision; deliver; run fresh delivery clone; print AFTER; show revision, suite, lookup, manifest, branch, commit, and timings.
   - Accept: `bash scripts/demo-mode-b.sh`; `pwsh -File scripts/demo-mode-b.ps1`; both outputs include `BEFORE: ELIGIBLE`, `AFTER: REJECTED(UNDER_AGE)`, `EXECUTOR: GENERATED_JAVA`, and a delivery commit hash.
   - Depends: all M2–M6 tasks.
 
-- [ ] **T-702 — Fresh-checkout documentation.**
+- [x] **T-702 — Fresh-checkout documentation.** ✅ 2026-07-11 8a67713
   - Do: `docs/demo.md`, architecture links, exact prerequisites/commands/expected output, troubleshooting, security boundaries, and explanation of advisory vs authoritative results.
   - Accept: `uv run --project platform python scripts/verify_fresh_checkout.py --guide docs/demo.md`; record platform and commit in Progress Log.
   - Depends: T-701.
@@ -462,4 +462,30 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-10 19:10 | T-203 | done | c6ca62f | Enforced transactional lifecycle, maker-checker, release evidence policy, reasons, and effective overlap checks.
 2026-07-10 19:13 | T-204 | done | c0eaece | Audited every revision/transition and added persistent unmappable-fragment disposition history.
 2026-07-10 19:16 | T-205 | done | 4ab01a2 | Exposed actor-gated writes, actor-free reads, lifecycle, effective resolution, Korean content, and audit routes.
+2026-07-10 19:20 | T-206 | done | 98d2e21 | Added stable semantic revision diffs for named IR structures and provenance.
+2026-07-10 19:25 | T-301 | done | 28545a2 | Defined capability-versioned source, batch, candidate, diagnostic, and unmappable contracts.
+2026-07-10 19:31 | T-302 | done | 790c939 | Added the bounded read-only FastMCP PostgreSQL connector with injection and redaction tests.
+2026-07-10 19:36 | T-303 | done | 9358896 | Mapped deterministic PostgreSQL rows into typed, byte-exact traced candidates.
+2026-07-10 19:41 | T-304 | done | 201d486 | Pinned Java source revisions and located the entry point plus reachable private helper.
+2026-07-10 19:45 | T-305 | done | 24a920b | Produced six exact, bounded decision slices with immutable line provenance.
+2026-07-10 19:49 | T-306 | done | 8239e84 | Added mock, OpenAI-compatible, and Anthropic-compatible structured LLM providers.
+2026-07-10 19:54 | T-307 | done | bbdb9e5 | Mapped all recorded Java constructs into three candidate decisions and review items.
+2026-07-10 20:00 | T-308 | done | 41014ff | Added native DOCX/XLSX extraction with Korean location evidence and ambiguity routing.
+2026-07-10 20:06 | T-309 | done | 88c108c | Added fingerprinted ingestion; identical sources skip and changed sources create audited drafts.
+2026-07-10 20:13 | T-401 | done | 1d0a07b | Exported pure JDM and verified embedded Zen advisory semantics and lookup snapshots.
+2026-07-10 20:19 | T-402 | done | 65e2d59 | Governed immutable golden suites and lookup snapshots with maker-checker release evidence.
+2026-07-10 20:24 | T-403 | done | f26e600 | Added preview and golden runner APIs with explicit executor authority metadata.
+2026-07-10 20:42 | T-404 | done | 5f297e5 | Built and browser-verified the governance workspace, screenshots, and console-error gate.
+2026-07-10 20:48 | T-501 | done | fade3a8 | Hashed all ADR-8 release inputs and outputs in deterministic generator contracts.
+2026-07-10 21:02 | T-502 | done | c66e0d3 | Added the deterministic JavaPoet Rule IR generator and centralized operator semantics.
+2026-07-11 00:10 | T-503 | done | da0df40 | Compiled and executed the fixture façade with typed lookups and restricted aggregators.
+2026-07-11 00:18 | T-504 | done | aca89e3 | Generated authoritative JUnit and proved both passing and planted-failure gates.
+2026-07-11 00:24 | T-505 | done | 541426c | Added approved/effective generation orchestration and atomic versioned outputs.
+2026-07-11 00:28 | T-506 | done | b3215d7 | Reported Zen/generated divergence as generator/export defects without changing authority.
+2026-07-11 00:37 | T-601 | done | 7ebc13a | Created, tagged, pushed, and fresh-clone-tested the one-time façade seam baseline.
+2026-07-11 00:44 | T-602 | done | bce84b9 | Gated manifest-only delivery with generated and target tests and failure evidence.
+2026-07-11 00:49 | T-603 | done | a61dbe6 | Pushed deterministic review branches with exact commit, diff, manifest, and test evidence.
+2026-07-11 00:57 | T-604 | done | dd57ab2 | Proved main/delivery outcomes from fresh clones and instrumented façade calls.
+2026-07-11 01:05 | T-701 | done | 22d2015 | Ran the shared Mode-B demo: ELIGIBLE to UNDER_AGE via delivered generated Java.
+2026-07-11 01:09 | T-702 | done | 8a67713 | Verified the Windows 11 fresh-checkout guide structure and recorded local-only boundaries.
 ```
