@@ -198,7 +198,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept (from `fixtures/legacy-enrollment/`): `./gradlew test`; schema test confirms exactly six mapped constructs and no unclassified construct.
   - Depends: T-002, T-003.
 
-- [ ] **T-006 — CI workflow.**
+- [x] **T-006 — CI workflow.** ✅ 2026-07-10 068fa26
   - Do: jobs for platform (PostgreSQL service), connector, Java toolchain, fixture, and UI; pinned action majors and caches. CI must not contact shared AWS resources.
   - Accept: `uv run --project platform pytest platform/tests/ci/test_workflow.py`; `uv run --project platform python scripts/run_ci_matrix.py`. When a remote is available, record the first green run URL before closing M0.
   - Depends: T-001..T-005.
@@ -451,4 +451,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-10 18:30 | T-004 | done | 647c474 | Added Vue, Pinia, router, grid/editor dependencies, build config, and a passing component smoke test.
 2026-07-10 18:33 | T-005 | done | 067e78f | Added six legacy decision constructs, 12 behavior tests, H2 isolation, and expected decomposition metadata.
 2026-07-10 18:34 | E-003 | done | 7300c89 | Pinned and verified Joern 4.0.579 by immutable container digest.
+2026-07-10 18:37 | T-006 | done | 068fa26 | Added isolated CI jobs and a passing local matrix across Python, Java, connector, fixture, and UI.
 ```
