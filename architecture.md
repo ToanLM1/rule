@@ -1,6 +1,6 @@
 # Business Rules Platform — Architecture Design
 
-> **Status:** implementation baseline, v1.1 (2026-07-10). Companion to `prd.md` (product requirements — read it first for domain/scope). This document is the source of truth for architecture detail. It reviews and supersedes `prd-architecture-revision-note.md`. Decisions that were open in v1 are closed in ADR-6..8 and §14 so implementation does not have to invent execution semantics.
+> **Status:** Phase-2 implementation baseline, v1.2 (2026-07-11). Companion to `prd.md` (product requirements — read it first for domain/scope). This document is the source of truth for architecture detail. It reviews and supersedes `prd-architecture-revision-note.md`. ADR-6..8 and the Phase-2 publication/security decisions below are implemented and regression-tested; customer-specific rollout inputs remain explicitly gated in §14.
 
 ## 0. Relationship To The Knowledge Assistant
 
@@ -123,7 +123,7 @@ flowchart LR
         A4[Existing engines / DMN]
     end
     subgraph SA["② Source adapters"]
-        B1[db-postgres · via MCP lib]
+        B1[DB tables · PostgreSQL/SQLite MCP drivers]
         B2[code-java · Joern]
         B3[engine-dmn]
         B4[docs-manual]
@@ -310,7 +310,7 @@ The code graph is **throwaway scaffolding** (rebuilt per analysis run, in Joern'
 
 ### 6.4 `engine-dmn` — external-engine import
 
-`DMN asset → parse → Canonical Rule IR (PENDING_REVIEW)`. Mapping: DMN input columns→conditions, output columns→actions, hit policy→hit policy, DRD→decision dependency metadata. **FEEL:** simple comparisons/ranges map to IR operators; anything beyond goes to the review queue with the raw FEEL attached. **BPMN is rejected by this adapter** — it is orchestration, not rules; BPMN-embedded decisions need a separate analysis path (candidate-only, mandatory review). Engine-native formats (DRL, ODM) get their own adapters later, same pattern.
+`DMN 1.3+ asset → parse decision tables → Canonical Rule IR candidate`. The implemented subset maps input columns to conditions, output columns to actions, and `FIRST`/`UNIQUE`/`COLLECT` hit policies to IR. Literal equality, comparisons, inclusive ranges, lists, and `not(...)` map to typed IR operators. Every imported rule retains asset id, immutable revision, decision id, and exact rule-element id; Korean text remains UTF-8. Unsupported FEEL and non-table boxed expressions become review items rather than guessed rules. DTD/entity declarations are forbidden, and **BPMN is rejected** because workflow orchestration is not a rule table. DRDs, full FEEL, DRL, and ODM remain later adapters/extensions.
 
 ### 6.5 `docs-manual` — manuals (supplementary)
 
@@ -351,6 +351,8 @@ recurring: approve revision + golden suite → generate from recorded ReleaseInp
 
 IR→JDM is intentionally trivial because the IR v1 profile is a strict subset of what JDM expresses. The same export feeds (a) the embedded-Zen preview in governance and (b) the mode-A production runtime.
 
+Mode-A activation is an append-only publication operation, not a mutable "active" flag. A publish request is serialized per decision and succeeds only when the decision revision is `APPROVED` and effective, the selected golden-suite revision is `APPROVED`, and every case passes Zen with `authority = AUTHORITATIVE`. The publication records the decision/suite hashes, exact JDM document/hash, lookup-snapshot hashes, validation result, actor, channel, and previous publication. Active resolution selects the newest publication for the decision/channel. Rollback reruns the target's immutable golden evidence and appends a new publication referencing both the current and previously validated publication; history is never rewritten.
+
 ### 7.5 `test-generator`
 
 Golden suites are governed inputs rather than incidental database rows. Each immutable suite revision contains curated input/expected-output pairs, case provenance, decision-key coverage, and lookup-snapshot references. Suites are seeded from legacy behavior during initial load and extended through maker-checker review. The same suite renders as JUnit against generated Java (mode B) and as Zen evaluation fixtures (mode A), but only the executor named by §9 is authoritative.
@@ -378,7 +380,7 @@ The asymmetry is deliberate (ADR-3): in mode B there are two executors (Zen prev
 ## 10. Multi-Site Packaging
 
 - **Site profile** (config, not code): source connection aliases, source repositories pinned per run, PGM contexts (`SCREEN/BATCH/INTERFACE/API/SERVICE`), language/DBMS, delivery mode, adapter selection, lookup-provider binding, and a target-delivery block containing repository URL/path, base branch, generated/test paths, Java package, composition spec, build/test commands, and PR provider.
-- **Reusable DB MCP library**: connection-info-driven, PostgreSQL connector first, other DBMS as drivers — an owned asset carried to each site (customer directive 2026-07-02).
+- **Reusable DB MCP library**: one bounded connector contract over database drivers. PostgreSQL remains the production reference; SQLite is the dependency-free second-driver proof. Both use catalog-derived identifier allowlists, bounded reads, read-only sessions, redacted failures, and explicit stored-object capability reporting. A production second DBMS still requires customer selection and integration evidence.
 - **Adapter registry**: source adapters and target generators register by capability; a site activates them by name in its profile.
 - **Hard rule:** anything that cannot be made general (a site-specific hack) must be isolated in the site profile/plug-in layer and flagged — never merged into core (PRD §8).
 - Deployment: self-hostable, on-prem/air-gap friendly (finance/insurance); AWS acceptable. Mode-A runtime ships as an embedded library or small service alongside the site's stack.
@@ -403,7 +405,7 @@ The asymmetry is deliberate (ADR-3): in mode B there are two executors (Zen prev
 |---|---|
 | **0 — Design & samples** | ADR-6..8 semantics + IR conformance corpus; adapter/generator contracts; PGM-context and target-delivery config; integration-seam design against synthetic/sample Java; confirm pilot's engine assets; **mining-model benchmark** when real samples arrive |
 | **1 — PoC (mode B)** | `db-postgres` (via MCP lib) + `code-java` (Joern) adapters; a bounded supplementary `docs-manual` adapter; IR repository + review workflow; versioned golden suites; embedded-Zen preview; `java-source` + `test-generator`; seam-enabled baseline; diff/PR-ready branch + CI golden/target tests; demo per PRD §11 |
-| **2 — Productize + mode A** | Hardened DB MCP library; `engine-dmn` adapter; mode-A runtime delivery (IR→JDM→Zen); governance hardening; second DBMS/language as plug-in proof |
+| **2 — Productize + mode A** | **Implemented generically/local:** restricted `engine-dmn`; append-only Mode-A IR→JDM→Zen publication/rollback; PostgreSQL/SQLite driver contract; versioned mining benchmark with synthetic-only proof; OIDC/JWT roles, configurable evidence, atomic batch review, and deployer authorization. Real customer benchmark, production IdP, pilot roles, and production second DBMS remain gated. |
 | **3 — Scale** | More adapters (stored-proc, UI mining, DRL/ODM import, `dmn-export`, C#); more sites/products |
 
 ## 13. Technology Stack And Libraries
@@ -417,7 +419,7 @@ Concrete choices per component (rationale in ADR-5; all self-hostable / air-gap-
 | Platform API & orchestration | **Python 3.12 + FastAPI + Pydantic v2** | IR schema = Pydantic models (JSON Schema exported from them — one definition, validated everywhere). Matches existing team stack. |
 | Rule repository storage | **PostgreSQL 16** — immutable content as `JSONB`, revision envelopes, lifecycle events, versioned golden suites, and audit tables; SQLAlchemy + Alembic | PostgreSQL is the Phase-1 system of record. Git stores generated artifacts and review diffs, not canonical decision content. |
 | Governance UI | **Vue 3 + TypeScript + Vite + Pinia** | Team consistency with the existing `frontend/` app (React would work; no reason to split stacks). **ag-grid-community** (MIT) for editable decision tables; **monaco-editor** for JSON/rule-diff views. |
-| AuthN/Z | **OIDC-pluggable** (Keycloak as self-host reference) | Maker-checker enforced in the app layer, not the IdP. |
+| AuthN/Z | **OIDC/JWT via PyJWT + JWKS** (Keycloak as self-host reference) | Fixed asymmetric algorithm allowlist; required issuer, audience, subject, issued-at, and expiry claims; `maker`/`checker`/`reviewer`/`deployer` enforced in the API. Local `X-BRP-*` identity headers work only when `BRP_LOCAL_DEVELOPMENT_HEADERS=true`; production rejects them. Maker-checker remains an app invariant independent of IdP roles. |
 | Packaging | **Docker Compose** (api, ui, postgres, joern, decision-service); `uv` for Python, `pnpm` for UI | Compose-first for on-prem/air-gap; k8s optional, never required. |
 | Observability | structlog (JSON logs); OpenTelemetry optional per site | Keep light. |
 
@@ -428,8 +430,8 @@ Concrete choices per component (rationale in ADR-5; all self-hostable / air-gap-
 | `code-java` mining | **Joern** (`javasrc2cpg` frontend; CPGQL in server mode, driven from Python) | The CPG store is Joern's own — **no Neo4j/Neptune needed**; the graph is throwaway scaffolding (§6.3). tree-sitter as a cheap pre-scan fallback. |
 | LLM rule mining | **Tiered + benchmark-selected, provider-swappable** — bulk extraction on a value-tier model; hard slices & verification on a frontier-tier model | Mining is token-heavy, repetitive, structured-output work with a downstream safety net (human review + golden tests). Phase 1 uses recorded mock responses; a real-provider default is selected only by the gated benchmark on customer-approved slices. Structured output is validated by the same Pydantic IR models regardless of provider. LLM output is candidate-only (ADR-4). |
 | LLM deployment per site | API where policy allows; **self-hosted open-weights (vLLM)** for air-gapped sites | Open-weights options (DeepSeek/Qwen/GLM/Kimi) are the only viable path for air-gapped finance sites — no closed API (Claude included) can serve them. Conversely, some sites may restrict specific foreign endpoints; the site profile (§10) selects the provider, the pipeline code never changes. |
-| `db-postgres` + DB MCP library | **Official Python MCP SDK (FastMCP)** + **psycopg 3** | The reusable, connection-info-driven MCP asset (PRD §8). Other DBMS later as drivers: `oracledb`, `pyodbc`/MSSQL. |
-| `engine-dmn` | **lxml** against the DMN 1.3+ XSD for decision tables; hand-rolled parser for the *restricted* FEEL subset | Complex FEEL → review queue (§6.4), so no full FEEL parser in MVP. If XML handling gets hairy, Camunda's `dmn-model` via the Java toolchain. |
+| DB MCP library | **Official Python MCP SDK (FastMCP)** + driver protocol; **psycopg 3** for PostgreSQL and stdlib **sqlite3** for the local portability proof | No arbitrary SQL MCP tool. SQLite opens file URIs with `mode=ro` and `PRAGMA query_only`; its lack of stored-procedure source is reported as an unsupported capability. Oracle/MSSQL remain candidate production drivers after customer selection. |
+| `engine-dmn` | Hardened stdlib **ElementTree** parsing plus a hand-rolled restricted FEEL parser | DTD/entities are rejected before parse. Complex FEEL/boxed expressions → review queue (§6.4); BPMN is rejected. Full XSD/DRD support is intentionally outside the implemented subset. |
 | `docs-manual` | pdfplumber / python-docx / openpyxl + LLM extraction | Supplementary source; low default confidence. |
 
 ### 13.3 Target generators & delivery
@@ -449,7 +451,7 @@ Concrete choices per component (rationale in ADR-5; all self-hostable / air-gap-
 - **No message broker** (Kafka etc.) — extraction is batch; FastAPI + task queue in-process is enough at this scale.
 - **No rule-engine BRMS suite** (GoRules BRMS paid tier, Camunda platform) — governance UI is ours; only the MIT Zen evaluator is consumed.
 
-## 14. Phase-1 Decisions And Remaining Customer Inputs
+## 14. Implemented Decisions And Remaining Customer Inputs
 
 ### 14.1 Closed for implementation
 
@@ -459,13 +461,19 @@ Concrete choices per component (rationale in ADR-5; all self-hostable / air-gap-
 4. **Java generation:** JavaPoet + google-java-format is binding for Phase 1.
 5. **Engine:** Zen is the advisory preview executor and the future Mode-A executor behind `jdm-export`; generated Java remains Mode-B authority.
 6. **Development isolation:** local/CI containers are the default for automated tests. Shared EC2/RDS resources are optional integration targets and require explicit human authorization before mutation or service-impacting changes.
+7. **Mode A:** Zen is authoritative only through an immutable publication that records passing golden evidence and artifact hashes; rollback is another publication, never history mutation.
+8. **Authentication/authorization:** OIDC issuer/audience/JWKS configuration and fixed asymmetric JWT algorithms are mandatory outside an explicitly enabled local-header mode. API roles and maker-checker identity separation are both enforced.
+9. **Portability proof:** SQLite proves the DB driver boundary locally; it is not evidence for an unnamed production DBMS.
+10. **Mining benchmark:** benchmark/ground-truth/provider-policy formats and metrics are implemented, but the checked-in result is `SYNTHETIC_NON_CUSTOMER` and cannot support customer mining-accuracy claims.
 
 ### 14.2 Still customer-gated
 
 - Real source/schema samples and the pilot product/flow.
 - Site-specific target repository conventions and the human-reviewed seam design.
-- Approval roles/evidence requirements beyond the Phase-1 maker-checker rule.
-- Provider policy and the real-slice mining benchmark.
+- The pilot's exact role-to-user/group mapping and release-evidence thresholds.
+- Production IdP issuer/audience/JWKS metadata and key-rotation/availability acceptance.
+- Customer provider policy, approved source-slice scope, approval metadata, and real ground truth for a real-slice mining benchmark.
+- The production second-DBMS target and its customer-owned read-only credentials/catalog acceptance (SQLite is only the local contract proof).
 - Production lookup freshness/SLA and release-channel policy.
 
-These inputs block real-site rollout and benchmark claims, but not the synthetic Phase-1 fixture or the generic contracts above.
+These inputs block real-site rollout and benchmark claims, but not the synthetic/local Phase-1 and Phase-2 proofs or the generic contracts above.

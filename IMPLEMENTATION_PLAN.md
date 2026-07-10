@@ -440,6 +440,8 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/security/ tests/governance/test_batch_review.py tests/api/test_deployment_authorization.py`; cover invalid issuer/audience/signature/expiry, role denial, maker-checker, evidence policy, batch rollback, deployment authorization, and header-mode production rejection.
   - Depends: T-204, T-402, T-802.
 
+**Phase-2 verification (local/synthetic):** platform Ruff and strict mypy passed; 162 non-E2E and 8 E2E platform tests passed; connector 10 tests passed for PostgreSQL/SQLite; UI unit/build/Playwright passed; Java toolchain and legacy-fixture Gradle tests passed. The mining evidence label remains `SYNTHETIC_NON_CUSTOMER`.
+
 ---
 
 ## 4. Customer-Gated Inputs
@@ -448,8 +450,10 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
 |---|---|---|
 | Masked Java source, DB schema, and immutable sample revision | Real-site M3 validation; T-804 | Synthetic contracts and demo |
 | Pilot product/flow and PGM mappings | Real seam/site config | Generic `program_contexts` contract |
-| Approval roles/evidence policy | T-805 and production rollout | Phase-1 two-actor service invariant |
-| Provider/foreign-model policy | Live mining and T-804 | Recorded mock extraction |
+| Pilot role/group mapping and evidence thresholds | Production rollout configuration | Generic four-role enforcement and configurable policy |
+| Production IdP issuer/audience/JWKS metadata | Production authentication rollout | OIDC/JWT validation and local cryptographic tests |
+| Provider/foreign-model policy and approved ground truth | Live mining and real T-804 run | Recorded mock extraction and synthetic benchmark proof |
+| Production second-DBMS choice and access | Production portability proof | PostgreSQL reference and local SQLite driver contract |
 | Coding conventions and target repository commands | Real generator style/seam | Fixture JavaPoet path |
 | Lookup freshness and release-channel policy | Production SLA/rollout | Snapshot-based golden gate |
 

@@ -80,8 +80,11 @@ fresh delivered-branch clone. Database discovery is bounded and read-only, dynam
 are catalog-allowlisted, generated delivery copies only manifest-listed files, and no delivery
 branch is created until generated and target regression tests pass.
 
-Phase 1 development actors are audit labels, not production authentication. Production OIDC,
-authorization, customer provider policy, and real repository/schema inputs remain human-gated.
+The Phase-1 demo uses development actor headers only when
+`BRP_LOCAL_DEVELOPMENT_HEADERS=true`; the production/default API rejects those headers. Phase 2
+validates OIDC JWT signature, issuer, audience, issued-at, expiry, and subject against configured
+JWKS, then enforces `maker`, `checker`, `reviewer`, and `deployer` roles. Customer IdP metadata,
+role/group mapping, provider policy, and real repository/schema inputs remain human-gated.
 
 ## Troubleshooting
 
