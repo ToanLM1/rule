@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "policyId": "synthetic-local-only",
+  "revision": "1",
+  "rules": [
+    {
+      "provider": "mock",
+      "models": ["recorded-v1"],
+      "classifications": ["SYNTHETIC_NON_CUSTOMER"]
+    }
+  ]
+}

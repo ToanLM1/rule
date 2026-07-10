@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "benchmarkId": "synthetic-java-mining",
+  "revision": "fixture-v1",
+  "classification": "SYNTHETIC_NON_CUSTOMER",
+  "slices": [
+    {
+      "sliceId": "slice-enrollment",
+      "sourceRevision": "synthetic-git-001",
+      "constructs": [
+        {
+          "constructId": "C1_BOUNDARY",
+          "ruleIds": ["R001"],
+          "sourceLocations": ["SyntheticEnrollment.java:10-12"]
+        },
+        {
+          "constructId": "C2_LOOKUP",
+          "ruleIds": ["R002"],
+          "sourceLocations": ["SyntheticEnrollment.java:14-17"]
+        }
+      ]
+    },
+    {
+      "sliceId": "slice-premium",
+      "sourceRevision": "synthetic-git-001",
+      "constructs": [
+        {
+          "constructId": "C3_AGGREGATE",
+          "ruleIds": ["R003"],
+          "sourceLocations": ["SyntheticPremium.java:20-26"]
+        }
+      ]
+    }
+  ]
+}
