@@ -387,7 +387,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/e2e/test_delivery_gate.py` with success plus corrupted expectation/source/config negatives.
   - Depends: T-505, T-601.
 
-- [ ] **T-603 — Diff, branch, push, and review report.**
+- [x] **T-603 — Diff, branch, push, and review report.** ✅ 2026-07-11 a61dbe6
   - Do: after gate success create `rules/gen-<key>-r<N>`, commit manifest and artifacts, push to configured remote, and emit `review-report.md` containing semantic rule diff, generated file diff, evidence hashes, tests, and exact base/head commits. Provider adapters may open GitHub/GitLab PRs later; fixture uses `local-report`.
   - Accept: `uv run --project platform pytest platform/tests/e2e/test_delivery_branch.py`; tests assert branch/commit/push/report and that gate failure creates none.
   - Depends: T-206, T-602.
