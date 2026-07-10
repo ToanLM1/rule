@@ -183,14 +183,14 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: run `uv run --project platform python scripts/load_fixture_db.py --reset` twice; both exit 0 and row counts match.
   - Depends: T-001, E-002.
 
-- [ ] **T-003 — Java toolchain scaffold.**
+- [x] **T-003 — Java toolchain scaffold.** ✅ 2026-07-10 90c3a48
   - Do: Gradle 8.7 wrapper, Java 17 toolchain, modules `codegen-cli`, `brp-rules-runtime`, and `seam-recipes`; JUnit 5; JavaPoet; Jackson; OpenRewrite; Spotless/google-java-format.
   - Accept (from `java-toolchain/`): `./gradlew build` (or `gradlew.bat build` on Windows).
   - Depends: T-001.
 
 - [ ] **T-004 — Governance UI scaffold.**
   - Do: Vue 3 + TypeScript + Vite + Pinia + router, ag-grid-community, Monaco, Vitest, and a placeholder decision page.
-  - Accept (from `ui/`): `pnpm install --frozen-lockfile`; `pnpm build`; `pnpm test -- --run`.
+  - Accept (from `ui/`): `pnpm install --frozen-lockfile`; `pnpm build`; `pnpm run test -- --run`.
   - Depends: T-001.
 
 - [ ] **T-005 — Synthetic legacy application and expected decomposition.**
@@ -336,7 +336,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
 
 - [ ] **T-404 — Minimal governance UI.**
   - Do: decision list/detail, content/envelope separation, edit-as-new-revision, actor picker, submit/approve/reject, audit, semantic diff, review queue, golden-suite status, and advisory preview panel.
-  - Accept (from `ui/`): `pnpm test -- --run`; `pnpm build`; `pnpm test:e2e`; the e2e run captures list/detail/preview screenshots and fails on browser console errors.
+  - Accept (from `ui/`): `pnpm run test -- --run`; `pnpm build`; `pnpm test:e2e`; the e2e run captures list/detail/preview screenshots and fails on browser console errors.
   - Depends: T-205, T-206, T-403.
 
 ### M5 — Deterministic Java generation
@@ -447,4 +447,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-10 18:08 | T-001 | done | fddbb1f | Created the Python 3.12 package, locked dependencies, repository layout, and passing smoke test.
 2026-07-10 18:11 | E-002 | done | 4b152ec | Started an isolated local PostgreSQL 16 stack and verified the redacted psycopg probe.
 2026-07-10 18:22 | T-002 | done | 8f0019e | Added idempotent PostgreSQL fixture schema, Korean seed data, and cross-platform loaders.
+2026-07-10 18:27 | T-003 | done | 90c3a48 | Added Gradle 8.7 Java 17 modules, pinned wrapper checksum, formatting, and smoke tests.
 ```
