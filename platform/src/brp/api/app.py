@@ -320,9 +320,10 @@ def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
     ) -> dict[str, object]:
         if executor != "zen-advisory":
             return {
-                "executor": executor,
-                "authority": "UNAVAILABLE",
-                "error": "generated-java is registered by T-504",
+                "executor": "GENERATED_JAVA",
+                "authority": "AUTHORITATIVE",
+                "status": "NOT_RUN",
+                "error": "a generated release artifact is required",
             }
         decision = RevisionRepository(session).get_revision(decision_key, decision_revision)
         suite = GoldenRepository(session).get_revision(decision_key, suite_revision)
