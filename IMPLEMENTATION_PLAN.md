@@ -334,7 +334,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/api/test_golden_api.py`; Mode B Zen result can never report `AUTHORITATIVE`.
   - Depends: T-401, T-402.
 
-- [ ] **T-404 — Minimal governance UI.**
+- [x] **T-404 — Minimal governance UI.** ✅ 2026-07-10 5f297e5
   - Do: decision list/detail, content/envelope separation, edit-as-new-revision, actor picker, submit/approve/reject, audit, semantic diff, review queue, golden-suite status, and advisory preview panel.
   - Accept (from `ui/`): `pnpm run test -- --run`; `pnpm build`; `pnpm test:e2e`; the e2e run captures list/detail/preview screenshots and fails on browser console errors.
   - Depends: T-205, T-206, T-403.
