@@ -236,7 +236,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
 
 *Exit: immutable content/revisions, event-backed lifecycle, effective dating, review queue, and semantic diff are transactionally enforced.*
 
-- [ ] **T-201 — Schema and migrations.**
+- [x] **T-201 — Schema and migrations.** ✅ 2026-07-10 887d5a5
   - Do: tables for decisions, immutable content blobs keyed by hash, revision envelopes, lifecycle events, review-queue items, golden suites/revisions/cases, and lookup snapshots. Trigger blocks content/hash/revision/effective updates; lifecycle projection changes require a matching event in the same transaction.
   - Accept: reset local DB; `uv run alembic upgrade head`; `uv run pytest tests/repository/test_schema.py` including forbidden-update tests.
   - Depends: T-002, T-103.
@@ -457,4 +457,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-10 18:46 | T-102 | done | 263de4f | Implemented strict Rule IR v1 content, operand, lookup, provenance, and cross-reference validation.
 2026-07-10 18:48 | T-103 | done | 8545e79 | Added committed JSON Schema and stable UTF-8 canonical bytes across key order and fresh processes.
 2026-07-10 18:50 | T-104 | done | faa4b71 | Validated secret-free source, PGM context, target, composition, path, and adapter contracts.
+2026-07-10 19:06 | T-201 | done | 887d5a5 | Added immutable JSONB content, revision envelopes, lifecycle events, release evidence tables, and database triggers.
 ```
