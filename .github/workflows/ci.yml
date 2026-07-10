@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  platform:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.4-alpine
+        env:
+          POSTGRES_DB: brp
+          POSTGRES_USER: brp
+          POSTGRES_PASSWORD: brp
+        ports: ["55432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U brp -d brp"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    env:
+      BRP_DATABASE_URL: postgresql+psycopg://brp:brp@localhost:55432/brp
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.3"
+          enable-cache: true
+      - run: uv sync --project platform --frozen
+      - run: uv run --project platform ruff check platform scripts
+      - run: uv run --project platform pytest platform/tests
+
+  connector:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.10.3"
+          enable-cache: true
+      - run: uv sync --project mcp-db-connector --frozen
+      - run: uv run --project mcp-db-connector ruff check mcp-db-connector
+      - run: uv run --project mcp-db-connector pytest mcp-db-connector/tests
+
+  java-toolchain:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - run: ./gradlew build --no-daemon
+        working-directory: java-toolchain
+
+  fixture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+      - run: ./gradlew test --no-daemon
+        working-directory: fixtures/legacy-enrollment
+
+  ui:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: ui/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: ui
+      - run: pnpm build
+        working-directory: ui
+      - run: pnpm run test -- --run
+        working-directory: ui

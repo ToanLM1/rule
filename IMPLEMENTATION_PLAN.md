@@ -164,7 +164,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `docker compose -f docker/docker-compose.yml up -d --wait postgres`; then `uv run --project platform python scripts/check-pg.py` exits 0 using `BRP_DATABASE_URL`.
   - Depends: T-001.
 
-- [ ] **E-003 — Joern runtime.**
+- [x] **E-003 — Joern runtime.** ✅ 2026-07-10 7300c89
   - Do: pin an exact Joern 4.x release and configure native or Docker mode. Record the version and checksum. This task may remain blocked while non-Joern tasks proceed.
   - Accept: `uv run --project platform python scripts/joern_smoke.py --version-only` prints the pinned version.
   - Depends: T-001.
@@ -450,4 +450,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-10 18:27 | T-003 | done | 90c3a48 | Added Gradle 8.7 Java 17 modules, pinned wrapper checksum, formatting, and smoke tests.
 2026-07-10 18:30 | T-004 | done | 647c474 | Added Vue, Pinia, router, grid/editor dependencies, build config, and a passing component smoke test.
 2026-07-10 18:33 | T-005 | done | 067e78f | Added six legacy decision constructs, 12 behavior tests, H2 isolation, and expected decomposition metadata.
+2026-07-10 18:34 | E-003 | done | 7300c89 | Pinned and verified Joern 4.0.579 by immutable container digest.
 ```
