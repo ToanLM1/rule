@@ -363,7 +363,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run --project platform pytest platform/tests/generators/test_generated_tests.py`; tests compile/run JUnit, plant a failing expectation, and verify manifest changes for suite/lookup changes.
   - Depends: T-402, T-503.
 
-- [ ] **T-505 — Generation orchestration.**
+- [x] **T-505 — Generation orchestration.** ✅ 2026-07-10 541426c
   - Do: `brp generate --site --decision --revision|--as-of`; require approved effective revision and approved suite; assemble ReleaseInput; invoke CLI with tests; write versioned output atomically; refuse drafts and ambiguous effective revisions.
   - Accept: `uv run pytest tests/e2e/test_generate.py` including pending, overlap, missing-suite, atomic-failure, and deterministic rerun cases.
   - Depends: T-203, T-501, T-504.
