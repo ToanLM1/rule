@@ -343,7 +343,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
 
 *Exit: one ReleaseInput produces byte-identical source/tests/manifests; generated Java passes the shared semantics corpus.*
 
-- [ ] **T-501 — Generator and ReleaseInput contracts.**
+- [x] **T-501 — Generator and ReleaseInput contracts.** ✅ 2026-07-10 fade3a8
   - Do: target generator capability contract; manifest hashes content/revision, golden suite, lookup snapshots, site config, composition, generator, and outputs.
   - Accept: `uv run pytest tests/generators/test_contract.py tests/generators/test_release_input.py`.
   - Depends: T-103, T-104, T-402.
