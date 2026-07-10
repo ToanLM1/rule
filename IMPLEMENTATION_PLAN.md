@@ -280,7 +280,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept (from `mcp-db-connector/`): `uv run pytest`; tests prove reads work, writes fail, injection identifiers fail, limit >50 fails, and secrets never appear in captured logs.
   - Depends: T-002.
 
-- [ ] **T-303 — PostgreSQL table adapter.**
+- [x] **T-303 — PostgreSQL table adapter.** ✅ 2026-07-10 9358896
   - Do: mapping-driven rows to rules with `DB_ROW` primary-key JSON and snapshot hash; confidence 1.0; deterministic ordering and typed values.
   - Accept: `uv run pytest tests/adapters/test_db_postgres.py`; Korean values and composite primary keys round-trip byte-exact.
   - Depends: T-301, T-302.
