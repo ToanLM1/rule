@@ -392,7 +392,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run --project platform pytest platform/tests/e2e/test_delivery_branch.py`; tests assert branch/commit/push/report and that gate failure creates none.
   - Depends: T-206, T-602.
 
-- [ ] **T-604 — Delivered-branch execution proof.**
+- [x] **T-604 — Delivered-branch execution proof.** ✅ 2026-07-11 dd57ab2
   - Do: check out the pushed delivery branch in a fresh clone, run its build/tests, invoke the legacy entry point, and capture output plus commit and manifest hashes.
   - Accept: `uv run --project platform pytest platform/tests/e2e/test_delivered_execution.py`; the test changes `<18` to `<19`, verifies `main` and delivery-branch outcomes, and instruments `EnrollmentValidator` to prove both calls use the façade rather than Zen/direct generated classes.
   - Depends: T-603.
