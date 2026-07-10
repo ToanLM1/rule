@@ -251,7 +251,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/repository/test_lifecycle.py` including self-approval, maker-as-approver, overlap, future/as-of, and illegal transition cases.
   - Depends: T-202.
 
-- [ ] **T-204 — Audit and review queue.**
+- [x] **T-204 — Audit and review queue.** ✅ 2026-07-10 c0eaece
   - Do: append actor, correlation id, content hash, before/after states, reason, and timestamp for every write; persist unmappable raw fragments with exact provenance and disposition history.
   - Accept: `uv run pytest tests/repository/test_audit.py tests/repository/test_review_queue.py`.
   - Depends: T-203.
@@ -460,4 +460,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-10 19:06 | T-201 | done | 887d5a5 | Added immutable JSONB content, revision envelopes, lifecycle events, release evidence tables, and database triggers.
 2026-07-10 19:08 | T-202 | done | 9defbbc | Added content-addressed revisions, row-locked numbering, concurrent creation, and effective approved resolution.
 2026-07-10 19:10 | T-203 | done | c6ca62f | Enforced transactional lifecycle, maker-checker, release evidence policy, reasons, and effective overlap checks.
+2026-07-10 19:13 | T-204 | done | c0eaece | Audited every revision/transition and added persistent unmappable-fragment disposition history.
 ```

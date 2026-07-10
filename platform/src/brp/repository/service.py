@@ -97,11 +97,12 @@ class RevisionRepository:
         return revision
 
     def get_decision(self, decision_key: str) -> Decision:
-        decision = self.session.scalar(
+        result = self.session.execute(
             select(Decision)
             .options(joinedload(Decision.revisions))
             .where(Decision.decision_key == decision_key)
         )
+        decision = result.unique().scalar_one_or_none()
         if decision is None:
             raise DecisionNotFoundError(decision_key)
         return decision
