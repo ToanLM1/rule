@@ -519,4 +519,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-11 01:55 | T-803 | done | 1717f2a | Refactored the bounded connector behind a driver contract and proved PostgreSQL/SQLite read-only parity.
 2026-07-11 02:07 | T-804 | done | 02f7bcc | Added versioned ground truth, provider-policy gates, reproducible metrics, and a synthetic-only benchmark proof.
 2026-07-11 02:31 | T-805 | done | b8ff071 | Added OIDC/JWKS validation, four-role enforcement, configurable evidence, atomic batch review, and deployment audit.
+2026-07-11 03:18 | M8 | done | 45cd7f5 | Passed full cross-project regression and aligned Phase-2 architecture, environment, and customer-gated boundaries.
 ```
