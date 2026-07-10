@@ -368,7 +368,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/e2e/test_generate.py` including pending, overlap, missing-suite, atomic-failure, and deterministic rerun cases.
   - Depends: T-203, T-501, T-504.
 
-- [ ] **T-506 — Preview/generated consistency.**
+- [x] **T-506 — Preview/generated consistency.** ✅ 2026-07-10 b3215d7
   - Do: run conformance and golden suites through Zen and generated Java; report divergence as generator/export defect without changing Mode-B authority.
   - Accept: `uv run pytest tests/e2e/test_consistency.py` including planted divergences.
   - Depends: T-401, T-504.
