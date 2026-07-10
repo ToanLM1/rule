@@ -38,6 +38,7 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "ruff>=0.15.21",
     "types-pyyaml>=6.0.12.20260518",
+    "types-openpyxl>=3.1.5.20250602",
 ]
 
 [tool.pytest.ini_options]
