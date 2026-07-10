@@ -2,9 +2,9 @@
 
 from collections.abc import Iterator
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI, Header, Query, Request
+from fastapi import Depends, FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from brp.api.schemas import (
     AuditEventResponse,
+    BatchReviewRequest,
     DecisionCreateRequest,
     DecisionRevisionResponse,
     DecisionSummaryResponse,
@@ -49,16 +50,33 @@ from brp.repository.models import (
     GoldenSuiteRevision,
     ModeAPublication,
 )
-from brp.repository.review_queue import ReviewQueueService
+from brp.repository.review_queue import (
+    BatchReviewDisposition,
+    ReviewQueueService,
+    ReviewStatus,
+)
 from brp.repository.service import RevisionRepository
+from brp.security import (
+    AuthenticationError,
+    AuthorizationError,
+    Principal,
+    RequestAuthenticator,
+    SecuritySettings,
+)
 
-Actor = Annotated[str | None, Header(alias="X-BRP-Actor")]
 
-
-def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
+def create_app(
+    evidence_policy: ReleaseEvidencePolicy | None = None,
+    *,
+    security: SecuritySettings | None = None,
+    key_resolver: Any = None,
+) -> FastAPI:
     engine = create_database_engine()
     factory = sessionmaker(engine, expire_on_commit=False)
     policy = evidence_policy or GoldenSuiteEvidencePolicy()
+    request_authenticator = RequestAuthenticator(
+        security or SecuritySettings(), key_resolver=key_resolver
+    )
     app = FastAPI(title="Business Rules Platform", version="0.1.0")
     app.add_middleware(
         CORSMiddleware,
@@ -73,17 +91,35 @@ def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
 
     SessionDependency = Annotated[Session, Depends(get_session)]
 
-    def require_actor(actor: Actor = None) -> str:
-        if actor is None or not actor.strip():
-            raise MissingActorError("X-BRP-Actor header is required for writes")
-        return actor.strip()
+    def authenticate_request(request: Request) -> Principal:
+        return request_authenticator.authenticate(
+            authorization=request.headers.get("Authorization"),
+            development_actor=request.headers.get("X-BRP-Actor"),
+            development_roles=request.headers.get("X-BRP-Roles"),
+        )
 
-    WriteActor = Annotated[str, Depends(require_actor)]
+    def require_role(role: str) -> Any:
+        def dependency(
+            principal: Annotated[Principal, Depends(authenticate_request)],
+        ) -> str:
+            return request_authenticator.require_role(principal, role)
 
-    @app.exception_handler(MissingActorError)
-    async def missing_actor_handler(request: Request, exc: MissingActorError) -> JSONResponse:
+        return dependency
+
+    MakerActor = Annotated[str, Depends(require_role("maker"))]
+    CheckerActor = Annotated[str, Depends(require_role("checker"))]
+    ReviewerActor = Annotated[str, Depends(require_role("reviewer"))]
+    DeployerActor = Annotated[str, Depends(require_role("deployer"))]
+
+    @app.exception_handler(AuthenticationError)
+    async def authentication_handler(request: Request, exc: AuthenticationError) -> JSONResponse:
         del request
-        return problem(400, "Missing actor", str(exc))
+        return problem(401, "Authentication failed", str(exc))
+
+    @app.exception_handler(AuthorizationError)
+    async def authorization_handler(request: Request, exc: AuthorizationError) -> JSONResponse:
+        del request
+        return problem(403, "Role denied", str(exc))
 
     @app.exception_handler(RepositoryError)
     async def repository_error_handler(request: Request, exc: RepositoryError) -> JSONResponse:
@@ -99,7 +135,7 @@ def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
     @app.post("/decisions", status_code=201, response_model=DecisionRevisionResponse)
     def create_decision(
         body: DecisionCreateRequest,
-        actor: WriteActor,
+        actor: MakerActor,
         session: SessionDependency,
     ) -> DecisionRevisionResponse:
         repository = RevisionRepository(session)
@@ -145,7 +181,7 @@ def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
     def add_revision(
         decision_key: str,
         body: RevisionCreateRequest,
-        actor: WriteActor,
+        actor: MakerActor,
         session: SessionDependency,
     ) -> DecisionRevisionResponse:
         repository = RevisionRepository(session)
@@ -172,7 +208,7 @@ def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
     def submit_revision(
         decision_key: str,
         revision: int,
-        actor: WriteActor,
+        actor: MakerActor,
         session: SessionDependency,
     ) -> DecisionRevisionResponse:
         repository, record = lifecycle_record(decision_key, revision, session)
@@ -187,7 +223,7 @@ def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
     def approve_revision(
         decision_key: str,
         revision: int,
-        actor: WriteActor,
+        actor: CheckerActor,
         session: SessionDependency,
     ) -> DecisionRevisionResponse:
         repository, record = lifecycle_record(decision_key, revision, session)
@@ -203,7 +239,7 @@ def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
         decision_key: str,
         revision: int,
         body: ReasonRequest,
-        actor: WriteActor,
+        actor: CheckerActor,
         session: SessionDependency,
     ) -> DecisionRevisionResponse:
         repository, record = lifecycle_record(decision_key, revision, session)
@@ -219,7 +255,7 @@ def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
         decision_key: str,
         revision: int,
         body: ReasonRequest,
-        actor: WriteActor,
+        actor: CheckerActor,
         session: SessionDependency,
     ) -> DecisionRevisionResponse:
         repository, record = lifecycle_record(decision_key, revision, session)
@@ -269,7 +305,7 @@ def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
     def create_golden_suite(
         decision_key: str,
         body: GoldenSuiteCreateRequest,
-        actor: WriteActor,
+        actor: MakerActor,
         session: SessionDependency,
     ) -> dict[str, object]:
         repository = GoldenRepository(session)
@@ -294,7 +330,7 @@ def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
     def submit_golden_suite(
         decision_key: str,
         revision: int,
-        actor: WriteActor,
+        actor: MakerActor,
         session: SessionDependency,
     ) -> dict[str, object]:
         repository = GoldenRepository(session)
@@ -307,7 +343,7 @@ def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
     def approve_golden_suite(
         decision_key: str,
         revision: int,
-        actor: WriteActor,
+        actor: CheckerActor,
         session: SessionDependency,
     ) -> dict[str, object]:
         repository = GoldenRepository(session)
@@ -366,10 +402,37 @@ def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
             for item in ReviewQueueService(session).list_open()
         ]
 
+    @app.post("/review-queue/batch")
+    def batch_review(
+        body: BatchReviewRequest,
+        actor: ReviewerActor,
+        session: SessionDependency,
+    ) -> list[dict[str, object]]:
+        records = ReviewQueueService(session).dispose_batch(
+            [
+                BatchReviewDisposition(
+                    item_id=item.item_id,
+                    status=ReviewStatus(item.status),
+                    reason=item.reason,
+                )
+                for item in body.dispositions
+            ],
+            actor=actor,
+        )
+        session.commit()
+        return [
+            {
+                "id": str(item.id),
+                "status": item.status,
+                "dispositionHistory": item.disposition_history,
+            }
+            for item in records
+        ]
+
     @app.post("/mode-a/{decision_key}/publications", status_code=201)
     def publish_mode_a(
         decision_key: str,
-        actor: WriteActor,
+        actor: DeployerActor,
         session: SessionDependency,
         decision_revision: int = Query(ge=1),
         suite_revision: int = Query(ge=1),
@@ -389,7 +452,7 @@ def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
     def rollback_mode_a(
         decision_key: str,
         publication_id: int,
-        actor: WriteActor,
+        actor: DeployerActor,
         session: SessionDependency,
         channel: str = "production",
     ) -> dict[str, object]:
@@ -420,10 +483,6 @@ def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
         ]
 
     return app
-
-
-class MissingActorError(Exception):
-    pass
 
 
 def response_for(record: DecisionRevision) -> DecisionRevisionResponse:
@@ -490,4 +549,4 @@ def repository_problem(exc: RepositoryError) -> tuple[int, str]:
     return 400, "Repository request failed"
 
 
-app = create_app()
+app = create_app(security=SecuritySettings.from_environment())

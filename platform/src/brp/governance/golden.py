@@ -235,9 +235,28 @@ class GoldenRepository:
 
 
 class GoldenSuiteEvidencePolicy:
+    def __init__(
+        self,
+        *,
+        minimum_cases: int = 1,
+        require_lookup_snapshot: bool = False,
+    ) -> None:
+        if minimum_cases < 1:
+            raise ValueError("minimum_cases must be positive")
+        self.minimum_cases = minimum_cases
+        self.require_lookup_snapshot = require_lookup_snapshot
+
     def require_approved_evidence(self, session: Session, revision: DecisionRevision) -> None:
-        if GoldenRepository(session).approved_for_decision(revision.decision_id) is None:
+        repository = GoldenRepository(session)
+        suite = repository.approved_for_decision(revision.decision_id)
+        if suite is None:
             raise ApprovalEvidenceError("approved golden-suite evidence is required")
+        if len(repository.cases(suite)) < self.minimum_cases:
+            raise ApprovalEvidenceError(
+                f"release evidence requires at least {self.minimum_cases} golden cases"
+            )
+        if self.require_lookup_snapshot and not suite.lookup_snapshot_hashes:
+            raise ApprovalEvidenceError("release evidence requires a lookup snapshot")
 
 
 def _canonical(value: object) -> str:

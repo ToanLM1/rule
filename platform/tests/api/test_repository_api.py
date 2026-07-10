@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from brp.api.app import create_app
 from brp.repository.models import DecisionRevision
+from brp.security import SecuritySettings
 
 FIXTURE = (
     Path(__file__).resolve().parents[1] / "fixtures" / "conformance" / "enrollment_eligibility.json"
@@ -20,7 +21,7 @@ class Evidence:
 
 
 def client() -> TestClient:
-    return TestClient(create_app(Evidence()))
+    return TestClient(create_app(Evidence(), security=SecuritySettings.local_development()))
 
 
 def content() -> dict[str, object]:
@@ -43,7 +44,7 @@ def test_write_requires_actor_but_reads_do_not() -> None:
     api = client()
     key = unique_key()
     missing = api.post("/decisions", json=create_body(key))
-    assert missing.status_code == 400
+    assert missing.status_code == 401
     assert missing.headers["content-type"].startswith("application/problem+json")
 
     created = api.post("/decisions", json=create_body(key), headers={"X-BRP-Actor": "maker-a"})
