@@ -246,7 +246,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/repository/test_revision_service.py` including concurrent revision creation.
   - Depends: T-201.
 
-- [ ] **T-203 — Lifecycle, maker-checker, and effective dates.**
+- [x] **T-203 — Lifecycle, maker-checker, and effective dates.** ✅ 2026-07-10 c6ca62f
   - Do: implement ADR-6 state machine; require reasons for reject/retire; approver differs from creator and submitter; approval rejects overlapping effective intervals. Call an injected `ReleaseEvidencePolicy` before approval so T-402 can wire the governed golden-suite requirement without coupling the lifecycle service to golden storage.
   - Accept: `uv run pytest tests/repository/test_lifecycle.py` including self-approval, maker-as-approver, overlap, future/as-of, and illegal transition cases.
   - Depends: T-202.
@@ -459,4 +459,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-10 18:50 | T-104 | done | faa4b71 | Validated secret-free source, PGM context, target, composition, path, and adapter contracts.
 2026-07-10 19:06 | T-201 | done | 887d5a5 | Added immutable JSONB content, revision envelopes, lifecycle events, release evidence tables, and database triggers.
 2026-07-10 19:08 | T-202 | done | 9defbbc | Added content-addressed revisions, row-locked numbering, concurrent creation, and effective approved resolution.
+2026-07-10 19:10 | T-203 | done | c6ca62f | Enforced transactional lifecycle, maker-checker, release evidence policy, reasons, and effective overlap checks.
 ```

@@ -43,3 +43,11 @@ class ApprovalEvidenceError(RepositoryError):
 
 class EffectiveIntervalOverlapError(RepositoryError):
     pass
+
+
+class ReviewQueueItemNotFoundError(RepositoryError):
+    pass
+
+
+class IllegalReviewDispositionError(RepositoryError):
+    pass
