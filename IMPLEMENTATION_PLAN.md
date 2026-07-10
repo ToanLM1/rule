@@ -382,7 +382,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run --project platform pytest platform/tests/e2e/test_seam_baseline.py`; the test uses a fresh clone, runs fixture tests, proves `EnrollmentValidator` calls the generated façade, and asserts the tag.
   - Depends: T-307, T-505.
 
-- [ ] **T-602 — Transactional delivery gate.**
+- [x] **T-602 — Transactional delivery gate.** ✅ 2026-07-11 bce84b9
   - Do: clone/worktree from configured seam baseline; generate; copy only manifest-listed files; compile generated module; run generated golden tests and target application regression tests through the façade. On failure, leave no commit or delivery branch and emit a failure report.
   - Accept: `uv run pytest tests/e2e/test_delivery_gate.py` with success plus corrupted expectation/source/config negatives.
   - Depends: T-505, T-601.
