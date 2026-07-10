@@ -319,7 +319,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
 
 *Exit: preview is explicitly advisory; golden suites and lookup snapshots are governed release inputs; UI cannot bypass lifecycle rules.*
 
-- [ ] **T-401 — JDM export and Zen conformance.**
+- [x] **T-401 — JDM export and Zen conformance.** ✅ 2026-07-10 1d0a07b
   - Do: pure content-to-JDM transform and Zen adapter for ADR-7 semantics; lookup snapshot resolver; preview response includes `executor=ZEN`, `authority=ADVISORY` for Mode B.
   - Accept: `uv run pytest tests/governance/test_zen_conformance.py tests/conformance/test_zen.py`.
   - Depends: T-103, T-205.
