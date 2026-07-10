@@ -1,0 +1,32 @@
+program_context:
+  program_id: ENROLLMENT-API
+  kind: API
+  entry_point: legacy.EnrollmentValidator#evaluate
+constructs:
+  - id: C1_UNDER_AGE
+    classified: true
+    decisions: [enrollment_eligibility]
+    operator: LT
+  - id: C2_OVER_AGE_LIMIT
+    classified: true
+    decisions: [enrollment_eligibility]
+    operators: [EQ, GT]
+  - id: C3_SMOKER_LOADING
+    classified: true
+    decisions: [premium_adjustments]
+    operators: [EQ, STARTS_WITH]
+  - id: C4_REGION_LOOKUP
+    classified: true
+    decisions: [enrollment_eligibility]
+    operand: LOOKUP_FIELD
+  - id: C5_OCCUPATION_DOCUMENT
+    classified: true
+    decisions: [required_documents]
+    operator: IN
+  - id: C6_SENIOR_ADJUSTMENTS
+    classified: true
+    decisions: [premium_adjustments, required_documents]
+    operators: [GTE, LTE, EQ]
+composition:
+  premium_adjustments: { field: premiumLoadingPct, aggregate: SUM }
+  required_documents: { field: requiredDoc, aggregate: DISTINCT }

@@ -188,7 +188,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept (from `java-toolchain/`): `./gradlew build` (or `gradlew.bat build` on Windows).
   - Depends: T-001.
 
-- [ ] **T-004 — Governance UI scaffold.**
+- [x] **T-004 — Governance UI scaffold.** ✅ 2026-07-10 647c474
   - Do: Vue 3 + TypeScript + Vite + Pinia + router, ag-grid-community, Monaco, Vitest, and a placeholder decision page.
   - Accept (from `ui/`): `pnpm install --frozen-lockfile`; `pnpm build`; `pnpm run test -- --run`.
   - Depends: T-001.
@@ -448,4 +448,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-10 18:11 | E-002 | done | 4b152ec | Started an isolated local PostgreSQL 16 stack and verified the redacted psycopg probe.
 2026-07-10 18:22 | T-002 | done | 8f0019e | Added idempotent PostgreSQL fixture schema, Korean seed data, and cross-platform loaders.
 2026-07-10 18:27 | T-003 | done | 90c3a48 | Added Gradle 8.7 Java 17 modules, pinned wrapper checksum, formatting, and smoke tests.
+2026-07-10 18:30 | T-004 | done | 647c474 | Added Vue, Pinia, router, grid/editor dependencies, build config, and a passing component smoke test.
 ```
