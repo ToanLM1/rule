@@ -203,7 +203,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run --project platform pytest platform/tests/ci/test_workflow.py`; `uv run --project platform python scripts/run_ci_matrix.py`. When a remote is available, record the first green run URL before closing M0.
   - Depends: T-001..T-005.
 
-- [ ] **T-007 — Joern fixture smoke.**
+- [x] **T-007 — Joern fixture smoke.** ✅ 2026-07-10 ddbf7a2
   - Do: platform-neutral Python wrapper plus `.sh`/`.ps1` launchers; build a CPG and assert the fixture entry point exists.
   - Accept: `uv run --project platform python scripts/joern_smoke.py --site config/sites/fixture.yaml` prints a positive method count and the entry point.
   - Depends: E-003, T-005.
@@ -452,4 +452,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-10 18:33 | T-005 | done | 067e78f | Added six legacy decision constructs, 12 behavior tests, H2 isolation, and expected decomposition metadata.
 2026-07-10 18:34 | E-003 | done | 7300c89 | Pinned and verified Joern 4.0.579 by immutable container digest.
 2026-07-10 18:37 | T-006 | done | 068fa26 | Added isolated CI jobs and a passing local matrix across Python, Java, connector, fixture, and UI.
+2026-07-10 18:39 | T-007 | done | ddbf7a2 | Built the fixture CPG and found 39 methods plus the configured enrollment entry point.
 ```
