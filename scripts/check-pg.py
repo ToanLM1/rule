@@ -2,21 +2,15 @@
 
 from __future__ import annotations
 
-import os
 import sys
 
 import psycopg
 
-LOCAL_DATABASE_URL = "postgresql+psycopg://brp:brp@localhost:55432/brp"
-
-
-def psycopg_url(value: str) -> str:
-    """Convert the SQLAlchemy psycopg URL to a libpq-compatible URL."""
-    return value.replace("postgresql+psycopg://", "postgresql://", 1)
+from db_common import configured_database_url, psycopg_url
 
 
 def main() -> int:
-    database_url = os.getenv("BRP_DATABASE_URL", LOCAL_DATABASE_URL)
+    database_url = configured_database_url()
     try:
         with psycopg.connect(psycopg_url(database_url), connect_timeout=5) as connection:
             version = connection.execute("select current_setting('server_version')").fetchone()
