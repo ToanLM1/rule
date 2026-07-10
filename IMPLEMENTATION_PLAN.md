@@ -377,7 +377,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
 
 *Exit: recurring delivery branches from a seam-enabled baseline and the target application executes regenerated code before a review branch is emitted.*
 
-- [ ] **T-601 — One-time seam baseline.**
+- [x] **T-601 — One-time seam baseline.** ✅ 2026-07-10 7ebc13a
   - Do: create a local bare fixture remote; install the initially approved generated module; apply OpenRewrite recipe and reviewed façade/JDBC provider; commit seam to `main`; run pre/post behavior and shadow tests; tag `seam-baseline-v1`.
   - Accept: `uv run --project platform pytest platform/tests/e2e/test_seam_baseline.py`; the test uses a fresh clone, runs fixture tests, proves `EnrollmentValidator` calls the generated façade, and asserts the tag.
   - Depends: T-307, T-505.
