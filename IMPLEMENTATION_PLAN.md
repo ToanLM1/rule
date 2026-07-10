@@ -241,7 +241,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: reset local DB; `uv run alembic upgrade head`; `uv run pytest tests/repository/test_schema.py` including forbidden-update tests.
   - Depends: T-002, T-103.
 
-- [ ] **T-202 — Revision repository service.**
+- [x] **T-202 — Revision repository service.** ✅ 2026-07-10 9defbbc
   - Do: create decision/revision, fetch by revision, list, resolve approved revision by explicit revision or `as_of`, and deduplicate content blobs. Server assigns revision numbers under row lock; client content cannot override them.
   - Accept: `uv run pytest tests/repository/test_revision_service.py` including concurrent revision creation.
   - Depends: T-201.
@@ -458,4 +458,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-10 18:48 | T-103 | done | 8545e79 | Added committed JSON Schema and stable UTF-8 canonical bytes across key order and fresh processes.
 2026-07-10 18:50 | T-104 | done | faa4b71 | Validated secret-free source, PGM context, target, composition, path, and adapter contracts.
 2026-07-10 19:06 | T-201 | done | 887d5a5 | Added immutable JSONB content, revision envelopes, lifecycle events, release evidence tables, and database triggers.
+2026-07-10 19:08 | T-202 | done | 9defbbc | Added content-addressed revisions, row-locked numbering, concurrent creation, and effective approved resolution.
 ```
