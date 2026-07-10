@@ -300,7 +300,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/llm/` covering valid, retry, exhaustion, redaction, Korean, and provider-contract cases.
   - Depends: T-102.
 
-- [ ] **T-307 — Java rule mining.**
+- [x] **T-307 — Java rule mining.** ✅ 2026-07-10 bbdb9e5
   - Do: slices to candidate content/unmappable items. Recorded mocks map all six fixture constructs into the three §1 decisions: `STARTS_WITH`, lookup operand, COLLECT loading rows, and COLLECT document rows. Identical normalized rules collapse; provenance never collapses.
   - Accept: `uv run pytest tests/adapters/test_code_java.py`; output matches `expected-decisions.yaml`, all rule references have exact commit/file/lines, and an unsupported raw call reaches review queue.
   - Depends: T-305, T-306.
