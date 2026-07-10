@@ -435,7 +435,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/benchmark/`; synthetic metrics are reproducible and labeled `SYNTHETIC_NON_CUSTOMER`; a `REAL_CUSTOMER` run fails closed without approval metadata and provider policy.
   - Depends: T-305, T-306, T-307.
 
-- [ ] **T-805 — Governance hardening.**
+- [x] **T-805 — Governance hardening.** ✅ 2026-07-11 b8ff071
   - Do: OIDC/JWT validation with issuer/audience/JWKS configuration; role enforcement for maker/checker/reviewer/deployer; configurable release-evidence policy; atomic batch review; deployment authorization and audit. Keep Phase-1 development headers available only behind an explicit local-development flag.
   - Accept: `uv run pytest tests/security/ tests/governance/test_batch_review.py tests/api/test_deployment_authorization.py`; cover invalid issuer/audience/signature/expiry, role denial, maker-checker, evidence policy, batch rollback, deployment authorization, and header-mode production rejection.
   - Depends: T-204, T-402, T-802.
@@ -514,4 +514,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-11 01:43 | T-802 | done | 0f34366 | Added authoritative Zen publication, immutable evidence history, active execution, audit, and append-only rollback.
 2026-07-11 01:55 | T-803 | done | 1717f2a | Refactored the bounded connector behind a driver contract and proved PostgreSQL/SQLite read-only parity.
 2026-07-11 02:07 | T-804 | done | 02f7bcc | Added versioned ground truth, provider-policy gates, reproducible metrics, and a synthetic-only benchmark proof.
+2026-07-11 02:31 | T-805 | done | b8ff071 | Added OIDC/JWKS validation, four-role enforcement, configurable evidence, atomic batch review, and deployment audit.
 ```
