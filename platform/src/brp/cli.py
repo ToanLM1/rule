@@ -18,6 +18,7 @@ from brp.adapters.docs_manual import ManualDocumentAdapter
 from brp.adapters.joern import JoernLocator, JoernSlicer
 from brp.config.models import load_site_profile
 from brp.db import create_database_engine
+from brp.generation import GenerationOrchestrator, JavaCliReleaseBuilder
 from brp.ingestion import IngestionRunner
 
 app = typer.Typer(no_args_is_help=True, help="Governed business-rules platform")
@@ -80,3 +81,28 @@ def _repository_root(site: Path) -> Path:
         if (parent / "IMPLEMENTATION_PLAN.md").is_file():
             return parent
     raise typer.BadParameter("site profile must live inside a BRP repository checkout")
+
+
+@app.command("generate")
+def generate_command(
+    site: Annotated[Path, typer.Option(exists=True, dir_okay=False, help="Site YAML profile")],
+    decision: Annotated[str, typer.Option(help="Decision key")],
+    revision: Annotated[int | None, typer.Option(min=1)] = None,
+    as_of: Annotated[datetime | None, typer.Option()] = None,
+    output: Annotated[Path, typer.Option(help="Versioned generation root")] = Path("out/generated"),
+) -> None:
+    """Generate an approved, effective decision and its authoritative tests."""
+    site = site.resolve()
+    root = _repository_root(site)
+    profile = load_site_profile(site)
+    engine = create_database_engine()
+    with Session(engine) as session:
+        destination = GenerationOrchestrator(session, JavaCliReleaseBuilder(root)).generate(
+            profile,
+            decision,
+            (root / output).resolve() if not output.is_absolute() else output,
+            revision=revision,
+            as_of=as_of,
+        )
+    engine.dispose()
+    typer.echo(f"GENERATED: {destination}")
