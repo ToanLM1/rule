@@ -275,7 +275,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/adapters/test_contract.py`.
   - Depends: T-102, T-104.
 
-- [ ] **T-302 — Secure reusable MCP DB connector.**
+- [x] **T-302 — Secure reusable MCP DB connector.** ✅ 2026-07-10 790c939
   - Do: standalone FastMCP package for list tables, schema, bounded sample rows, and stored-procedure source. Use a SELECT-only role, read-only transactions, catalog allowlists, driver identifier quoting, row/time limits, and redacted logs.
   - Accept (from `mcp-db-connector/`): `uv run pytest`; tests prove reads work, writes fail, injection identifiers fail, limit >50 fails, and secrets never appear in captured logs.
   - Depends: T-002.
