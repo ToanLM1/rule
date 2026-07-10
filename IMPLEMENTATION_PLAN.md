@@ -212,7 +212,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
 
 *Exit: the schema and conformance corpus fully define types, operators, lookup behavior, hit policies, provenance, canonical bytes, PGM context, and composition.*
 
-- [ ] **T-101 — IR conformance corpus.**
+- [x] **T-101 — IR conformance corpus.** ✅ 2026-07-10 c7e4c21
   - Do: before models, commit JSON cases covering every ADR-7 operator/type combination, invalid combinations, FIRST default, UNIQUE collision, COLLECT ordering/empty result, lookup hit/miss, nested groups depth 3/4, Korean strings, and the three fixture decisions.
   - Accept: `uv run pytest tests/conformance/test_corpus_shape.py` confirms every operator and hit policy has positive and negative cases.
   - Depends: T-001, T-005.
@@ -453,4 +453,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-10 18:34 | E-003 | done | 7300c89 | Pinned and verified Joern 4.0.579 by immutable container digest.
 2026-07-10 18:37 | T-006 | done | 068fa26 | Added isolated CI jobs and a passing local matrix across Python, Java, connector, fixture, and UI.
 2026-07-10 18:39 | T-007 | done | ddbf7a2 | Built the fixture CPG and found 39 methods plus the configured enrollment entry point.
+2026-07-10 18:42 | T-101 | done | c7e4c21 | Defined positive/negative cases for every IR operator, hit policy, lookup, nesting, provenance, and fixture decision.
 ```
