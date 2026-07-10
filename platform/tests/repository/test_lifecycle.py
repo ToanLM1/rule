@@ -84,7 +84,12 @@ def test_submit_records_actor_event_and_projection(session: Session) -> None:
     submit(session, revision)
     assert revision.lifecycle_status == "SUBMITTED"
     assert revision.submitted_by == "maker-a"
-    event = session.scalar(select(LifecycleEvent).where(LifecycleEvent.revision_id == revision.id))
+    event = session.scalar(
+        select(LifecycleEvent).where(
+            LifecycleEvent.revision_id == revision.id,
+            LifecycleEvent.action == "SUBMIT",
+        )
+    )
     assert event is not None and event.action == "SUBMIT"
 
 
@@ -171,4 +176,4 @@ def test_each_successful_transition_has_one_event(session: Session) -> None:
         .select_from(LifecycleEvent)
         .where(LifecycleEvent.revision_id == revision.id)
     )
-    assert count == 2
+    assert count == 3

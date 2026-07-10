@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
 from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.orm import Session, joinedload
@@ -17,7 +18,12 @@ from brp.repository.errors import (
     InvalidEffectiveIntervalError,
     RevisionNotFoundError,
 )
-from brp.repository.models import Decision, DecisionContentBlob, DecisionRevision
+from brp.repository.models import (
+    Decision,
+    DecisionContentBlob,
+    DecisionRevision,
+    LifecycleEvent,
+)
 
 
 class RevisionRepository:
@@ -50,6 +56,7 @@ class RevisionRepository:
         )
         self.session.add_all((decision, revision))
         self.session.flush()
+        self._record_creation(revision, actor)
         content_blob = self.session.get(DecisionContentBlob, content_hash)
         assert content_blob is not None and content_blob.content == document
         revision.content_blob = content_blob
@@ -86,6 +93,7 @@ class RevisionRepository:
         )
         self.session.add(revision)
         self.session.flush()
+        self._record_creation(revision, actor)
         return revision
 
     def get_decision(self, decision_key: str) -> Decision:
@@ -108,6 +116,17 @@ class RevisionRepository:
 
     def list_decisions(self) -> list[Decision]:
         return list(self.session.scalars(select(Decision).order_by(Decision.decision_key)))
+
+    def get_audit(self, decision_key: str) -> list[LifecycleEvent]:
+        return list(
+            self.session.scalars(
+                select(LifecycleEvent)
+                .join(DecisionRevision)
+                .join(Decision)
+                .where(Decision.decision_key == decision_key)
+                .order_by(LifecycleEvent.id)
+            )
+        )
 
     def resolve_approved(
         self,
@@ -160,6 +179,22 @@ class RevisionRepository:
             self.session.add(DecisionContentBlob(content_hash=content_hash, content=document))
             self.session.flush()
         return content_hash, document
+
+    def _record_creation(
+        self, revision: DecisionRevision, actor: str, correlation_id: UUID | None = None
+    ) -> None:
+        self.session.add(
+            LifecycleEvent(
+                revision_id=revision.id,
+                actor=actor,
+                action="CREATE_REVISION",
+                from_status="DRAFT",
+                to_status="DRAFT",
+                content_hash=revision.content_hash,
+                correlation_id=correlation_id or uuid4(),
+            )
+        )
+        self.session.flush()
 
     @staticmethod
     def _validate_interval(effective_from: datetime, effective_to: datetime | None) -> None:
