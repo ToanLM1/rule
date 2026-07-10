@@ -35,6 +35,9 @@ def establish_seam_baseline(
     _install_generated_sources(repository_root, workspace)
     _apply_facade_seam(workspace)
     _run(_gradle(workspace, "test"), cwd=workspace)
+    for transient in (workspace / "build", workspace / ".gradle"):
+        if transient.exists():
+            shutil.rmtree(transient)
     _run(["git", "add", "."], cwd=workspace)
     _run(["git", "commit", "-m", "feat: establish generated-rules facade seam"], cwd=workspace)
     _run(["git", "tag", "seam-baseline-v1"], cwd=workspace)
