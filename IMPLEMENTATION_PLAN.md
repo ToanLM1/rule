@@ -227,7 +227,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/ir/test_schema_export.py tests/ir/test_canonical.py`.
   - Depends: T-102.
 
-- [ ] **T-104 — Site, mapping, target, and composition models.**
+- [x] **T-104 — Site, mapping, target, and composition models.** ✅ 2026-07-10 faa4b71
   - Do: validate §2.2, connection-env indirection, PGM kinds, repository aliases, target paths, commands, lookup bindings, and restricted aggregators. Reject secrets and path traversal in config.
   - Accept: `uv run pytest tests/config/test_site_profile.py`; fixture profile parses and malicious/unknown settings fail.
   - Depends: T-102.
@@ -456,4 +456,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-10 18:42 | T-101 | done | c7e4c21 | Defined positive/negative cases for every IR operator, hit policy, lookup, nesting, provenance, and fixture decision.
 2026-07-10 18:46 | T-102 | done | 263de4f | Implemented strict Rule IR v1 content, operand, lookup, provenance, and cross-reference validation.
 2026-07-10 18:48 | T-103 | done | 8545e79 | Added committed JSON Schema and stable UTF-8 canonical bytes across key order and fresh processes.
+2026-07-10 18:50 | T-104 | done | faa4b71 | Validated secret-free source, PGM context, target, composition, path, and adapter contracts.
 ```
