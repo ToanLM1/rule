@@ -25,6 +25,12 @@ def list_tables() -> list[dict[str, Any]]:
 
 
 @mcp.tool()
+def capabilities() -> dict[str, object]:
+    """Report driver and stored-object support explicitly."""
+    return connector().capabilities()
+
+
+@mcp.tool()
 def table_schema(schema: str, table: str) -> list[dict[str, Any]]:
     """Describe columns for one discovered table."""
     return connector().table_schema(schema, table)
