@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
@@ -40,6 +41,59 @@ def establish_seam_baseline(
     _run(["git", "remote", "add", "origin", str(remote)], cwd=workspace)
     _run(["git", "push", "-u", "origin", "main", "--tags"], cwd=workspace)
     return _capture(["git", "rev-parse", "HEAD"], cwd=workspace)
+
+
+@dataclass(frozen=True)
+class GateResult:
+    workspace: Path
+    base_commit: str
+    manifest_hash: str
+    tests: tuple[str, ...]
+
+
+def transactional_delivery_gate(
+    remote: Path,
+    baseline: str,
+    generated_release: Path,
+    workspace: Path,
+) -> GateResult:
+    """Validate manifest-listed files without creating a branch or commit."""
+    if workspace.exists():
+        raise FileExistsError(workspace)
+    report = workspace.with_suffix(".failure.md")
+    try:
+        _run(["git", "clone", str(remote), str(workspace)])
+        _run(["git", "checkout", "--detach", baseline], cwd=workspace)
+        base_commit = _capture(["git", "rev-parse", "HEAD"], cwd=workspace)
+        manifest_path = generated_release / "release-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for output in manifest["outputs"]:
+            relative = Path(output["path"])
+            if relative.is_absolute() or ".." in relative.parts:
+                raise ValueError(f"unsafe manifest path: {relative}")
+            source = generated_release / relative
+            if not source.is_file():
+                raise FileNotFoundError(f"manifest output is missing: {relative}")
+            target = workspace / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, target)
+        shutil.copy2(manifest_path, workspace / "release-manifest.json")
+        _run(_gradle(workspace, "test"), cwd=workspace)
+        return GateResult(
+            workspace=workspace,
+            base_commit=base_commit,
+            manifest_hash=_file_hash(manifest_path),
+            tests=("generated-golden", "target-regression"),
+        )
+    except Exception as exc:
+        report.write_text(
+            "# Delivery gate failure\n\n"
+            f"- baseline: `{baseline}`\n"
+            f"- error: `{type(exc).__name__}: {exc}`\n"
+            "- branch-created: `false`\n- commit-created: `false`\n",
+            encoding="utf-8",
+        )
+        raise
 
 
 def _install_generated_sources(root: Path, workspace: Path) -> None:
@@ -80,7 +134,10 @@ def _apply_facade_seam(workspace: Path) -> None:
     build = workspace / "build.gradle.kts"
     build.write_text(
         build.read_text(encoding="utf-8")
-        + '\nsourceSets { main { java.srcDir("src/generated/java") } }\n',
+        + "\nsourceSets {\n"
+        + '  main { java.srcDir("src/generated/java") }\n'
+        + '  test { java.srcDir("src/generatedTest/java") }\n'
+        + "}\n",
         encoding="utf-8",
     )
     validator = workspace / "src/main/java/legacy/EnrollmentValidator.java"
@@ -114,6 +171,12 @@ def _capture(command: list[str], *, cwd: Path) -> str:
     return subprocess.run(
         command, cwd=cwd, check=True, capture_output=True, text=True
     ).stdout.strip()
+
+
+def _file_hash(path: Path) -> str:
+    import hashlib
+
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 LEGACY_FACADE = r"""package legacy.rules;
