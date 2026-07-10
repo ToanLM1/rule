@@ -14,12 +14,16 @@ from brp.api.schemas import (
     DecisionCreateRequest,
     DecisionRevisionResponse,
     DecisionSummaryResponse,
+    GoldenSuiteCreateRequest,
+    PreviewRequest,
     ReasonRequest,
     RevisionCreateRequest,
 )
 from brp.db import create_database_engine
 from brp.governance.diff import semantic_diff
-from brp.governance.golden import GoldenSuiteEvidencePolicy
+from brp.governance.golden import GoldenCaseData, GoldenRepository, GoldenSuiteEvidencePolicy
+from brp.governance.runner import run_zen_advisory
+from brp.governance.zen import DictLookupResolver, preview
 from brp.ir.models import DecisionContent
 from brp.repository.errors import (
     ApprovalEvidenceError,
@@ -36,7 +40,7 @@ from brp.repository.lifecycle import (
     LifecycleService,
     ReleaseEvidencePolicy,
 )
-from brp.repository.models import DecisionRevision
+from brp.repository.models import DecisionRevision, GoldenSuiteRevision
 from brp.repository.service import RevisionRepository
 
 Actor = Annotated[str | None, Header(alias="X-BRP-Actor")]
@@ -235,6 +239,88 @@ def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
         )
         return {"fromRevision": from_revision, "toRevision": to_revision, **result}
 
+    @app.post("/preview/{decision_key}")
+    def preview_decision(
+        decision_key: str,
+        body: PreviewRequest,
+        session: SessionDependency,
+        revision: int = Query(ge=1),
+    ) -> dict[str, object]:
+        record = RevisionRepository(session).get_revision(decision_key, revision)
+        content = DecisionContent.model_validate(record.content_blob.content)
+        return preview(content, body.input, DictLookupResolver(body.lookup_snapshots))
+
+    @app.post("/golden-suites/{decision_key}", status_code=201)
+    def create_golden_suite(
+        decision_key: str,
+        body: GoldenSuiteCreateRequest,
+        actor: WriteActor,
+        session: SessionDependency,
+    ) -> dict[str, object]:
+        repository = GoldenRepository(session)
+        record = repository.create_revision(
+            decision_key,
+            [
+                GoldenCaseData(
+                    case_key=case.case_key,
+                    input=case.input,
+                    expected=case.expected,
+                    provenance=case.provenance,
+                )
+                for case in body.cases
+            ],
+            actor,
+            lookup_snapshot_hashes=body.lookup_snapshot_hashes,
+        )
+        session.commit()
+        return golden_response(record)
+
+    @app.post("/golden-suites/{decision_key}/{revision}/submit")
+    def submit_golden_suite(
+        decision_key: str,
+        revision: int,
+        actor: WriteActor,
+        session: SessionDependency,
+    ) -> dict[str, object]:
+        repository = GoldenRepository(session)
+        record = repository.get_revision(decision_key, revision)
+        repository.submit(record, actor)
+        session.commit()
+        return golden_response(record)
+
+    @app.post("/golden-suites/{decision_key}/{revision}/approve")
+    def approve_golden_suite(
+        decision_key: str,
+        revision: int,
+        actor: WriteActor,
+        session: SessionDependency,
+    ) -> dict[str, object]:
+        repository = GoldenRepository(session)
+        record = repository.get_revision(decision_key, revision)
+        repository.approve(record, actor)
+        session.commit()
+        return golden_response(record)
+
+    @app.post("/golden/{decision_key}/run")
+    def run_golden_suite(
+        decision_key: str,
+        session: SessionDependency,
+        executor: str = "zen-advisory",
+        decision_revision: int = Query(ge=1),
+        suite_revision: int = Query(ge=1),
+    ) -> dict[str, object]:
+        if executor != "zen-advisory":
+            return {
+                "executor": executor,
+                "authority": "UNAVAILABLE",
+                "error": "generated-java is registered by T-504",
+            }
+        decision = RevisionRepository(session).get_revision(decision_key, decision_revision)
+        suite = GoldenRepository(session).get_revision(decision_key, suite_revision)
+        if suite.lifecycle_status != "APPROVED":
+            raise ApprovalEvidenceError("golden runner requires an approved suite revision")
+        return run_zen_advisory(session, decision, suite)
+
     return app
 
 
@@ -244,6 +330,15 @@ class MissingActorError(Exception):
 
 def response_for(record: DecisionRevision) -> DecisionRevisionResponse:
     return DecisionRevisionResponse.from_record(record)
+
+
+def golden_response(record: GoldenSuiteRevision) -> dict[str, object]:
+    return {
+        "revision": record.revision,
+        "status": record.lifecycle_status,
+        "contentHash": record.content_hash,
+        "lookupSnapshotHashes": record.lookup_snapshot_hashes,
+    }
 
 
 def problem(status: int, title: str, detail: str) -> JSONResponse:

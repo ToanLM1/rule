@@ -148,6 +148,34 @@ class GoldenRepository:
             )
         )
 
+    def get_revision(self, decision_key: str, revision: int) -> GoldenSuiteRevision:
+        record = self.session.scalar(
+            select(GoldenSuiteRevision)
+            .join(GoldenSuite)
+            .join(Decision)
+            .where(
+                Decision.decision_key == decision_key,
+                GoldenSuiteRevision.revision == revision,
+            )
+        )
+        if record is None:
+            raise DecisionNotFoundError(f"golden suite {decision_key}@{revision}")
+        return record
+
+    def lookup_snapshots(self, hashes: list[str]) -> list[LookupSnapshot]:
+        if not hashes:
+            return []
+        records = list(
+            self.session.scalars(
+                select(LookupSnapshot)
+                .where(LookupSnapshot.content_hash.in_(hashes))
+                .order_by(LookupSnapshot.content_hash)
+            )
+        )
+        if len(records) != len(hashes):
+            raise ApprovalEvidenceError("golden suite references missing lookup snapshots")
+        return records
+
     def approved_for_decision(self, decision_id: object) -> GoldenSuiteRevision | None:
         return self.session.scalar(
             select(GoldenSuiteRevision)

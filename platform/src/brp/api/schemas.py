@@ -33,6 +33,23 @@ class ReasonRequest(ApiModel):
     reason: str = Field(min_length=1)
 
 
+class PreviewRequest(ApiModel):
+    input: dict[str, Any]
+    lookup_snapshots: dict[str, list[dict[str, Any]]] = Field(default_factory=dict)
+
+
+class GoldenCaseRequest(ApiModel):
+    case_key: str = Field(min_length=1)
+    input: dict[str, Any]
+    expected: dict[str, Any] | list[dict[str, Any]]
+    provenance: dict[str, Any] = Field(min_length=1)
+
+
+class GoldenSuiteCreateRequest(ApiModel):
+    cases: list[GoldenCaseRequest] = Field(min_length=1)
+    lookup_snapshot_hashes: list[str] = Field(default_factory=list)
+
+
 class RevisionEnvelopeResponse(ApiModel):
     id: UUID
     decision_key: str

@@ -324,7 +324,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/governance/test_zen_conformance.py tests/conformance/test_zen.py`.
   - Depends: T-103, T-205.
 
-- [ ] **T-402 — Versioned golden suites and lookup snapshots.**
+- [x] **T-402 — Versioned golden suites and lookup snapshots.** ✅ 2026-07-10 65e2d59
   - Do: import fixture behavior cases with provenance; immutable suite revisions; maker-checker; snapshot lookup rows canonically and hash them; wire `ReleaseEvidencePolicy` so decision approval requires an approved suite revision.
   - Accept: `uv run pytest tests/governance/test_golden_repository.py` including mutation rejection, suite self-approval rejection, and snapshot determinism.
   - Depends: T-203, T-005.
