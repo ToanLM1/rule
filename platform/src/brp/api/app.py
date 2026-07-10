@@ -19,6 +19,7 @@ from brp.api.schemas import (
 )
 from brp.db import create_database_engine
 from brp.governance.diff import semantic_diff
+from brp.governance.golden import GoldenSuiteEvidencePolicy
 from brp.ir.models import DecisionContent
 from brp.repository.errors import (
     ApprovalEvidenceError,
@@ -32,7 +33,6 @@ from brp.repository.errors import (
     SubmissionActorError,
 )
 from brp.repository.lifecycle import (
-    DenyMissingReleaseEvidence,
     LifecycleService,
     ReleaseEvidencePolicy,
 )
@@ -45,7 +45,7 @@ Actor = Annotated[str | None, Header(alias="X-BRP-Actor")]
 def create_app(evidence_policy: ReleaseEvidencePolicy | None = None) -> FastAPI:
     engine = create_database_engine()
     factory = sessionmaker(engine, expire_on_commit=False)
-    policy = evidence_policy or DenyMissingReleaseEvidence()
+    policy = evidence_policy or GoldenSuiteEvidencePolicy()
     app = FastAPI(title="Business Rules Platform", version="0.1.0")
 
     def get_session() -> Iterator[Session]:

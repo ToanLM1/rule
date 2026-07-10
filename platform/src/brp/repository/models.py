@@ -180,10 +180,30 @@ class GoldenSuiteRevision(Base):
     revision: Mapped[int] = mapped_column(Integer, nullable=False)
     lifecycle_status: Mapped[str] = mapped_column(String(32), nullable=False, default="DRAFT")
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    lookup_snapshot_hashes: Mapped[list[str]] = mapped_column(JSONB, nullable=False, default=list)
     created_by: Mapped[str] = mapped_column(String(200), nullable=False)
     submitted_by: Mapped[str | None] = mapped_column(String(200))
     approved_by: Mapped[str | None] = mapped_column(String(200))
     created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class GoldenSuiteLifecycleEvent(Base):
+    __tablename__ = "golden_suite_lifecycle_events"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    suite_revision_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("golden_suite_revisions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    actor: Mapped[str] = mapped_column(String(200), nullable=False)
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    from_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    to_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
