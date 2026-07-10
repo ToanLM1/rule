@@ -329,7 +329,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/governance/test_golden_repository.py` including mutation rejection, suite self-approval rejection, and snapshot determinism.
   - Depends: T-203, T-005.
 
-- [ ] **T-403 — Golden runner API.**
+- [x] **T-403 — Golden runner API.** ✅ 2026-07-10 f26e600
   - Do: Zen advisory runner now; generated-Java executor plugs in at T-504. Response names executor, authority, suite revision/hash, lookup snapshots, passed/failed cases.
   - Accept: `uv run pytest tests/api/test_golden_api.py`; Mode B Zen result can never report `AUTHORITATIVE`.
   - Depends: T-401, T-402.
