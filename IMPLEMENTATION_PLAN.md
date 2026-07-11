@@ -442,6 +442,42 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
 
 **Phase-2 verification (local/synthetic):** platform Ruff and strict mypy passed; 162 non-E2E and 8 E2E platform tests passed; connector 10 tests passed for PostgreSQL/SQLite; UI unit/build/Playwright passed; Java toolchain and legacy-fixture Gradle tests passed. The mining evidence label remains `SYNTHETIC_NON_CUSTOMER`.
 
+### M9 — Phase 3 scale (human-authorized, generic/local scope)
+
+- [x] **PHASE-3-GATE — Human authorization.** ✅ 2026-07-12 user authorization
+  - Scope: implement reusable/local proofs for T-901–T-906. Restricted parsers must fail closed to review; synthetic fixtures cannot support real-site compatibility or accuracy claims.
+  - Still gated: customer stored-object/UI/DRL/ODM samples, real target conventions, a production non-PostgreSQL DBMS, installed .NET SDK/target repository, and multi-site rollout approval.
+
+- [ ] **T-901 — Restricted PostgreSQL stored-procedure mining.**
+  - Do: ingest immutable PL/pgSQL function source from the bounded connector/source snapshot; map only scalar input comparisons plus literal `RETURN` branches into candidate Rule IR; preserve stored-object and line provenance; route SQL, calls, assignments, loops, and unsupported syntax to review.
+  - Accept: `uv run pytest tests/adapters/test_db_stored_object.py`; cover Korean literals, deterministic candidates, exact provenance, unsupported routing, and injection-free connector boundaries.
+  - Depends: T-301, T-302, T-309.
+
+- [ ] **T-902 — Declarative UI validation adapter.**
+  - Do: parse static HTML input validation metadata into candidate IR for numeric min/max and explicit equality/list data rules; preserve file/element provenance; route required/pattern/scripts/framework expressions to review instead of executing UI code.
+  - Accept: `uv run pytest tests/adapters/test_ui_validation.py`; cover Korean error codes/text, supported validations, unsupported attributes/scripts, stable source hashes, and no script execution.
+  - Depends: T-301, T-309.
+
+- [ ] **T-903 — Engine-native import boundary.**
+  - Do: import a restricted DRL decision-rule subset (fact-field comparisons and literal setter actions) into candidate IR with exact asset/rule provenance; classify ODM artifacts and route them to review until customer format/version samples exist; reject workflow assets.
+  - Accept: `uv run pytest tests/adapters/test_engine_native.py`; cover DRL rules/default, Korean text, unsupported consequences, ODM review routing, and BPMN rejection.
+  - Depends: T-801.
+
+- [ ] **T-904 — Deterministic DMN export.**
+  - Do: export approved-profile IR decision tables to deterministic DMN 1.3 XML with typed inputs/outputs, FIRST/UNIQUE/COLLECT policies, restricted FEEL, provenance extension metadata, and no repository envelope fields.
+  - Accept: `uv run pytest tests/generators/test_dmn_export.py`; byte stability, Korean UTF-8, XML safety, canonical re-import equivalence, and explicit rejection of non-representable operands.
+  - Depends: T-102, T-801.
+
+- [ ] **T-905 — C# target plug-in proof.**
+  - Do: add a deterministic C# generator for IR v1 scalar operators, FIRST/UNIQUE/COLLECT, typed records, and lookup contract; emit manifest hashes and golden-test source. Compilation is authoritative only when an installed/pinned .NET SDK runs; otherwise report `COMPILE_NOT_RUN` and never claim executable proof.
+  - Accept: `uv run pytest tests/generators/test_csharp.py`; deterministic snapshots and operator coverage pass; compile gate either runs successfully or returns the explicit fail-closed status on this host.
+  - Depends: T-501, T-502, T-504.
+
+- [ ] **T-906 — Multi-site capability orchestration.**
+  - Do: extend the adapter/target registry and site profile with capability declarations; validate incompatible source/target/profile combinations before work starts; produce a deterministic capability matrix for multiple synthetic sites/products/flows.
+  - Accept: `uv run pytest tests/config/test_capability_matrix.py`; cover compatible Java/DMN/C# paths, unavailable toolchains, unsupported DB/engine/UI combinations, deterministic reports, and secret-free configuration.
+  - Depends: T-104, T-301, T-905.
+
 ---
 
 ## 4. Customer-Gated Inputs
@@ -456,6 +492,8 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
 | Production second-DBMS choice and access | Production portability proof | PostgreSQL reference and local SQLite driver contract |
 | Coding conventions and target repository commands | Real generator style/seam | Fixture JavaPoet path |
 | Lookup freshness and release-channel policy | Production SLA/rollout | Snapshot-based golden gate |
+| Stored-object, UI, DRL, and ODM samples with immutable revisions | Real Phase-3 compatibility/accuracy evidence | Restricted synthetic adapters and review routing |
+| Pinned .NET SDK and C# target repository conventions | Executable C# delivery proof | Deterministic source-generation plug-in and fail-closed compile status |
 
 ## 5. Global Definition Of Done
 
@@ -463,7 +501,7 @@ A task is complete only when its acceptance tests pass, changed projects remain 
 
 ## 6. Out Of Scope
 
-Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule system of record; full FEEL; BPMN-as-rules; stored-procedure/UI-code mining; arbitrary expressions or custom aggregators in IR; bespoke preview evaluator; production auth before T-805; automatic merge/deploy; performance tuning before M7.
+Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule system of record; full FEEL; BPMN-as-rules; arbitrary stored-procedure dialects or executable UI/framework code; full ODM compatibility without customer artifacts; arbitrary expressions or custom aggregators in IR; bespoke preview evaluator; automatic merge/deploy.
 
 ## 7. Progress Log
 
