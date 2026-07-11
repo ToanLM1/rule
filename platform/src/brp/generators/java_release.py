@@ -14,6 +14,8 @@ def java_class_name(decision_id: str) -> str:
 
 def render_golden_junit(release: ReleaseInput) -> GeneratedArtifact:
     content = release.content
+    if release.target.java_package is None:
+        raise ValueError("JUnit rendering requires a Java target")
     class_name = java_class_name(content.decision_id)
     lines = [
         f"package {release.target.java_package};",

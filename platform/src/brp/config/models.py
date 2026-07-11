@@ -28,6 +28,7 @@ class DeliveryMode(StrEnum):
 
 class Language(StrEnum):
     JAVA = "java"
+    CSHARP = "csharp"
 
 
 class DatabaseKind(StrEnum):
@@ -113,11 +114,13 @@ class CompositionConfig(ConfigModel):
 
 
 class TargetConfig(ConfigModel):
+    language: Language = Language.JAVA
     repository: str
     base_branch: str = Field(pattern=r"^[A-Za-z0-9._/-]+$")
     generated_source_path: str
     generated_test_path: str
-    java_package: str = Field(pattern=JAVA_NAME_PATTERN)
+    java_package: str | None = Field(default=None, pattern=JAVA_NAME_PATTERN)
+    csharp_namespace: str | None = Field(default=None, pattern=JAVA_NAME_PATTERN)
     build_command: str = Field(min_length=1)
     pr_provider: str = Field(pattern=ADAPTER_PATTERN)
     composition: CompositionConfig
@@ -133,6 +136,14 @@ class TargetConfig(ConfigModel):
         if "\n" in value or "\r" in value or "\x00" in value:
             raise ValueError("build command must be a single line")
         return value
+
+    @model_validator(mode="after")
+    def language_namespace(self) -> TargetConfig:
+        if self.language is Language.JAVA and self.java_package is None:
+            raise ValueError("Java target requires javaPackage")
+        if self.language is Language.CSHARP and self.csharp_namespace is None:
+            raise ValueError("C# target requires csharpNamespace")
+        return self
 
 
 class SiteProfile(ConfigModel):
@@ -160,6 +171,8 @@ class SiteProfile(ConfigModel):
     def mode_requires_target(self) -> SiteProfile:
         if self.delivery_mode is DeliveryMode.B and self.target is None:
             raise ValueError("Mode B requires target delivery configuration")
+        if self.target is not None and self.target.language is not self.language:
+            raise ValueError("site and target languages must match")
         return self
 
 
