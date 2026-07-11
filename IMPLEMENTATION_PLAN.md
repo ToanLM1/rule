@@ -448,7 +448,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Scope: implement reusable/local proofs for T-901–T-906. Restricted parsers must fail closed to review; synthetic fixtures cannot support real-site compatibility or accuracy claims.
   - Still gated: customer stored-object/UI/DRL/ODM samples, real target conventions, a production non-PostgreSQL DBMS, installed .NET SDK/target repository, and multi-site rollout approval.
 
-- [ ] **T-901 — Restricted PostgreSQL stored-procedure mining.**
+- [x] **T-901 — Restricted PostgreSQL stored-procedure mining.** ✅ 2026-07-12 ea65134
   - Do: ingest immutable PL/pgSQL function source from the bounded connector/source snapshot; map only scalar input comparisons plus literal `RETURN` branches into candidate Rule IR; preserve stored-object and line provenance; route SQL, calls, assignments, loops, and unsupported syntax to review.
   - Accept: `uv run pytest tests/adapters/test_db_stored_object.py`; cover Korean literals, deterministic candidates, exact provenance, unsupported routing, and injection-free connector boundaries.
   - Depends: T-301, T-302, T-309.
@@ -558,4 +558,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-11 02:07 | T-804 | done | 02f7bcc | Added versioned ground truth, provider-policy gates, reproducible metrics, and a synthetic-only benchmark proof.
 2026-07-11 02:31 | T-805 | done | b8ff071 | Added OIDC/JWKS validation, four-role enforcement, configurable evidence, atomic batch review, and deployment audit.
 2026-07-11 03:18 | M8 | done | 45cd7f5 | Passed full cross-project regression and aligned Phase-2 architecture, environment, and customer-gated boundaries.
+2026-07-12 19:58 | T-901 | done | ea65134 | Added fail-closed scalar PL/pgSQL mining with immutable stored-object and line provenance.
 ```
