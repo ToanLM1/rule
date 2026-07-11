@@ -458,7 +458,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/adapters/test_ui_validation.py`; cover Korean error codes/text, supported validations, unsupported attributes/scripts, stable source hashes, and no script execution.
   - Depends: T-301, T-309.
 
-- [ ] **T-903 — Engine-native import boundary.**
+- [x] **T-903 — Engine-native import boundary.** ✅ 2026-07-12 29d3a06
   - Do: import a restricted DRL decision-rule subset (fact-field comparisons and literal setter actions) into candidate IR with exact asset/rule provenance; classify ODM artifacts and route them to review until customer format/version samples exist; reject workflow assets.
   - Accept: `uv run pytest tests/adapters/test_engine_native.py`; cover DRL rules/default, Korean text, unsupported consequences, ODM review routing, and BPMN rejection.
   - Depends: T-801.
@@ -560,4 +560,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-11 03:18 | M8 | done | 45cd7f5 | Passed full cross-project regression and aligned Phase-2 architecture, environment, and customer-gated boundaries.
 2026-07-12 19:58 | T-901 | done | ea65134 | Added fail-closed scalar PL/pgSQL mining with immutable stored-object and line provenance.
 2026-07-12 20:08 | T-902 | done | 9be14d9 | Added non-executing HTML validation mining with element provenance and unsupported-script review routing.
+2026-07-12 20:18 | T-903 | done | 29d3a06 | Added restricted DRL import, ODM customer-mapping review routing, and BPMN rejection.
 ```
