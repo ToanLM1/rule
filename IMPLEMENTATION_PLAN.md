@@ -453,7 +453,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/adapters/test_db_stored_object.py`; cover Korean literals, deterministic candidates, exact provenance, unsupported routing, and injection-free connector boundaries.
   - Depends: T-301, T-302, T-309.
 
-- [ ] **T-902 — Declarative UI validation adapter.**
+- [x] **T-902 — Declarative UI validation adapter.** ✅ 2026-07-12 9be14d9
   - Do: parse static HTML input validation metadata into candidate IR for numeric min/max and explicit equality/list data rules; preserve file/element provenance; route required/pattern/scripts/framework expressions to review instead of executing UI code.
   - Accept: `uv run pytest tests/adapters/test_ui_validation.py`; cover Korean error codes/text, supported validations, unsupported attributes/scripts, stable source hashes, and no script execution.
   - Depends: T-301, T-309.
@@ -559,4 +559,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-11 02:31 | T-805 | done | b8ff071 | Added OIDC/JWKS validation, four-role enforcement, configurable evidence, atomic batch review, and deployment audit.
 2026-07-11 03:18 | M8 | done | 45cd7f5 | Passed full cross-project regression and aligned Phase-2 architecture, environment, and customer-gated boundaries.
 2026-07-12 19:58 | T-901 | done | ea65134 | Added fail-closed scalar PL/pgSQL mining with immutable stored-object and line provenance.
+2026-07-12 20:08 | T-902 | done | 9be14d9 | Added non-executing HTML validation mining with element provenance and unsupported-script review routing.
 ```
