@@ -13,6 +13,7 @@ Inventory recorded on 2026-07-10 for the local Windows development host.
 | Docker Compose | 5.0.0-desktop.1 | Local PostgreSQL/CI dependency path |
 | Joern | 4.0.579 | Docker image pinned by digest in `config/joern.lock.json` |
 | psql | not installed | Not required; project probes/loaders use psycopg |
+| .NET SDK | not installed | Phase-3 C# generation is verified deterministically; compile evidence remains `COMPILE_NOT_RUN` until a pinned SDK is installed |
 
 Local JDK 17 path:
 

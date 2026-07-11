@@ -10,7 +10,7 @@ Read `prd.md` in this directory as the source of truth for this track before doi
 - Inputs are the customer's **git repositories and databases**; the analysis/mining stack (Joern static analysis + a purpose-built rule miner, ETL, JDM code-gen) is **all new**. It does **not** run on the knowledge assistant's document/knowledge (RAG) ingestion.
 - There is **no meaningful shared component**. At most, the optional/supplementary manuals source (`prd.md` §5.1 #2, §5.2) may borrow low-level document-parsing utilities — but it needs rule-oriented extraction, not the RAG ingestion as-is. Do not call the document pipeline "the shared component."
 - Not reused from the main project: chat/RAG retrieval, citation surfaces, Neptune telecom graph schema, NUEL/ProcessMap content.
-- **Status: implementation (Phase 0/1) — customer approved the architecture 2026-07-04.** Build strictly per `IMPLEMENTATION_PLAN.md` (task order, acceptance criteria, progress protocol). Still do not wire anything into the knowledge-assistant backend/frontend.
+- **Status: Phase 3 generic/local implementation complete; customer rollout inputs remain gated.** Build strictly per `IMPLEMENTATION_PLAN.md` (task order, acceptance criteria, progress protocol). Still do not wire anything into the knowledge-assistant backend/frontend or claim real-site compatibility from synthetic fixtures.
 
 ## Domain
 - Business problem: enrollment logic (`가입 Rule`) for financial/insurance products is buried in source code; this track manages it as **rules-as-data** in a governed repository, with an optional path to reflect edited rules back into deployable source.

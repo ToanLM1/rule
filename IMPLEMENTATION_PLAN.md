@@ -478,6 +478,8 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/config/test_capability_matrix.py`; cover compatible Java/DMN/C# paths, unavailable toolchains, unsupported DB/engine/UI combinations, deterministic reports, and secret-free configuration.
   - Depends: T-104, T-301, T-905.
 
+**Phase-3 verification (generic/local):** platform Ruff and strict mypy passed; 186 non-E2E and 8 E2E platform tests passed; connector 10 tests passed; UI unit/build/Playwright passed; Java toolchain and legacy-fixture Gradle tests passed. C# source/golden/manifest generation is deterministic, but the host has no .NET SDK, so its compile evidence is `COMPILE_NOT_RUN`. Stored-object/UI/DRL/ODM fixtures are synthetic and do not support real-site compatibility or accuracy claims.
+
 ---
 
 ## 4. Customer-Gated Inputs
