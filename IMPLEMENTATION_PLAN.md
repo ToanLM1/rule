@@ -463,7 +463,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/adapters/test_engine_native.py`; cover DRL rules/default, Korean text, unsupported consequences, ODM review routing, and BPMN rejection.
   - Depends: T-801.
 
-- [ ] **T-904 — Deterministic DMN export.**
+- [x] **T-904 — Deterministic DMN export.** ✅ 2026-07-12 12d58a0
   - Do: export approved-profile IR decision tables to deterministic DMN 1.3 XML with typed inputs/outputs, FIRST/UNIQUE/COLLECT policies, restricted FEEL, provenance extension metadata, and no repository envelope fields.
   - Accept: `uv run pytest tests/generators/test_dmn_export.py`; byte stability, Korean UTF-8, XML safety, canonical re-import equivalence, and explicit rejection of non-representable operands.
   - Depends: T-102, T-801.
@@ -561,4 +561,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-12 19:58 | T-901 | done | ea65134 | Added fail-closed scalar PL/pgSQL mining with immutable stored-object and line provenance.
 2026-07-12 20:08 | T-902 | done | 9be14d9 | Added non-executing HTML validation mining with element provenance and unsupported-script review routing.
 2026-07-12 20:18 | T-903 | done | 29d3a06 | Added restricted DRL import, ODM customer-mapping review routing, and BPMN rejection.
+2026-07-12 20:28 | T-904 | done | 12d58a0 | Added deterministic restricted DMN export with provenance extensions and semantic round-trip proof.
 ```
