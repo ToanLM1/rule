@@ -788,6 +788,7 @@
           "DMN_ASSET": "#/$defs/DmnAssetReference",
           "JAVA_SOURCE": "#/$defs/JavaSourceReference",
           "MANUAL_DOC": "#/$defs/ManualDocumentReference",
+          "UI_ELEMENT": "#/$defs/UiElementReference",
           "USER_ACTION": "#/$defs/UserActionReference"
         },
         "propertyName": "type"
@@ -809,9 +810,57 @@
           "$ref": "#/$defs/DmnAssetReference"
         },
         {
+          "$ref": "#/$defs/UiElementReference"
+        },
+        {
           "$ref": "#/$defs/UserActionReference"
         }
       ]
+    },
+    "UiElementReference": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "minLength": 1,
+          "title": "Assetid",
+          "type": "string"
+        },
+        "elementId": {
+          "minLength": 1,
+          "title": "Elementid",
+          "type": "string"
+        },
+        "file": {
+          "minLength": 1,
+          "title": "File",
+          "type": "string"
+        },
+        "line": {
+          "minimum": 1,
+          "title": "Line",
+          "type": "integer"
+        },
+        "revision": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Revision",
+          "type": "string"
+        },
+        "type": {
+          "const": "UI_ELEMENT",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "assetId",
+        "revision",
+        "file",
+        "elementId",
+        "line"
+      ],
+      "title": "UiElementReference",
+      "type": "object"
     },
     "UserActionReference": {
       "additionalProperties": false,

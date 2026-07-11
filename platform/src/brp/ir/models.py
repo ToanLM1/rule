@@ -239,6 +239,15 @@ class DmnAssetReference(StrictModel):
     element_id: str = Field(min_length=1)
 
 
+class UiElementReference(StrictModel):
+    type: Literal["UI_ELEMENT"]
+    asset_id: str = Field(min_length=1)
+    revision: str = Field(pattern=r"^[a-f0-9]{64}$")
+    file: str = Field(min_length=1)
+    element_id: str = Field(min_length=1)
+    line: int = Field(ge=1)
+
+
 class UserActionReference(StrictModel):
     type: Literal["USER_ACTION"]
     actor: str = Field(min_length=1)
@@ -252,6 +261,7 @@ type SourceReference = Annotated[
     | DbStoredObjectReference
     | ManualDocumentReference
     | DmnAssetReference
+    | UiElementReference
     | UserActionReference,
     Field(discriminator="type"),
 ]
