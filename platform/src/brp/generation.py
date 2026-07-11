@@ -117,6 +117,8 @@ class JavaCliReleaseBuilder:
         self.root = repository_root
 
     def build(self, release: ReleaseInput) -> list[GeneratedArtifact]:
+        if release.target.java_package is None:
+            raise ValueError("java-source builder requires a Java target")
         toolchain = self.root / "java-toolchain"
         gradle = toolchain / ("gradlew.bat" if os.name == "nt" else "gradlew")
         subprocess.run(
