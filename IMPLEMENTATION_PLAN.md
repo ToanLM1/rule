@@ -468,7 +468,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/generators/test_dmn_export.py`; byte stability, Korean UTF-8, XML safety, canonical re-import equivalence, and explicit rejection of non-representable operands.
   - Depends: T-102, T-801.
 
-- [ ] **T-905 — C# target plug-in proof.**
+- [x] **T-905 — C# target plug-in proof.** ✅ 2026-07-12 c492456
   - Do: add a deterministic C# generator for IR v1 scalar operators, FIRST/UNIQUE/COLLECT, typed records, and lookup contract; emit manifest hashes and golden-test source. Compilation is authoritative only when an installed/pinned .NET SDK runs; otherwise report `COMPILE_NOT_RUN` and never claim executable proof.
   - Accept: `uv run pytest tests/generators/test_csharp.py`; deterministic snapshots and operator coverage pass; compile gate either runs successfully or returns the explicit fail-closed status on this host.
   - Depends: T-501, T-502, T-504.
@@ -562,4 +562,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-12 20:08 | T-902 | done | 9be14d9 | Added non-executing HTML validation mining with element provenance and unsupported-script review routing.
 2026-07-12 20:18 | T-903 | done | 29d3a06 | Added restricted DRL import, ODM customer-mapping review routing, and BPMN rejection.
 2026-07-12 20:28 | T-904 | done | 12d58a0 | Added deterministic restricted DMN export with provenance extensions and semantic round-trip proof.
+2026-07-12 20:45 | T-905 | done | c492456 | Added deterministic C# source/golden/manifest generation; compile evidence is explicitly COMPILE_NOT_RUN without a local .NET SDK.
 ```
