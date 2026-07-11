@@ -251,6 +251,66 @@
       "title": "DmnAssetReference",
       "type": "object"
     },
+    "EngineAssetReference": {
+      "additionalProperties": false,
+      "properties": {
+        "assetId": {
+          "minLength": 1,
+          "title": "Assetid",
+          "type": "string"
+        },
+        "contentHash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Contenthash",
+          "type": "string"
+        },
+        "engineFormat": {
+          "enum": [
+            "DRL",
+            "ODM"
+          ],
+          "title": "Engineformat",
+          "type": "string"
+        },
+        "lineEnd": {
+          "minimum": 1,
+          "title": "Lineend",
+          "type": "integer"
+        },
+        "lineStart": {
+          "minimum": 1,
+          "title": "Linestart",
+          "type": "integer"
+        },
+        "revision": {
+          "minLength": 1,
+          "title": "Revision",
+          "type": "string"
+        },
+        "ruleId": {
+          "minLength": 1,
+          "title": "Ruleid",
+          "type": "string"
+        },
+        "type": {
+          "const": "ENGINE_ASSET",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "engineFormat",
+        "assetId",
+        "revision",
+        "contentHash",
+        "ruleId",
+        "lineStart",
+        "lineEnd"
+      ],
+      "title": "EngineAssetReference",
+      "type": "object"
+    },
     "FieldDefinition": {
       "additionalProperties": false,
       "properties": {
@@ -786,6 +846,7 @@
           "DB_ROW": "#/$defs/DbRowReference",
           "DB_STORED_OBJECT": "#/$defs/DbStoredObjectReference",
           "DMN_ASSET": "#/$defs/DmnAssetReference",
+          "ENGINE_ASSET": "#/$defs/EngineAssetReference",
           "JAVA_SOURCE": "#/$defs/JavaSourceReference",
           "MANUAL_DOC": "#/$defs/ManualDocumentReference",
           "UI_ELEMENT": "#/$defs/UiElementReference",
@@ -811,6 +872,9 @@
         },
         {
           "$ref": "#/$defs/UiElementReference"
+        },
+        {
+          "$ref": "#/$defs/EngineAssetReference"
         },
         {
           "$ref": "#/$defs/UserActionReference"

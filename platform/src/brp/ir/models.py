@@ -248,6 +248,23 @@ class UiElementReference(StrictModel):
     line: int = Field(ge=1)
 
 
+class EngineAssetReference(StrictModel):
+    type: Literal["ENGINE_ASSET"]
+    engine_format: Literal["DRL", "ODM"]
+    asset_id: str = Field(min_length=1)
+    revision: str = Field(min_length=1)
+    content_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
+    rule_id: str = Field(min_length=1)
+    line_start: int = Field(ge=1)
+    line_end: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def valid_line_range(self) -> EngineAssetReference:
+        if self.line_end < self.line_start:
+            raise ValueError("lineEnd must be greater than or equal to lineStart")
+        return self
+
+
 class UserActionReference(StrictModel):
     type: Literal["USER_ACTION"]
     actor: str = Field(min_length=1)
@@ -262,6 +279,7 @@ type SourceReference = Annotated[
     | ManualDocumentReference
     | DmnAssetReference
     | UiElementReference
+    | EngineAssetReference
     | UserActionReference,
     Field(discriminator="type"),
 ]
