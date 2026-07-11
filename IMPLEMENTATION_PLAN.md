@@ -473,7 +473,7 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
   - Accept: `uv run pytest tests/generators/test_csharp.py`; deterministic snapshots and operator coverage pass; compile gate either runs successfully or returns the explicit fail-closed status on this host.
   - Depends: T-501, T-502, T-504.
 
-- [ ] **T-906 — Multi-site capability orchestration.**
+- [x] **T-906 — Multi-site capability orchestration.** ✅ 2026-07-12 da4c715
   - Do: extend the adapter/target registry and site profile with capability declarations; validate incompatible source/target/profile combinations before work starts; produce a deterministic capability matrix for multiple synthetic sites/products/flows.
   - Accept: `uv run pytest tests/config/test_capability_matrix.py`; cover compatible Java/DMN/C# paths, unavailable toolchains, unsupported DB/engine/UI combinations, deterministic reports, and secret-free configuration.
   - Depends: T-104, T-301, T-905.
@@ -563,4 +563,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-12 20:18 | T-903 | done | 29d3a06 | Added restricted DRL import, ODM customer-mapping review routing, and BPMN rejection.
 2026-07-12 20:28 | T-904 | done | 12d58a0 | Added deterministic restricted DMN export with provenance extensions and semantic round-trip proof.
 2026-07-12 20:45 | T-905 | done | c492456 | Added deterministic C# source/golden/manifest generation; compile evidence is explicitly COMPILE_NOT_RUN without a local .NET SDK.
+2026-07-12 21:00 | T-906 | done | da4c715 | Added deterministic multi-site source/target/runtime capability preflight with fail-closed compatibility and toolchain status.
 ```
