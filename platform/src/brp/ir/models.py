@@ -195,6 +195,23 @@ class DbRowReference(StrictModel):
     snapshot_hash: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 
+class DbStoredObjectReference(StrictModel):
+    type: Literal["DB_STORED_OBJECT"]
+    connection_alias: str = Field(min_length=1)
+    schema_name: str = Field(alias="schema", min_length=1)
+    object_name: str = Field(min_length=1)
+    object_kind: Literal["FUNCTION", "PROCEDURE"]
+    revision: str = Field(pattern=r"^[a-f0-9]{64}$")
+    line_start: int = Field(ge=1)
+    line_end: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def valid_line_range(self) -> DbStoredObjectReference:
+        if self.line_end < self.line_start:
+            raise ValueError("lineEnd must be greater than or equal to lineStart")
+        return self
+
+
 class ManualDocumentReference(StrictModel):
     type: Literal["MANUAL_DOC"]
     document_id: str = Field(min_length=1)
@@ -232,6 +249,7 @@ class UserActionReference(StrictModel):
 type SourceReference = Annotated[
     JavaSourceReference
     | DbRowReference
+    | DbStoredObjectReference
     | ManualDocumentReference
     | DmnAssetReference
     | UserActionReference,
@@ -320,9 +338,7 @@ class DecisionContent(StrictModel):
                 _validate_condition(condition, input_types, lookup_map)
 
 
-def _require_unique(
-    values: Sequence[StrictModel], label: str, *, attribute: str = "name"
-) -> None:
+def _require_unique(values: Sequence[StrictModel], label: str, *, attribute: str = "name") -> None:
     names = [getattr(value, attribute) for value in values]
     if len(names) != len(set(names)):
         raise ValueError(f"duplicate {label} names are forbidden")
