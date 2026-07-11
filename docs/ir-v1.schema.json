@@ -152,6 +152,66 @@
       "title": "DbRowReference",
       "type": "object"
     },
+    "DbStoredObjectReference": {
+      "additionalProperties": false,
+      "properties": {
+        "connectionAlias": {
+          "minLength": 1,
+          "title": "Connectionalias",
+          "type": "string"
+        },
+        "lineEnd": {
+          "minimum": 1,
+          "title": "Lineend",
+          "type": "integer"
+        },
+        "lineStart": {
+          "minimum": 1,
+          "title": "Linestart",
+          "type": "integer"
+        },
+        "objectKind": {
+          "enum": [
+            "FUNCTION",
+            "PROCEDURE"
+          ],
+          "title": "Objectkind",
+          "type": "string"
+        },
+        "objectName": {
+          "minLength": 1,
+          "title": "Objectname",
+          "type": "string"
+        },
+        "revision": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Revision",
+          "type": "string"
+        },
+        "schema": {
+          "minLength": 1,
+          "title": "Schema",
+          "type": "string"
+        },
+        "type": {
+          "const": "DB_STORED_OBJECT",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "connectionAlias",
+        "schema",
+        "objectName",
+        "objectKind",
+        "revision",
+        "lineStart",
+        "lineEnd"
+      ],
+      "title": "DbStoredObjectReference",
+      "type": "object"
+    },
     "DmnAssetReference": {
       "additionalProperties": false,
       "properties": {
@@ -724,6 +784,7 @@
       "discriminator": {
         "mapping": {
           "DB_ROW": "#/$defs/DbRowReference",
+          "DB_STORED_OBJECT": "#/$defs/DbStoredObjectReference",
           "DMN_ASSET": "#/$defs/DmnAssetReference",
           "JAVA_SOURCE": "#/$defs/JavaSourceReference",
           "MANUAL_DOC": "#/$defs/ManualDocumentReference",
@@ -737,6 +798,9 @@
         },
         {
           "$ref": "#/$defs/DbRowReference"
+        },
+        {
+          "$ref": "#/$defs/DbStoredObjectReference"
         },
         {
           "$ref": "#/$defs/ManualDocumentReference"
