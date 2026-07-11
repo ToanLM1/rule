@@ -33,6 +33,7 @@ class Language(StrEnum):
 
 class DatabaseKind(StrEnum):
     POSTGRES = "postgres"
+    SQLITE = "sqlite"
 
 
 class Aggregate(StrEnum):
@@ -152,6 +153,7 @@ class SiteProfile(ConfigModel):
     language: Language
     source: SourceConfig
     adapters: list[str] = Field(min_length=1)
+    generators: list[str] = Field(default_factory=list)
     mapping_spec: str
     target: TargetConfig | None = None
 
@@ -167,6 +169,16 @@ class SiteProfile(ConfigModel):
             raise ValueError(f"invalid adapter names: {invalid}")
         return value
 
+    @field_validator("generators")
+    @classmethod
+    def valid_generators(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("generators must be unique")
+        invalid = [name for name in value if not re.fullmatch(ADAPTER_PATTERN, name)]
+        if invalid:
+            raise ValueError(f"invalid generator names: {invalid}")
+        return value
+
     @model_validator(mode="after")
     def mode_requires_target(self) -> SiteProfile:
         if self.delivery_mode is DeliveryMode.B and self.target is None:
@@ -174,6 +186,14 @@ class SiteProfile(ConfigModel):
         if self.target is not None and self.target.language is not self.language:
             raise ValueError("site and target languages must match")
         return self
+
+    @property
+    def selected_generators(self) -> tuple[str, ...]:
+        if self.generators:
+            return tuple(sorted(self.generators))
+        if self.delivery_mode is DeliveryMode.A:
+            return ("jdm-export",)
+        return ("java-source",) if self.language is Language.JAVA else ("csharp-source",)
 
 
 def load_site_profile(path: Path) -> SiteProfile:
