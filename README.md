@@ -12,6 +12,7 @@ and C# evidence remain local/synthetic proofs—not real-customer readiness clai
 - [Architecture](architecture.md)
 - [Implementation plan](IMPLEMENTATION_PLAN.md)
 - [Local environment](docs/environment.md)
+- [Phase-3 orchestration workbench](docs/orchestration.md)
 
 The Telecom Knowledge Assistant provides historical product context only. This
 application does not depend on its chat, RAG, vector, document-ingestion, or

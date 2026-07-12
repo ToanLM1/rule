@@ -480,6 +480,15 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
 
 **Phase-3 verification (generic/local):** platform Ruff and strict mypy passed; 186 non-E2E and 8 E2E platform tests passed; connector 10 tests passed; UI unit/build/Playwright passed; Java toolchain and legacy-fixture Gradle tests passed. C# source/golden/manifest generation is deterministic, but the host has no .NET SDK, so its compile evidence is `COMPILE_NOT_RUN`. Stored-object/UI/DRL/ODM fixtures are synthetic and do not support real-site compatibility or accuracy claims.
 
+### M10 — Phase-3 local orchestration follow-up
+
+- [x] **T-907 — Phase-3 API/UI orchestration workbench.** ✅ 2026-07-12 0137c40
+  - Do: expose a safe local catalog, inline restricted extraction, DMN/C# target preview, and multi-site preflight through FastAPI; add a Vue workbench for samples/local files, candidate/review inspection, artifacts, and readiness evidence. Never persist, approve, publish, or execute uploaded code.
+  - Accept: `uv run pytest tests/api/test_orchestration_api.py`; from `ui/`, `pnpm run test -- --run`, `pnpm run build`, and `pnpm run test:e2e`; live HTTP smoke proves PL/pgSQL → candidate → DMN preview with `persistent=false` and `authoritative=false`.
+  - Depends: T-901–T-906.
+
+**T-907 verification:** platform Ruff and strict mypy passed with 190 non-E2E tests; UI 4 component tests, production build, and 2 Playwright flows passed. Live API/UI served on ports 8100/5173 and produced one candidate plus a hashed DMN preview. The in-app browser-control plugin could not attach because its local kernel-asset setup failed; repository Playwright and live HTTP verification remained green.
+
 ---
 
 ## 4. Customer-Gated Inputs
@@ -567,4 +576,5 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-12 20:45 | T-905 | done | c492456 | Added deterministic C# source/golden/manifest generation; compile evidence is explicitly COMPILE_NOT_RUN without a local .NET SDK.
 2026-07-12 21:00 | T-906 | done | da4c715 | Added deterministic multi-site source/target/runtime capability preflight with fail-closed compatibility and toolchain status.
 2026-07-12 21:14 | M9 | done | c9e0a8f | Passed full cross-project regression and aligned Phase-3 architecture, toolchain evidence, and customer-gated boundaries.
+2026-07-12 17:16 | T-907 | done | 0137c40 | Added safe Phase-3 API/UI orchestration, candidate/artifact inspection, and capability preflight with non-authoritative evidence labels.
 ```
