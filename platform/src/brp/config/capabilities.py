@@ -106,6 +106,13 @@ class CapabilityCatalog:
     def get(self, kind: CapabilityKind, name: str) -> CapabilityDeclaration | None:
         return self._declarations.get((kind, name))
 
+    @property
+    def declarations(self) -> tuple[CapabilityDeclaration, ...]:
+        return tuple(
+            self._declarations[key]
+            for key in sorted(self._declarations, key=lambda item: (item[0].value, item[1]))
+        )
+
     @classmethod
     def builtin(cls) -> CapabilityCatalog:
         catalog = cls()

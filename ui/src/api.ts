@@ -32,6 +32,45 @@ export type AuditEvent = {
   at: string
 }
 
+export type OrchestrationCatalog = {
+  evidenceLabel: string
+  persistent: boolean
+  adapters: string[]
+  generators: string[]
+  hostInventory: Record<string, boolean>
+  boundaries: string[]
+}
+
+export type ExtractionResponse = {
+  evidenceLabel: string
+  persistent: boolean
+  batch: {
+    adapter: string
+    decisions: Array<{
+      decisionKey: string
+      content: Record<string, unknown> & { decisionName?: string }
+    }>
+    unmappable: Array<{
+      reasonCode: string
+      rawFragment: string
+      provenance: Record<string, unknown>
+    }>
+    diagnostics: Array<{ level: string; code: string; message: string }>
+    sourceSnapshot: { contentHash: string; revision: string }
+  }
+}
+
+export type GenerationResponse = {
+  generator: string
+  evidenceLabel: string
+  persistent: boolean
+  authoritative: boolean
+  path: string
+  content: string
+  contentHash: string
+  compileEvidence?: { status: string; detail: string; sdkVersion?: string }
+}
+
 export class BrpApi {
   private readonly baseUrl: string
 
@@ -93,6 +132,42 @@ export class BrpApi {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ input, lookupSnapshots: {} }),
+    })
+  }
+
+  orchestrationCatalog() {
+    return this.request<OrchestrationCatalog>('/orchestration/catalog')
+  }
+
+  orchestrationExtract(payload: Record<string, unknown>, actor: string) {
+    return this.request<ExtractionResponse>('/orchestration/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor },
+      body: JSON.stringify(payload),
+    })
+  }
+
+  orchestrationGenerate(
+    generator: string,
+    content: Record<string, unknown>,
+    actor: string,
+    csharpNamespace: string,
+  ) {
+    return this.request<GenerationResponse>('/orchestration/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor },
+      body: JSON.stringify({ generator, content, csharpNamespace }),
+    })
+  }
+
+  orchestrationPreflight(
+    profiles: Array<Record<string, unknown>>,
+    inventory: Record<string, boolean>,
+  ) {
+    return this.request<Record<string, unknown>>('/orchestration/preflight', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profiles, inventory }),
     })
   }
 }
