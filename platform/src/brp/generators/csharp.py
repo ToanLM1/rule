@@ -82,6 +82,17 @@ class CSharpGenerator:
         return [source, tests, manifest]
 
 
+def render_csharp_preview(content: DecisionContent, namespace: str) -> GeneratedArtifact:
+    """Render source only for the non-release orchestration workbench."""
+    if not namespace or any(not part.isidentifier() for part in namespace.split(".")):
+        raise CSharpGenerationError("a valid C# namespace is required")
+    class_name = _class_name(content.decision_id)
+    return GeneratedArtifact.create(
+        f"preview/{namespace.replace('.', '/')}/{class_name}.g.cs",
+        _render_decision(content, namespace, class_name),
+    )
+
+
 def verify_csharp_compile(source: GeneratedArtifact) -> CompileEvidence:
     executable = shutil.which("dotnet")
     if executable is None:

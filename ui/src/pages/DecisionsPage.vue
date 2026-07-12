@@ -116,6 +116,7 @@ async function runPreview() {
     <header class="topbar">
       <div class="brand-mark">BR</div>
       <div><p class="eyebrow">Business Rules Platform</p><h1>Decision governance</h1></div>
+      <RouterLink class="top-link" to="/orchestration">Phase 3 workbench</RouterLink>
       <label class="actor-picker"><span>Acting as</span><select v-model="actor" aria-label="Actor"><option>maker-a</option><option>checker-b</option><option>reviewer-c</option></select></label>
     </header>
 

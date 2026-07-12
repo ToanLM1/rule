@@ -18,6 +18,9 @@ from brp.api.schemas import (
     DecisionRevisionResponse,
     DecisionSummaryResponse,
     GoldenSuiteCreateRequest,
+    OrchestrationExtractRequest,
+    OrchestrationGenerateRequest,
+    OrchestrationPreflightRequest,
     PreviewRequest,
     ReasonRequest,
     RevisionCreateRequest,
@@ -29,6 +32,15 @@ from brp.governance.runner import run_zen_advisory
 from brp.governance.zen import DictLookupResolver, preview
 from brp.ir.models import DecisionContent
 from brp.mode_a import ModeAService
+from brp.orchestration import (
+    OrchestrationError,
+    extract_inline,
+    generate_preview,
+    preflight,
+)
+from brp.orchestration import (
+    catalog as orchestration_catalog,
+)
 from brp.repository.errors import (
     ApprovalEvidenceError,
     ApprovedRevisionNotFoundError,
@@ -120,6 +132,13 @@ def create_app(
     async def authorization_handler(request: Request, exc: AuthorizationError) -> JSONResponse:
         del request
         return problem(403, "Role denied", str(exc))
+
+    @app.exception_handler(OrchestrationError)
+    async def orchestration_error_handler(
+        request: Request, exc: OrchestrationError
+    ) -> JSONResponse:
+        del request
+        return problem(422, "Orchestration input rejected", str(exc))
 
     @app.exception_handler(RepositoryError)
     async def repository_error_handler(request: Request, exc: RepositoryError) -> JSONResponse:
@@ -401,6 +420,59 @@ def create_app(
             }
             for item in ReviewQueueService(session).list_open()
         ]
+
+    @app.get("/orchestration/catalog")
+    def get_orchestration_catalog() -> dict[str, object]:
+        return orchestration_catalog()
+
+    @app.post("/orchestration/preflight")
+    def run_orchestration_preflight(
+        body: OrchestrationPreflightRequest,
+    ) -> dict[str, object]:
+        return preflight(body.profiles, body.inventory).model_dump(mode="json", by_alias=True)
+
+    @app.post("/orchestration/extract")
+    def run_orchestration_extract(
+        body: OrchestrationExtractRequest,
+        actor: MakerActor,
+    ) -> dict[str, object]:
+        del actor
+        try:
+            batch = extract_inline(
+                adapter=body.adapter,
+                content=body.content,
+                filename=body.filename,
+                revision=body.revision,
+                connection_alias=body.connection_alias,
+                schema_name=body.schema_name,
+                object_name=body.object_name,
+            )
+        except OrchestrationError:
+            raise
+        except (UnicodeError, ValueError) as exc:
+            raise OrchestrationError(str(exc)) from exc
+        return {
+            "evidenceLabel": "LOCAL_PREVIEW_NON_AUTHORITATIVE",
+            "persistent": False,
+            "batch": batch.model_dump(mode="json", by_alias=True),
+        }
+
+    @app.post("/orchestration/generate")
+    def run_orchestration_generate(
+        body: OrchestrationGenerateRequest,
+        actor: MakerActor,
+    ) -> dict[str, object]:
+        del actor
+        try:
+            return generate_preview(
+                generator=body.generator,
+                content=body.content,
+                csharp_namespace=body.csharp_namespace,
+            )
+        except OrchestrationError:
+            raise
+        except ValueError as exc:
+            raise OrchestrationError(str(exc)) from exc
 
     @app.post("/review-queue/batch")
     def batch_review(

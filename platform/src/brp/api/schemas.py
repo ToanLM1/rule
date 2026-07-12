@@ -8,6 +8,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from brp.config.capabilities import ToolchainInventory
+from brp.config.models import SiteProfile
 from brp.ir.models import DecisionContent, to_camel
 from brp.repository.models import Decision, DecisionRevision, LifecycleEvent
 
@@ -58,6 +60,32 @@ class BatchDispositionRequest(ApiModel):
 
 class BatchReviewRequest(ApiModel):
     dispositions: list[BatchDispositionRequest] = Field(min_length=1)
+
+
+class OrchestrationExtractRequest(ApiModel):
+    adapter: Literal[
+        "db-postgres-stored-object",
+        "ui-html-validation",
+        "engine-native",
+        "engine-dmn",
+    ]
+    content: str = Field(min_length=1, max_length=1_000_000)
+    filename: str = Field(min_length=1, max_length=200)
+    revision: str = Field(default="local-preview", min_length=1, max_length=200)
+    connection_alias: str = Field(default="LOCAL_INLINE", pattern=r"^[A-Z][A-Z0-9_]*$")
+    schema_name: str = Field(default="public", pattern=r"^[A-Za-z_][A-Za-z0-9_$]*$")
+    object_name: str = Field(default="eligibility", pattern=r"^[A-Za-z_][A-Za-z0-9_$]*$")
+
+
+class OrchestrationGenerateRequest(ApiModel):
+    generator: Literal["dmn-export", "csharp-source"]
+    content: DecisionContent
+    csharp_namespace: str = Field(default="Brp.LocalPreview", pattern=r"^[A-Za-z_][A-Za-z0-9_.]*$")
+
+
+class OrchestrationPreflightRequest(ApiModel):
+    profiles: list[SiteProfile] = Field(min_length=1)
+    inventory: ToolchainInventory
 
 
 class RevisionEnvelopeResponse(ApiModel):
