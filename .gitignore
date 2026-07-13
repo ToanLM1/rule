@@ -4,3 +4,28 @@ Thumbs.db
 
 # Office lock/temp files
 ~$*
+
+# Local environments and secrets
+.env
+.env.*
+!.env.example
+.venv/
+**/.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Build and generated output
+out/
+build/
+dist/
+.gradle/
+node_modules/
+coverage/
+output/
+
+# IDE metadata
+.idea/
+.vscode/

@@ -1,0 +1,18 @@
+{
+  "cases": [
+    {"id": "first_default", "hitPolicy": "FIRST", "valid": true, "fixture": "enrollment_eligibility.json"},
+    {"id": "unique_default", "hitPolicy": "UNIQUE", "valid": true, "defaultOutput": {"value": "NONE"}},
+    {"id": "unique_collision_runtime", "hitPolicy": "UNIQUE", "valid": true, "expectedRuntimeError": "MULTIPLE_MATCH"},
+    {"id": "collect_order", "hitPolicy": "COLLECT", "valid": true, "expectedRuleOrder": ["R001", "R002"]},
+    {"id": "collect_empty", "hitPolicy": "COLLECT", "valid": true, "expected": []},
+    {"id": "first_missing_default", "hitPolicy": "FIRST", "valid": false, "error": "defaultOutput required"},
+    {"id": "collect_with_default", "hitPolicy": "COLLECT", "valid": false, "error": "defaultOutput forbidden"},
+    {"id": "nested_depth_three", "hitPolicy": "FIRST", "valid": true, "groupDepth": 3},
+    {"id": "nested_depth_four", "hitPolicy": "FIRST", "valid": false, "groupDepth": 4},
+    {"id": "extracted_without_reference", "hitPolicy": "FIRST", "valid": false, "origin": "EXTRACTED", "sourceReferences": []},
+    {"id": "user_action_reference", "hitPolicy": "FIRST", "valid": true, "origin": "USER_AUTHORED", "sourceType": "USER_ACTION"},
+    {"id": "user_without_action_reference", "hitPolicy": "FIRST", "valid": false, "origin": "USER_AUTHORED", "sourceType": "JAVA_SOURCE"},
+    {"id": "lookup_hit", "hitPolicy": "FIRST", "valid": true, "lookupResult": true},
+    {"id": "lookup_miss", "hitPolicy": "FIRST", "valid": true, "lookupResult": null}
+  ]
+}

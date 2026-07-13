@@ -1,0 +1,7 @@
+{
+  "image": "ghcr.io/joernio/joern",
+  "source_tag": "nightly",
+  "digest": "sha256:4efa62fa8ae5a3303ea972e100851d77743575c895557747bd08d56a7c47b334",
+  "version": "4.0.579",
+  "verified_at": "2026-07-10"
+}

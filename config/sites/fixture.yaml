@@ -1,0 +1,32 @@
+site: fixture
+delivery_mode: B
+language: java
+source:
+  db:
+    kind: postgres
+    connection_env: BRP_DATABASE_URL
+  repositories:
+    - alias: legacy-enrollment
+      path: fixtures/legacy-enrollment
+      revision: HEAD
+  program_contexts:
+    - program_id: ENROLLMENT-API
+      kind: API
+      repository: legacy-enrollment
+      class: legacy.EnrollmentValidator
+      method: evaluate
+adapters: [db-postgres, code-java, docs-manual]
+mapping_spec: config/mappings/fixture-tables.yaml
+target:
+  repository: out/fixture-remote.git
+  base_branch: main
+  generated_source_path: src/generated/java
+  generated_test_path: src/generatedTest/java
+  java_package: brp.rules.generated
+  build_command: ./gradlew test
+  pr_provider: local-report
+  composition:
+    facade: legacy.rules.EnrollmentRuleModule
+    decisions:
+      premium_adjustments: { field: premiumLoadingPct, aggregate: SUM }
+      required_documents: { field: requiredDoc, aggregate: DISTINCT }
