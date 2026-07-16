@@ -6,14 +6,15 @@ not a shortcut around repository governance.
 
 ## Start locally
 
+This workstation uses the shared Singapore RDS instance for the application database. The
+ignored repository-root `.env` contains `BRP_DATABASE_URL` and `BRP_PSQL_URL` for database
+`brp` with `sslmode=require`. Never commit that file or print either URL.
+
 From the repository root in PowerShell:
 
 ```powershell
-docker compose -p brp -f docker/docker-compose.yml up -d postgres
-
-$env:BRP_LOCAL_DEVELOPMENT_HEADERS = "true"
-uv run --project platform alembic -c platform/alembic.ini upgrade head
-uv run --project platform uvicorn brp.api.app:app --host 127.0.0.1 --port 8100
+uv run --env-file .env --project platform python -m alembic -c platform/alembic.ini upgrade head
+uv run --env-file .env --project platform python -m uvicorn brp.api.app:app --host 127.0.0.1 --port 8100
 ```
 
 In a second terminal:
@@ -62,7 +63,14 @@ that header and requires OIDC JWT roles.
 
 ## Verification
 
+The full platform test suite writes and commits test records. Run it only against the isolated
+Docker database, never with the cloud `.env` loaded:
+
 ```powershell
+docker compose -p brp -f docker/docker-compose.yml up -d postgres
+$env:BRP_DATABASE_URL = "postgresql+psycopg://brp:brp@localhost:55432/brp"
+$env:BRP_PSQL_URL = "postgresql://brp:brp@localhost:55432/brp"
+
 cd platform
 uv run pytest tests/api/test_orchestration_api.py -q
 
@@ -71,3 +79,6 @@ pnpm run test -- --run
 pnpm run build
 pnpm run test:e2e
 ```
+
+The RDS copy and its verification evidence are documented in
+[`rds-migration.md`](rds-migration.md).
