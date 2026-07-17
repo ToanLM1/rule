@@ -74,9 +74,7 @@ def test_duplicate_adapters_are_rejected() -> None:
 
 def test_invalid_composition_aggregate_is_rejected() -> None:
     value = document()
-    value["target"]["composition"]["decisions"]["premium_adjustments"][
-        "aggregate"
-    ] = "EVAL"
+    value["target"]["composition"]["decisions"]["premium_adjustments"]["aggregate"] = "EVAL"
     with pytest.raises(ValidationError):
         SiteProfile.model_validate(value)
 

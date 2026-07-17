@@ -1,6 +1,14 @@
 # Business Rules Platform — Architecture Design
 
-> **Status:** Phase-3 generic/local implementation baseline, v1.3 (2026-07-12). Companion to `prd.md` (product requirements — read it first for domain/scope). This document is the source of truth for architecture detail. It reviews and supersedes `prd-architecture-revision-note.md`. Phases 1–3 are implemented and regression-tested against synthetic/local fixtures; customer-specific compatibility, accuracy, toolchain, and rollout evidence remains explicitly gated in §14.
+> **2026-07-16 production-hardening addendum.** The runtime is now a multi-workspace,
+> multi-site internal self-hosted release candidate with a versioned `/api/v1`, a
+> PostgreSQL durable job queue, separate worker, artifact storage, enterprise Vue
+> console, English/Korean UI, Mode-A history/rollback and Mode-B Git delivery
+> evidence. Existing routes remain compatibility aliases for one release. OIDC is
+> intentionally deferred, therefore internet exposure and an unconditional
+> production claim remain blocked. See `docs/production-operations.md`.
+
+> **Status:** production-hardening release candidate in progress, v1.4 (2026-07-16). Phases 1–3 remain the completed generic/local baseline. The M11 control plane and durable workflow are implemented with isolated acceptance evidence; final container, CI-equivalent, browser and RDS-cutover gates remain open. Companion to `prd.md` (product requirements — read it first for domain/scope). This document is the source of truth for architecture detail. It reviews and supersedes `prd-architecture-revision-note.md`; customer-specific compatibility, accuracy, identity and rollout evidence remains explicitly gated in §14.
 
 ## 0. Relationship To The Knowledge Assistant
 
@@ -402,7 +410,7 @@ The asymmetry is deliberate (ADR-3): in mode B there are two executors (Zen prev
 - **Reusable DB MCP library**: one bounded connector contract over database drivers. PostgreSQL remains the production reference; SQLite is the dependency-free second-driver proof. Both use catalog-derived identifier allowlists, bounded reads, read-only sessions, redacted failures, and explicit stored-object capability reporting. A production second DBMS still requires customer selection and integration evidence.
 - **Adapter registry**: source adapters and target generators register by capability; a site activates them by name in its profile.
 - **Capability preflight**: a deterministic matrix evaluates every selected source, generator, and runtime against site language, DBMS, delivery mode, and available Java/.NET/Joern/Zen/database tooling. Reports contain no connection values or repository paths; any `UNKNOWN`, `INCOMPATIBLE`, or `UNAVAILABLE` result makes the site not ready.
-- **Local orchestration workbench**: FastAPI exposes catalog, inline extraction, deterministic target preview, and preflight endpoints to the Vue UI. Inputs are size/basename bounded and parsed in memory or an isolated temporary directory. Results are always non-persistent/non-authoritative; moving a candidate into the repository or producing a release remains a separate governed operation.
+- **Durable orchestration control plane**: the versioned FastAPI API persists import batches, candidates, review dispositions, jobs, artifacts and release evidence. Inline restricted previews remain non-persistent/non-authoritative compatibility tools, while pinned Java repository imports run asynchronously from immutable commits. Candidate promotion is idempotent and enters the same immutable governance lifecycle as manually authored revisions. Extraction, golden execution, generation and delivery are leased PostgreSQL jobs handled by a separate worker.
 - **Hard rule:** anything that cannot be made general (a site-specific hack) must be isolated in the site profile/plug-in layer and flagged — never merged into core (PRD §8).
 - Deployment: self-hostable, on-prem/air-gap friendly (finance/insurance); AWS acceptable. Mode-A runtime ships as an embedded library or small service alongside the site's stack.
 

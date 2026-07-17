@@ -3,6 +3,7 @@ from __future__ import annotations
 from logging.config import fileConfig
 
 from alembic import context
+from sqlalchemy import Connection
 
 from brp.db import database_url
 from brp.repository.models import Base
@@ -29,6 +30,13 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     connectable = config.attributes.get("connection")
+    if isinstance(connectable, Connection):
+        context.configure(
+            connection=connectable, target_metadata=target_metadata, compare_type=True
+        )
+        with context.begin_transaction():
+            context.run_migrations()
+        return
     if connectable is None:
         from sqlalchemy import engine_from_config, pool
 

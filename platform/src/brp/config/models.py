@@ -124,6 +124,9 @@ class TargetConfig(ConfigModel):
     csharp_namespace: str | None = Field(default=None, pattern=JAVA_NAME_PATTERN)
     build_command: str = Field(min_length=1)
     pr_provider: str = Field(pattern=ADAPTER_PATTERN)
+    provider_repository: str | None = Field(default=None, min_length=1)
+    token_secret_ref: str | None = Field(default=None, pattern=ENV_PATTERN)
+    provider_api_url: str | None = None
     composition: CompositionConfig
 
     @field_validator("repository", "generated_source_path", "generated_test_path")
@@ -144,6 +147,12 @@ class TargetConfig(ConfigModel):
             raise ValueError("Java target requires javaPackage")
         if self.language is Language.CSHARP and self.csharp_namespace is None:
             raise ValueError("C# target requires csharpNamespace")
+        if self.pr_provider in {"github", "gitlab"} and (
+            self.provider_repository is None or self.token_secret_ref is None
+        ):
+            raise ValueError(
+                "GitHub/GitLab delivery requires providerRepository and tokenSecretRef"
+            )
         return self
 
 

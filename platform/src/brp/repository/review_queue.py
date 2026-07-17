@@ -15,7 +15,7 @@ from brp.repository.errors import (
     IllegalReviewDispositionError,
     ReviewQueueItemNotFoundError,
 )
-from brp.repository.models import ReviewQueueItem
+from brp.repository.models import DEFAULT_SITE_ID, ReviewQueueItem
 
 
 class ReviewStatus(StrEnum):
@@ -33,8 +33,9 @@ class BatchReviewDisposition:
 
 
 class ReviewQueueService:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, site_id: UUID = DEFAULT_SITE_ID) -> None:
         self.session = session
+        self.site_id = site_id
 
     def add(
         self,
@@ -46,9 +47,12 @@ class ReviewQueueService:
         reason_code: str,
         actor: str,
         correlation_id: UUID | None = None,
+        import_run_id: UUID | None = None,
     ) -> ReviewQueueItem:
         correlation = correlation_id or uuid4()
         item = ReviewQueueItem(
+            site_id=self.site_id,
+            import_run_id=import_run_id,
             adapter=adapter,
             source_snapshot_hash=source_snapshot_hash,
             raw_fragment=raw_fragment,
@@ -102,7 +106,10 @@ class ReviewQueueService:
         records = list(
             self.session.scalars(
                 select(ReviewQueueItem)
-                .where(ReviewQueueItem.id.in_(identifiers))
+                .where(
+                    ReviewQueueItem.site_id == self.site_id,
+                    ReviewQueueItem.id.in_(identifiers),
+                )
                 .order_by(ReviewQueueItem.id)
                 .with_for_update()
             )
@@ -131,7 +138,12 @@ class ReviewQueueService:
         return [by_id[item_id] for item_id in identifiers]
 
     def get(self, item_id: UUID) -> ReviewQueueItem:
-        item = self.session.get(ReviewQueueItem, item_id)
+        item = self.session.scalar(
+            select(ReviewQueueItem).where(
+                ReviewQueueItem.site_id == self.site_id,
+                ReviewQueueItem.id == item_id,
+            )
+        )
         if item is None:
             raise ReviewQueueItemNotFoundError(str(item_id))
         return item
@@ -140,7 +152,10 @@ class ReviewQueueService:
         return list(
             self.session.scalars(
                 select(ReviewQueueItem)
-                .where(ReviewQueueItem.status.in_([ReviewStatus.OPEN, ReviewStatus.DEFERRED]))
+                .where(
+                    ReviewQueueItem.site_id == self.site_id,
+                    ReviewQueueItem.status.in_([ReviewStatus.OPEN, ReviewStatus.DEFERRED]),
+                )
                 .order_by(ReviewQueueItem.created_at, ReviewQueueItem.id)
             )
         )

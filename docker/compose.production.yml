@@ -1,0 +1,90 @@
+name: brp-production
+
+x-app: &app
+  build:
+    context: ..
+    dockerfile: platform/Dockerfile
+  env_file: ../.env
+  environment:
+    BRP_ENVIRONMENT: production
+    BRP_DATABASE_URL: postgresql+psycopg://brp:${BRP_POSTGRES_PASSWORD}@postgres:5432/brp
+    BRP_ARTIFACT_ROOT: /app/output/artifacts
+    BRP_TRUSTED_HOSTS: ${BRP_TRUSTED_HOSTS:-localhost,127.0.0.1,ui,api}
+    BRP_CORS_ORIGINS: ${BRP_CORS_ORIGINS:-http://localhost:8080}
+  depends_on:
+    postgres:
+      condition: service_healthy
+  restart: unless-stopped
+  read_only: true
+  tmpfs: [/tmp]
+  volumes: [artifacts:/app/output/artifacts]
+  security_opt: [no-new-privileges:true]
+  cap_drop: [ALL]
+  stop_grace_period: 30s
+  deploy:
+    resources:
+      limits: { cpus: "1.0", memory: 1G }
+
+services:
+  postgres:
+    image: postgres:17.9-alpine
+    environment:
+      POSTGRES_DB: brp
+      POSTGRES_USER: brp
+      POSTGRES_PASSWORD: ${BRP_POSTGRES_PASSWORD:?set BRP_POSTGRES_PASSWORD}
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U brp -d brp"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    deploy:
+      resources:
+        limits: { cpus: "1.5", memory: 2G }
+
+  api:
+    <<: *app
+
+  worker:
+    <<: *app
+    command: [sh, -c, "python -m brp.migrate && exec python -m brp.worker"]
+    healthcheck:
+      test: [CMD, python, -m, brp.worker, --health]
+    environment:
+      BRP_ENVIRONMENT: production
+      BRP_DATABASE_URL: postgresql+psycopg://brp:${BRP_POSTGRES_PASSWORD}@postgres:5432/brp
+      BRP_ARTIFACT_ROOT: /app/output/artifacts
+      BRP_WORKER_ID: compose-worker
+      BRP_REQUIRE_WORKER_HEARTBEAT: "true"
+
+  ui:
+    build:
+      context: ..
+      dockerfile: ui/Dockerfile
+    ports: ["8080:8080"]
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp, /var/cache/nginx, /var/run]
+    security_opt: [no-new-privileges:true]
+    cap_drop: [ALL]
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M }
+
+  joern:
+    image: ghcr.io/joernio/joern:nightly
+    profiles: [joern]
+    command: [sleep, infinity]
+    restart: unless-stopped
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: [no-new-privileges:true]
+
+volumes:
+  postgres-data:
+  artifacts:

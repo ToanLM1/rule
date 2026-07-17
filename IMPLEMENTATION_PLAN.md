@@ -1,6 +1,15 @@
 # Implementation Plan — Business Rules Platform
 
-> **Audience: AI coding agents and reviewers. Status: v1.1 implementation baseline (2026-07-10).** This plan implements `prd.md` and `architecture.md` v1.1. The Telecom Knowledge Assistant PRD (`../agent_testcase/services/knowledge-api/prd.md`, §4.10) is context only: it establishes this as a separate PGM source-generation track and contributes trust, provenance, Korean-preservation, review, and extensibility principles. It does not authorize reuse of chat/RAG/Neptune components.
+> **Production-hardening milestone (2026-07-16, in progress).** The implementation now targets
+> the complete governed workflow rather than a Phase-3 workbench: multi-site
+> control plane, durable import/golden/release jobs, enterprise console, versioned
+> API, artifacts, GitHub/GitLab delivery seams, non-root containers, operational
+> health/metrics and destructive-test isolation. Final RDS cutover is permitted
+> only after isolated CI-equivalent gates pass and a checked backup exists. M11 is
+> the authoritative tracker for this milestone; completed Phase-1/2/3 tasks below
+> remain historical baselines.
+
+> **Audience: AI coding agents and reviewers. Status: v1.4 implementation tracker (2026-07-16).** Historical tasks implement the v1.1 baseline; M11 tracks the production-hardening addendum in `architecture.md`. The Telecom Knowledge Assistant PRD (`../agent_testcase/services/knowledge-api/prd.md`, §4.10) is context only: it establishes this as a separate PGM source-generation track and contributes trust, provenance, Korean-preservation, review, and extensibility principles. It does not authorize reuse of chat/RAG/Neptune components.
 
 ---
 
@@ -489,6 +498,66 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
 
 **T-907 verification:** platform Ruff and strict mypy passed with 190 non-E2E tests; UI 4 component tests, production build, and 2 Playwright flows passed. Live API/UI served on ports 8100/5173 and produced one candidate plus a hashed DMN preview. The in-app browser-control plugin could not attach because its local kernel-asset setup failed; repository Playwright and live HTTP verification remained green.
 
+### M11 — Internal self-hosted production hardening
+
+*Exit: the complete governed workflow runs through the enterprise console and
+durable worker on an isolated release stack; CI-equivalent and container gates are
+green; a checked backup exists before only `brp` is recreated and smoke-tested on
+RDS. OIDC remains an explicit blocker for Internet exposure.*
+
+- [x] **T-1001 — Multi-workspace/site control plane and `/api/v1`.** ✅ 2026-07-16 working-tree
+  - Implemented: workspace/site scoping, versioned secret-reference-only profiles,
+    indexed decision metadata and pagination, optimistic revision concurrency,
+    RFC 7807 problems, correlation IDs, compatibility aliases and Alembic
+    revisions `0005`–`0007`.
+  - Evidence: targeted API/repository tests passed against isolated `brp_test`;
+    destructive-test fuse rejects shared database names.
+
+- [x] **T-1002 — Durable imports, jobs, artifacts and releases.** ✅ 2026-07-16 working-tree
+  - Implemented: PostgreSQL `SKIP LOCKED` leases, heartbeats, retry/cancel/recovery,
+    separate worker, durable inline and pinned-Java-repository imports, candidate
+    provenance/promotion, golden jobs, local/S3 artifact abstraction, Mode-A
+    publish/rollback and Mode-B GitHub/GitLab provider seams.
+  - Evidence: isolated Java import resolved commit `888621061246…`, produced three
+    candidates and proved idempotent promotion; real local-bare-Git Mode-B delivery,
+    artifact hash/download, Mode-A publication and rollback all passed.
+
+- [ ] **T-1003 — Enterprise console final acceptance.** IN PROGRESS 2026-07-16
+  - Implemented: enterprise shell, workspace/site context, Overview, Decisions,
+    Imports, Review Queue, Test Suites, Releases, Sites and Operations; server-side
+    pagination/filtering, ag-Grid, lazy Monaco, EN/KR, lifecycle actions, lookup
+    snapshots, job progress/cancellation and responsive states.
+  - Remaining: rerun build, Vitest, Playwright/axe and live browser verification
+    after the latest lookup/release/lifecycle edits; resolve any regression found.
+
+- [ ] **T-1004 — Production packaging and operations.** IN PROGRESS 2026-07-16
+  - Implemented: API/UI Dockerfiles, nginx proxy/security policy, Compose API/UI/
+    worker/PostgreSQL/optional-Joern services, non-root/read-only controls, health,
+    readiness, metrics, structured redacted logs and validated runtime settings.
+  - Remaining: fix Docker build-context/node_modules contamination, ensure the
+    worker image contains Git/JDK/toolchain paths, rebuild both images and run the
+    complete Compose health/start/stop rehearsal.
+
+- [ ] **T-1005 — CI-equivalent release gate.** IN PROGRESS 2026-07-16
+  - Implemented: expanded CI definitions for Ruff, strict mypy, backend/frontend
+    tests, OpenAPI drift, accessibility, Playwright, image builds, dependency and
+    secret scans, Trivy and SBOM.
+  - Remaining: regenerate OpenAPI after the newest routes; rerun full backend suite
+    (the last full run exposed two failures that were fixed and passed focused
+    reruns), frontend gates, Java/fixture builds, container scans and a 10,000-row
+    performance rehearsal. Do not call the release green until these complete.
+
+- [ ] **T-1006 — Protected RDS hardening cutover.** PENDING 2026-07-16
+  - Current RDS `brp` is the verified historical copy at `0004`; isolated hardening
+    is at `0007`. No hardening cutover has occurred.
+  - Remaining: stop writers, create timestamped custom dump plus SHA-256, record a
+    read-only `rag_utils` fingerprint, recreate only `brp`, migrate/seed curated
+    data, run workflow smoke tests and retain the documented `0004` rollback path.
+  - Depends: T-1003, T-1004 and T-1005 green.
+
+Detailed live evidence and blockers are maintained in
+[`docs/production-hardening-progress.md`](docs/production-hardening-progress.md).
+
 ---
 
 ## 4. Customer-Gated Inputs
@@ -577,4 +646,10 @@ Chat/RAG/Neptune integration; using knowledge-assistant chunks as the rule syste
 2026-07-12 21:00 | T-906 | done | da4c715 | Added deterministic multi-site source/target/runtime capability preflight with fail-closed compatibility and toolchain status.
 2026-07-12 21:14 | M9 | done | c9e0a8f | Passed full cross-project regression and aligned Phase-3 architecture, toolchain evidence, and customer-gated boundaries.
 2026-07-12 17:16 | T-907 | done | 0137c40 | Added safe Phase-3 API/UI orchestration, candidate/artifact inspection, and capability preflight with non-authoritative evidence labels.
+2026-07-16 14:45 | T-1001 | done | working-tree | Added the site-scoped versioned control plane, migrations 0005–0007, concurrency, problem details and test-database safety fuse.
+2026-07-16 14:46 | T-1002 | done | working-tree | Proved durable Java import/promotion, worker leases, Mode-A rollback and Mode-B bare-Git delivery with hashed artifacts on isolated PostgreSQL.
+2026-07-16 14:47 | T-1003 | IN PROGRESS | working-tree | Enterprise console implemented; final post-edit frontend and browser regression remains open.
+2026-07-16 14:48 | T-1004 | IN PROGRESS | working-tree | Runtime/Compose assets implemented; Docker context and worker Git/JDK/toolchain packaging remain open.
+2026-07-16 14:49 | T-1005 | IN PROGRESS | working-tree | CI gates expanded; final full regression, OpenAPI refresh, scans and 10k performance proof remain open.
+2026-07-16 14:50 | T-1006 | PENDING | working-tree | RDS remains at historical 0004; protected backup/recreate/migrate/smoke cutover has not started.
 ```

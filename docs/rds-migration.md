@@ -1,5 +1,13 @@
 # Singapore RDS Migration Record
 
+> **Historical baseline, not the hardening cutover.** This record documents the
+> successful pre-hardening copy at Alembic `0004_mode_a_publications`. The current
+> production-hardening code head is `0007_site_scoped_hashes`. As of 2026-07-16,
+> the isolated hardening database has reached `0007`, but the shared RDS `brp`
+> cutover has not been performed. Do not infer that the current RDS schema matches
+> the working tree. The pending procedure and rollback gates are tracked in
+> `production-hardening-progress.md`.
+
 The Rule Platform application database is `brp` on the same Singapore RDS PostgreSQL instance
 used by Hybrid-RAG. The existing `rag_utils` database was not modified. Local API processes use
 the ignored root `.env` and TLS (`sslmode=require`); credentials are never committed.

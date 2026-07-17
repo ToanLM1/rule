@@ -14,7 +14,14 @@ def test_workflow_has_every_phase_zero_job() -> None:
     workflow = load_workflow()
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
-    assert set(jobs) == {"platform", "connector", "java-toolchain", "fixture", "ui"}
+    assert set(jobs) == {
+        "platform",
+        "connector",
+        "java-toolchain",
+        "fixture",
+        "ui",
+        "container-and-security",
+    }
 
 
 def test_workflow_never_contacts_shared_aws() -> None:

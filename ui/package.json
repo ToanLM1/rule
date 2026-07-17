@@ -12,16 +12,19 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@lucide/vue": "^1.24.0",
     "ag-grid-community": "^36.0.0",
     "ag-grid-vue3": "^36.0.0",
     "monaco-editor": "^0.55.1",
     "pinia": "^3.0.4",
     "vue": "^3.5.39",
+    "vue-i18n": "^11.1.12",
     "vue-router": "^5.1.0"
   },
   "devDependencies": {
-    "@types/node": "^24.13.2",
+    "@axe-core/playwright": "^4.12.1",
     "@playwright/test": "^1.55.0",
+    "@types/node": "^24.13.2",
     "@vitejs/plugin-vue": "^6.0.7",
     "@vue/test-utils": "^2.4.11",
     "@vue/tsconfig": "^0.9.1",

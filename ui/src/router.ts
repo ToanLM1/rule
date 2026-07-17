@@ -1,12 +1,17 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
-import DecisionsPage from './pages/DecisionsPage.vue'
-import OrchestrationPage from './pages/OrchestrationPage.vue'
-
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', name: 'decisions', component: DecisionsPage },
-    { path: '/orchestration', name: 'orchestration', component: OrchestrationPage },
+    { path: '/', redirect: '/overview' },
+    { path: '/overview', name: 'overview', component: () => import('./pages/OverviewPage.vue') },
+    { path: '/decisions', name: 'decisions', component: () => import('./pages/DecisionsPage.vue') },
+    { path: '/imports', name: 'imports', component: () => import('./pages/ImportsPage.vue') },
+    { path: '/orchestration', redirect: '/imports' },
+    { path: '/reviews', name: 'reviews', component: () => import('./pages/ReviewQueuePage.vue') },
+    { path: '/test-suites', name: 'test-suites', component: () => import('./pages/TestSuitesPage.vue') },
+    { path: '/releases', name: 'releases', component: () => import('./pages/ReleasesPage.vue') },
+    { path: '/sites', name: 'sites', component: () => import('./pages/SitesPage.vue') },
+    { path: '/operations', name: 'operations', component: () => import('./pages/OperationsPage.vue') },
   ],
 })

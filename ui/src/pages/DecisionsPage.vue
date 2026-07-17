@@ -1,159 +1,89 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-
-import { BrpApi, type AuditEvent, type DecisionSummary, type Revision } from '../api'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { onBeforeRouteLeave } from 'vue-router'
+import { ChevronLeft, ChevronRight, Code2, Filter, Pencil, Search, Table2, X } from '@lucide/vue'
+import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-community'
+import type { ColDef } from 'ag-grid-community'
+import { BrpApi, type DecisionSummary, type Page, type Revision } from '../api'
 import { useAppStore } from '../stores/app'
 
-type Tab = 'rules' | 'diff' | 'audit' | 'review' | 'golden' | 'preview'
-const tabs: Tab[] = ['rules', 'diff', 'audit', 'review', 'golden', 'preview']
-
-const app = useAppStore()
-const api = new BrpApi(app.apiBaseUrl)
-const decisions = ref<DecisionSummary[]>([])
-const selected = ref<Revision | null>(null)
-const audit = ref<AuditEvent[]>([])
-const reviewItems = ref<Array<Record<string, unknown>>>([])
-const golden = ref<Array<Record<string, unknown>>>([])
-const diff = ref<Record<string, unknown> | null>(null)
-const actor = ref('maker-a')
-const tab = ref<Tab>('rules')
+const store = useAppStore()
+const api = new BrpApi(store.apiBaseUrl)
+const result = ref<Page<DecisionSummary>>({ items: [], page: 1, pageSize: 25, total: 0, pages: 0 })
 const loading = ref(true)
+const saving = ref(false)
 const error = ref('')
+const notice = ref('')
+const q = ref('')
+const status = ref('')
+const selected = ref<Revision | null>(null)
+const editorMode = ref<'table' | 'json'>('table')
 const editing = ref(false)
-const editorText = ref('')
-const previewText = ref('{\n  "age": 17,\n  "productCode": "CANCER_BASIC",\n  "regionCode": "SEOUL"\n}')
-const previewResult = ref<Record<string, unknown> | null>(null)
-const statusTone = computed(() => selected.value?.envelope.lifecycleStatus.toLowerCase() ?? 'draft')
+const dirty = ref(false)
+const jsonHost = ref<HTMLElement | null>(null)
+const AgGridVue = shallowRef()
+let debounce: number | undefined
+let monacoEditor: { dispose(): void; getValue(): string; updateOptions(value: { readOnly: boolean }): void; onDidChangeModelContent(listener: () => void): unknown } | undefined
 
-onMounted(loadDecisions)
+ModuleRegistry.registerModules([AllCommunityModule])
+const columns: ColDef[] = [
+  { field: 'ruleId', headerName: 'Rule', minWidth: 160, pinned: 'left', editable: true },
+  { field: 'when', headerName: 'Conditions', flex: 2, minWidth: 260, valueFormatter: (p) => JSON.stringify(p.value), valueParser: (p) => JSON.parse(p.newValue), editable: true },
+  { field: 'then', headerName: 'Outcome', flex: 2, minWidth: 240, valueFormatter: (p) => JSON.stringify(p.value), valueParser: (p) => JSON.parse(p.newValue), editable: true },
+  { field: 'confidence', headerName: 'Confidence', width: 130, editable: true },
+]
+const rules = computed(() => selected.value?.content.rules ?? [])
+const gridTheme = themeQuartz.withParams({ accentColor: '#2563eb', backgroundColor: '#ffffff', borderColor: '#dbe1ea', headerBackgroundColor: '#f7f9fc', fontFamily: 'Inter, ui-sans-serif, system-ui', fontSize: 12, rowBorder: true })
 
-async function loadDecisions() {
-  loading.value = true
-  error.value = ''
+onMounted(async () => { void import('ag-grid-vue3').then((module) => { AgGridVue.value = module.AgGridVue }); window.addEventListener('beforeunload', protectUnload); await load() })
+onBeforeUnmount(() => { window.removeEventListener('beforeunload', protectUnload); monacoEditor?.dispose() })
+onBeforeRouteLeave(() => !dirty.value || window.confirm('Discard unsaved decision changes?'))
+watch([q, status], () => { clearTimeout(debounce); debounce = window.setTimeout(() => { result.value.page = 1; void load() }, 300) })
+watch(editorMode, (mode) => { if (mode === 'json') void mountMonaco(); else { monacoEditor?.dispose(); monacoEditor = undefined } })
+watch(editing, (value) => monacoEditor?.updateOptions({ readOnly: !value }))
+
+function protectUnload(event: BeforeUnloadEvent) { if (dirty.value) event.preventDefault() }
+async function load(page = result.value.page) { loading.value = true; error.value = ''; try { result.value = await api.decisionPage(store.siteId, { q: q.value, status: status.value, page, pageSize: 25 }) } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Decisions unavailable' } finally { loading.value = false } }
+async function open(item: DecisionSummary) { error.value = ''; try { selected.value = await api.decisionV1(store.siteId, item.decisionKey); editorMode.value = 'table'; editing.value = false; dirty.value = false } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Decision unavailable' } }
+function close() { if (dirty.value && !window.confirm('Discard unsaved changes?')) return; monacoEditor?.dispose(); monacoEditor = undefined; selected.value = null; editing.value = false; dirty.value = false }
+async function mountMonaco() {
+  await nextTick()
+  if (!jsonHost.value || !selected.value) return
+  monacoEditor?.dispose()
+  const [monaco] = await Promise.all([
+    import('monaco-editor/esm/vs/editor/editor.api.js'),
+    import('monaco-editor/esm/vs/language/json/monaco.contribution.js'),
+  ])
+  const editor = monaco.editor.create(jsonHost.value, { value: JSON.stringify(selected.value.content, null, 2), language: 'json', theme: 'vs-dark', automaticLayout: true, minimap: { enabled: false }, readOnly: !editing.value, tabSize: 2, scrollBeyondLastLine: false })
+  editor.onDidChangeModelContent(() => { if (editing.value) dirty.value = true })
+  monacoEditor = editor
+}
+async function save() {
+  if (!selected.value || !dirty.value) return
+  let content: Record<string, unknown>
+  try { content = editorMode.value === 'json' && monacoEditor ? JSON.parse(monacoEditor.getValue()) : selected.value.content }
+  catch { error.value = 'Canonical IR must be valid JSON.'; return }
+  saving.value = true; error.value = ''
   try {
-    decisions.value = await api.decisions()
-    if (!selected.value && decisions.value.length) await choose(decisions.value[0].decisionKey)
-  } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : 'Unable to load decisions'
-  } finally {
-    loading.value = false
-  }
+    const base = selected.value.envelope.revision
+    selected.value = await api.createDecisionRevision(store.siteId, selected.value.envelope.decisionKey, content, base, new Date().toISOString(), store.actor)
+    notice.value = `Draft revision r${selected.value.envelope.revision} created.`
+    dirty.value = false; editing.value = false; await load()
+  } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Revision creation failed' }
+  finally { saving.value = false }
 }
-
-async function choose(key: string) {
-  selected.value = await api.decision(key)
-  tab.value = 'rules'
-  await Promise.all([loadAudit(), loadGolden()])
-}
-
-async function loadAudit() {
-  if (selected.value) audit.value = await api.audit(selected.value.envelope.decisionKey)
-}
-
-async function loadGolden() {
-  if (selected.value) golden.value = await api.goldenStatus(selected.value.envelope.decisionKey)
-}
-
-async function activate(next: Tab) {
-  tab.value = next
-  if (next === 'review') reviewItems.value = await api.reviewQueue()
-  if (next === 'diff' && selected.value && selected.value.envelope.revision > 1) {
-    diff.value = await api.diff(selected.value.envelope.decisionKey, selected.value.envelope.revision - 1, selected.value.envelope.revision)
-  }
-}
-
-async function transition(action: string) {
+async function govern(action: 'submit' | 'approve' | 'reject' | 'retire') {
   if (!selected.value) return
-  error.value = ''
+  const reason = ['reject', 'retire'].includes(action) ? window.prompt(`${action} reason:`)?.trim() : undefined
+  if (['reject', 'retire'].includes(action) && !reason) return
+  saving.value = true; error.value = ''
   try {
-    selected.value = await api.transition(
-      selected.value.envelope.decisionKey,
-      selected.value.envelope.revision,
-      action,
-      actor.value,
-      action === 'reject' ? 'Rejected during governance review' : undefined,
-    )
-    await Promise.all([loadAudit(), loadDecisions()])
-  } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : 'Transition failed'
-  }
-}
-
-function beginEdit() {
-  if (!selected.value) return
-  editorText.value = JSON.stringify(selected.value.content, null, 2)
-  editing.value = true
-}
-
-async function saveRevision() {
-  if (!selected.value) return
-  try {
-    selected.value = await api.addRevision(
-      selected.value.envelope.decisionKey,
-      JSON.parse(editorText.value),
-      actor.value,
-      new Date().toISOString(),
-    )
-    editing.value = false
-    await loadDecisions()
-  } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : 'Revision could not be saved'
-  }
-}
-
-async function runPreview() {
-  if (!selected.value) return
-  previewResult.value = await api.preview(
-    selected.value.envelope.decisionKey,
-    selected.value.envelope.revision,
-    JSON.parse(previewText.value),
-  )
+    selected.value = await api.transitionDecision(store.siteId, selected.value.envelope.decisionKey, selected.value.envelope.revision, action, store.actor, reason)
+    notice.value = `Revision r${selected.value.envelope.revision} ${action}d.`
+    await load()
+  } catch (cause) { error.value = cause instanceof Error ? cause.message : 'Lifecycle transition failed' }
+  finally { saving.value = false }
 }
 </script>
 
-<template>
-  <main class="workspace">
-    <header class="topbar">
-      <div class="brand-mark">BR</div>
-      <div><p class="eyebrow">Business Rules Platform</p><h1>Decision governance</h1></div>
-      <RouterLink class="top-link" to="/orchestration">Phase 3 workbench</RouterLink>
-      <label class="actor-picker"><span>Acting as</span><select v-model="actor" aria-label="Actor"><option>maker-a</option><option>checker-b</option><option>reviewer-c</option></select></label>
-    </header>
-
-    <div v-if="error" class="error-banner" role="alert">{{ error }}</div>
-    <div class="layout">
-      <aside class="decision-rail" aria-label="Decision list">
-        <div class="rail-title"><div><span>Portfolio</span><strong>Decisions</strong></div><span class="count">{{ decisions.length }}</span></div>
-        <p v-if="loading" class="empty">Loading governed decisions…</p>
-        <p v-else-if="!decisions.length" class="empty">No decisions found.</p>
-        <button v-for="item in decisions" :key="item.decisionKey" class="decision-item" :class="{ active: selected?.envelope.decisionKey === item.decisionKey }" @click="choose(item.decisionKey)">
-          <span class="decision-glyph">{{ item.name.slice(0, 1) }}</span>
-          <span class="decision-copy"><strong>{{ item.name }}</strong><small>{{ item.decisionKey }}</small></span>
-          <span class="revision">r{{ item.latestRevision }}</span>
-        </button>
-      </aside>
-
-      <section v-if="selected" class="detail" aria-label="Decision detail">
-        <div class="detail-head">
-          <div><div class="breadcrumb">Decisions / {{ selected.envelope.decisionKey }}</div><h2>{{ selected.content.decisionName }}</h2><div class="meta-line"><span :class="['status', statusTone]">{{ selected.envelope.lifecycleStatus }}</span><span>Revision {{ selected.envelope.revision }}</span><span class="hash">{{ selected.envelope.contentHash.slice(0, 12) }}</span></div></div>
-          <div class="actions"><button class="button ghost" @click="beginEdit">Edit as new revision</button><button v-if="selected.envelope.lifecycleStatus === 'DRAFT'" class="button primary" @click="transition('submit')">Submit</button><template v-if="selected.envelope.lifecycleStatus === 'SUBMITTED'"><button class="button danger" @click="transition('reject')">Reject</button><button class="button primary" @click="transition('approve')">Approve</button></template></div>
-        </div>
-
-        <div class="envelope-grid" aria-label="Revision envelope"><div><span>Effective from</span><strong>{{ new Date(selected.envelope.effectiveFrom).toLocaleDateString() }}</strong></div><div><span>Created by</span><strong>{{ selected.envelope.createdBy }}</strong></div><div><span>Submitted by</span><strong>{{ selected.envelope.submittedBy ?? '—' }}</strong></div><div><span>Approved by</span><strong>{{ selected.envelope.approvedBy ?? '—' }}</strong></div></div>
-        <nav class="tabs" aria-label="Decision views"><button v-for="name in tabs" :key="name" :class="{ active: tab === name }" @click="activate(name)">{{ name }}</button></nav>
-
-        <div v-if="tab === 'rules'" class="panel">
-          <div class="panel-heading"><div><span>Canonical content</span><h3>Rules</h3></div><strong>{{ selected.content.rules.length }} rules</strong></div>
-          <article v-for="(rule, index) in selected.content.rules" :key="String(rule.ruleId)" class="rule-row"><span class="rule-index">{{ String(index + 1).padStart(2, '0') }}</span><div><strong>{{ rule.ruleId }}</strong><code>{{ JSON.stringify(rule.when) }}</code></div><div class="then"><span>THEN</span><code>{{ JSON.stringify(rule.then) }}</code></div><span class="confidence">{{ Math.round(Number(rule.confidence ?? 0) * 100) }}%</span></article>
-        </div>
-        <div v-else-if="tab === 'diff'" class="panel code-panel"><h3>Semantic revision diff</h3><pre>{{ diff ? JSON.stringify(diff, null, 2) : 'No prior revision to compare.' }}</pre></div>
-        <div v-else-if="tab === 'audit'" class="panel"><h3>Append-only audit trail</h3><div v-for="event in audit" :key="event.id" class="timeline"><span></span><div><strong>{{ event.action }}</strong><p>{{ event.actor }} · {{ event.fromStatus }} → {{ event.toStatus }}</p></div><time>{{ new Date(event.at).toLocaleString() }}</time></div></div>
-        <div v-else-if="tab === 'review'" class="panel"><h3>Review queue</h3><div v-if="!reviewItems.length" class="empty-state">No unmappable source fragments are waiting.</div><pre v-else>{{ JSON.stringify(reviewItems, null, 2) }}</pre></div>
-        <div v-else-if="tab === 'golden'" class="panel"><h3>Golden-suite evidence</h3><div v-if="!golden.length" class="empty-state warning">Approval is blocked until a golden suite is approved.</div><div v-for="suite in golden" :key="String(suite.revision)" class="suite-row"><strong>Suite r{{ suite.revision }}</strong><span class="status approved">{{ suite.status }}</span><code>{{ String(suite.contentHash).slice(0, 16) }}</code></div></div>
-        <div v-else class="panel preview-panel"><div class="advisory"><strong>Advisory preview</strong><span>ZEN is not the Mode-B production authority</span></div><div class="preview-grid"><textarea v-model="previewText" aria-label="Preview input"></textarea><pre data-testid="preview-result">{{ previewResult ? JSON.stringify(previewResult, null, 2) : 'Run a scenario to inspect the advisory result.' }}</pre></div><button class="button primary" @click="runPreview">Run Zen preview</button></div>
-      </section>
-    </div>
-
-    <div v-if="editing" class="modal-backdrop" @click.self="editing = false"><section class="modal" role="dialog" aria-modal="true" aria-label="Edit as new revision"><div><span class="eyebrow">Immutable revision workflow</span><h2>Create new draft</h2></div><textarea v-model="editorText" aria-label="Decision JSON"></textarea><div class="actions"><button class="button ghost" @click="editing = false">Cancel</button><button class="button primary" @click="saveRevision">Save draft revision</button></div></section></div>
-  </main>
-</template>
+<template><section><header class="page-header"><div><p class="page-kicker">Decision portfolio</p><h1>Decisions</h1><p>Search, govern and inspect immutable rule revisions scoped to this site.</p></div><RouterLink class="primary-button" to="/imports">Import decision</RouterLink></header><div v-if="error" class="inline-alert" role="alert">{{ error }}<button @click="load()">Retry</button></div><div v-if="notice" class="success-alert" role="status">{{ notice }}</div><section class="surface table-surface"><div class="portfolio-toolbar"><label class="search-field"><Search :size="16"/><input v-model="q" placeholder="Search name or decision key" aria-label="Search decisions"/></label><label class="filter-select"><Filter :size="15"/><select v-model="status" aria-label="Lifecycle status"><option value="">All statuses</option><option>DRAFT</option><option>SUBMITTED</option><option>APPROVED</option><option>REJECTED</option><option>RETIRED</option></select></label><span class="result-count">{{ result.total.toLocaleString() }} decisions</span></div><div v-if="loading" class="skeleton-list"><span v-for="n in 8" :key="n"/></div><div v-else-if="!result.items.length" class="empty-state tall"><Table2 :size="34"/><strong>No matching decisions</strong><span>Change the filters or import a supported source.</span><RouterLink class="secondary-button" to="/imports">Start import</RouterLink></div><div v-else class="responsive-table"><table><thead><tr><th>Name</th><th>Product / flow</th><th>Status</th><th>Owner</th><th>Revision</th><th>Last activity</th><th></th></tr></thead><tbody><tr v-for="item in result.items" :key="item.decisionKey" @dblclick="open(item)"><td><strong>{{ item.name }}</strong><small>{{ item.decisionKey }}</small></td><td><span>{{ item.productKey ?? '—' }}</span><small>{{ item.flowKey ?? 'Unassigned flow' }}</small></td><td><span :class="['status-badge', item.latestStatus.toLowerCase()]">{{ item.latestStatus }}</span></td><td>{{ item.owner ?? '—' }}</td><td>r{{ item.latestRevision }}</td><td>{{ item.updatedAt ? new Date(item.updatedAt).toLocaleString() : '—' }}</td><td><button class="icon-button" aria-label="Open decision" @click="open(item)"><ChevronRight :size="16"/></button></td></tr></tbody></table></div><footer class="pagination"><span>Page {{ result.page }} of {{ Math.max(result.pages, 1) }}</span><div><button class="icon-button" :disabled="result.page <= 1" aria-label="Previous page" @click="load(result.page - 1)"><ChevronLeft :size="16"/></button><button class="icon-button" :disabled="result.page >= result.pages" aria-label="Next page" @click="load(result.page + 1)"><ChevronRight :size="16"/></button></div></footer></section><div v-if="selected" class="drawer-backdrop" @click.self="close"><aside class="decision-drawer" role="dialog" aria-modal="true" aria-label="Decision editor"><header><div><p class="page-kicker">{{ selected.envelope.decisionKey }} · revision {{ selected.envelope.revision }}</p><h2>{{ selected.content.decisionName }}</h2><div class="drawer-meta"><span :class="['status-badge', selected.envelope.lifecycleStatus.toLowerCase()]">{{ selected.envelope.lifecycleStatus }}</span><code>{{ selected.envelope.contentHash.slice(0, 12) }}</code><span>Owner {{ selected.envelope.createdBy }}</span></div></div><button class="icon-button" aria-label="Close" @click="close"><X :size="18"/></button></header><div class="drawer-toolbar"><div class="segmented"><button :class="{ active: editorMode === 'table' }" @click="editorMode = 'table'"><Table2 :size="14"/>Decision table</button><button :class="{ active: editorMode === 'json' }" @click="editorMode = 'json'"><Code2 :size="14"/>Advanced JSON</button></div><button class="secondary-button" @click="editing = !editing"><Pencil :size="14"/>{{ editing ? 'Stop editing' : 'Edit as new revision' }}</button></div><div class="provenance-strip"><span>Immutable revision</span><span>Optimistic concurrency: base r{{ selected.envelope.revision }}</span><span>Source content is never translated</span></div><div v-if="editorMode === 'table'" class="grid-container"><component :is="AgGridVue" v-if="AgGridVue" :theme="gridTheme" :rowData="rules" :columnDefs="columns" :readOnlyEdit="!editing" @cell-value-changed="dirty = true"/></div><div v-else class="json-editor"><div class="advanced-warning"><Code2 :size="17"/><div><strong>Advanced canonical IR</strong><span>Schema validation runs before a revision can be created.</span></div></div><div ref="jsonHost" class="monaco-host"/></div><footer><span v-if="dirty" class="unsaved-dot">Unsaved changes</span><div class="row-actions"><button v-if="selected.envelope.lifecycleStatus==='DRAFT'" class="secondary-button" :disabled="saving" @click="govern('submit')">Submit</button><button v-if="selected.envelope.lifecycleStatus==='SUBMITTED'" class="secondary-button" :disabled="saving" @click="govern('approve')">Approve</button><button v-if="selected.envelope.lifecycleStatus==='SUBMITTED'" class="danger-button" :disabled="saving" @click="govern('reject')">Reject</button><button v-if="selected.envelope.lifecycleStatus==='APPROVED'" class="danger-button" :disabled="saving" @click="govern('retire')">Retire</button><button class="secondary-button" @click="close">Cancel</button><button class="primary-button" :disabled="!dirty || saving" @click="save">{{ saving ? 'Creating…' : 'Validate and create draft' }}</button></div></footer></aside></div></section></template>

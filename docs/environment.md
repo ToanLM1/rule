@@ -1,4 +1,4 @@
-# Phase-1 Development Environment
+# Development and hardening environment
 
 Inventory recorded on 2026-07-10 for the local Windows development host.
 
@@ -29,3 +29,23 @@ $env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
 ```
 
 Shared EC2 and RDS resources were not accessed or modified during this inventory.
+
+## Production-hardening runtime snapshot
+
+Snapshot recorded on 2026-07-16; this is diagnostic state, not a required permanent
+topology:
+
+- Docker runs isolated PostgreSQL 17.9 as `brp-hardening-test`, database
+  `brp_test`, host port `55433`.
+- Hardening API and worker run natively through `uv` against that isolated database;
+  the hardening UI runs through Vite on port `5174`.
+- The regular local API on `8100` and UI on `5173` use the ignored RDS configuration.
+  RDS `brp` is still the historical `0004` schema and must not be treated as the
+  hardening target before T-1006.
+- Joern 4.0.579 exists as a pinned Docker image (approximately 6.84 GB), but no
+  Joern container is continuously running. It is an optional analysis profile.
+- The Docker API image exists as a hardening build artifact; the final API/UI image
+  rebuild and full Compose rehearsal remain T-1004 acceptance work.
+
+Automated tests must continue to use a database ending `_test`. Never load the RDS
+`.env` while running pytest.

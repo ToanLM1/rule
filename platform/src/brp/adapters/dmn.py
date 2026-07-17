@@ -126,8 +126,7 @@ class DmnDecisionTableAdapter:
                     level="INFO",
                     code="DMN_IMPORT_COMPLETE",
                     message=(
-                        f"imported {len(decisions)} decision tables; "
-                        f"{len(unmappable)} review items"
+                        f"imported {len(decisions)} decision tables; {len(unmappable)} review items"
                     ),
                 )
             ],

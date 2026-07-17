@@ -6,6 +6,7 @@ import hashlib
 import json
 from dataclasses import dataclass
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -18,6 +19,7 @@ from brp.repository.errors import (
     SubmissionActorError,
 )
 from brp.repository.models import (
+    DEFAULT_SITE_ID,
     Decision,
     DecisionRevision,
     GoldenCase,
@@ -37,8 +39,9 @@ class GoldenCaseData:
 
 
 class GoldenRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, site_id: UUID = DEFAULT_SITE_ID) -> None:
         self.session = session
+        self.site_id = site_id
 
     def create_revision(
         self,
@@ -49,7 +52,9 @@ class GoldenRepository:
         lookup_snapshot_hashes: list[str] | None = None,
     ) -> GoldenSuiteRevision:
         decision = self.session.scalar(
-            select(Decision).where(Decision.decision_key == decision_key).with_for_update()
+            select(Decision)
+            .where(Decision.site_id == self.site_id, Decision.decision_key == decision_key)
+            .with_for_update()
         )
         if decision is None:
             raise DecisionNotFoundError(decision_key)
@@ -125,7 +130,8 @@ class GoldenRepository:
         snapshots = list(
             self.session.scalars(
                 select(LookupSnapshot).where(
-                    LookupSnapshot.content_hash.in_(revision.lookup_snapshot_hashes)
+                    LookupSnapshot.site_id == self.site_id,
+                    LookupSnapshot.content_hash.in_(revision.lookup_snapshot_hashes),
                 )
             )
         )
@@ -154,6 +160,7 @@ class GoldenRepository:
             .join(GoldenSuite)
             .join(Decision)
             .where(
+                Decision.site_id == self.site_id,
                 Decision.decision_key == decision_key,
                 GoldenSuiteRevision.revision == revision,
             )
@@ -168,7 +175,10 @@ class GoldenRepository:
         records = list(
             self.session.scalars(
                 select(LookupSnapshot)
-                .where(LookupSnapshot.content_hash.in_(hashes))
+                .where(
+                    LookupSnapshot.site_id == self.site_id,
+                    LookupSnapshot.content_hash.in_(hashes),
+                )
                 .order_by(LookupSnapshot.content_hash)
             )
         )
@@ -199,11 +209,15 @@ class GoldenRepository:
         ordered = sorted(rows, key=lambda row: _canonical(row))
         content_hash = _hash(ordered)
         existing = self.session.scalar(
-            select(LookupSnapshot).where(LookupSnapshot.content_hash == content_hash)
+            select(LookupSnapshot).where(
+                LookupSnapshot.site_id == self.site_id,
+                LookupSnapshot.content_hash == content_hash,
+            )
         )
         if existing is not None:
             return existing
         snapshot = LookupSnapshot(
+            site_id=self.site_id,
             name=name,
             content_hash=content_hash,
             content=ordered,

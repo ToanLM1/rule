@@ -36,7 +36,7 @@ def _run_zen_suite(
     *,
     authority: str,
 ) -> dict[str, Any]:
-    golden = GoldenRepository(session)
+    golden = GoldenRepository(session, site_id=decision_revision.decision.site_id)
     snapshots = golden.lookup_snapshots(suite_revision.lookup_snapshot_hashes)
     resolver = DictLookupResolver(
         {
