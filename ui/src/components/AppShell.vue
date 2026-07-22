@@ -6,6 +6,7 @@ import {
   Activity,
   ArrowRight,
   Boxes,
+  BookOpenText,
   Building2,
   ChevronDown,
   ClipboardCheck,
@@ -42,6 +43,7 @@ let systemTheme: MediaQueryList | undefined
 
 const navigation = computed(() => [
   { to: '/overview', label: t('nav.overview'), icon: Gauge },
+  { to: '/guide', label: t('nav.guide'), icon: BookOpenText },
   { to: '/decisions', label: t('nav.decisions'), icon: Boxes },
   { to: '/imports', label: t('nav.imports'), icon: UploadCloud },
   { to: '/reviews', label: t('nav.reviews'), icon: ClipboardCheck },
@@ -201,10 +203,10 @@ async function refreshJobs() {
         <label class="identity-picker" title="Authentication is intentionally deferred"><span>{{ t('app.developmentIdentity') }}</span><select :value="store.actor" @change="store.setActor(($event.target as HTMLSelectElement).value)"><option>maker-a</option><option>checker-b</option><option>reviewer-c</option><option>deployer-d</option></select></label>
       </header>
 
-      <div v-if="contextError" class="global-alert" role="alert"><strong>Connection problem</strong><span>{{ contextError }}</span><button @click="$router.go(0)">Retry</button></div>
-      <main class="page-frame">
-        <div class="breadcrumbs"><span>Rule Platform</span><span>/</span><strong>{{ currentLabel }}</strong></div>
-        <RouterView :key="`${route.path}:${store.siteId}`" />
+      <div v-if="contextError && route.path !== '/guide'" class="global-alert" role="alert"><strong>Connection problem</strong><span>{{ contextError }}</span><button @click="$router.go(0)">Retry</button></div>
+      <main class="page-frame" :class="{ 'page-frame--guide': route.path === '/guide' }">
+        <div v-if="route.path !== '/guide'" class="breadcrumbs"><span>Rule Platform</span><span>/</span><strong>{{ currentLabel }}</strong></div>
+        <RouterView :key="route.path === '/guide' ? route.path : `${route.path}:${store.siteId}`" />
       </main>
     </div>
 

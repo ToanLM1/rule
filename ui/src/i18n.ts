@@ -3,6 +3,7 @@ import { createI18n } from 'vue-i18n'
 const en = {
   nav: {
     overview: 'Overview',
+    guide: 'Guide',
     decisions: 'Decisions',
     imports: 'Imports',
     reviews: 'Review queue',
@@ -41,6 +42,7 @@ const en = {
 const ko = {
   nav: {
     overview: '개요',
+    guide: '가이드',
     decisions: '결정',
     imports: '가져오기',
     reviews: '검토 대기열',
