@@ -1,0 +1,13 @@
+@keyframes route-enter { from { opacity: 0; } }
+@keyframes soft-pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--success) 10%, transparent); } }
+
+.page-frame > section { animation: route-enter 140ms ease-out both; }
+.sidebar nav a, .primary-button, .secondary-button, .icon-button, .command-search, .workflow-stages > a {
+  transition: color 140ms ease, background-color 140ms ease, border-color 140ms ease;
+}
+.primary-button:active, .secondary-button:active, .icon-button:active { transform: translateY(1px); }
+.job-indicator > span.pulse { animation: soft-pulse 1.8s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}

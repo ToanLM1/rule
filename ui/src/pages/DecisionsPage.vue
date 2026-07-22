@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
-import { onBeforeRouteLeave } from 'vue-router'
+import { onBeforeRouteLeave, useRoute } from 'vue-router'
 import { ChevronLeft, ChevronRight, Code2, Filter, Pencil, Search, Table2, X } from '@lucide/vue'
 import { AllCommunityModule, ModuleRegistry, themeQuartz } from 'ag-grid-community'
 import type { ColDef } from 'ag-grid-community'
@@ -8,13 +8,14 @@ import { BrpApi, type DecisionSummary, type Page, type Revision } from '../api'
 import { useAppStore } from '../stores/app'
 
 const store = useAppStore()
+const route = useRoute()
 const api = new BrpApi(store.apiBaseUrl)
 const result = ref<Page<DecisionSummary>>({ items: [], page: 1, pageSize: 25, total: 0, pages: 0 })
 const loading = ref(true)
 const saving = ref(false)
 const error = ref('')
 const notice = ref('')
-const q = ref('')
+const q = ref(typeof route.query.q === 'string' ? route.query.q : '')
 const status = ref('')
 const selected = ref<Revision | null>(null)
 const editorMode = ref<'table' | 'json'>('table')
@@ -24,6 +25,7 @@ const jsonHost = ref<HTMLElement | null>(null)
 const AgGridVue = shallowRef()
 let debounce: number | undefined
 let monacoEditor: { dispose(): void; getValue(): string; updateOptions(value: { readOnly: boolean }): void; onDidChangeModelContent(listener: () => void): unknown } | undefined
+let setMonacoTheme: ((theme: string) => void) | undefined
 
 ModuleRegistry.registerModules([AllCommunityModule])
 const columns: ColDef[] = [
@@ -33,12 +35,16 @@ const columns: ColDef[] = [
   { field: 'confidence', headerName: 'Confidence', width: 130, editable: true },
 ]
 const rules = computed(() => selected.value?.content.rules ?? [])
-const gridTheme = themeQuartz.withParams({ accentColor: '#2563eb', backgroundColor: '#ffffff', borderColor: '#dbe1ea', headerBackgroundColor: '#f7f9fc', fontFamily: 'Inter, ui-sans-serif, system-ui', fontSize: 12, rowBorder: true })
+const gridTheme = computed(() => themeQuartz.withParams(store.resolvedTheme === 'dark'
+  ? { accentColor: '#60a5fa', backgroundColor: '#111a29', foregroundColor: '#d2dae7', borderColor: '#263348', headerBackgroundColor: '#151f30', fontFamily: 'Outfit Variable, Outfit, ui-sans-serif, system-ui', fontSize: 12, rowBorder: true }
+  : { accentColor: '#1268f3', backgroundColor: '#ffffff', foregroundColor: '#344054', borderColor: '#dbe2ea', headerBackgroundColor: '#f8fafc', fontFamily: 'Outfit Variable, Outfit, ui-sans-serif, system-ui', fontSize: 12, rowBorder: true }))
 
 onMounted(async () => { void import('ag-grid-vue3').then((module) => { AgGridVue.value = module.AgGridVue }); window.addEventListener('beforeunload', protectUnload); await load() })
-onBeforeUnmount(() => { window.removeEventListener('beforeunload', protectUnload); monacoEditor?.dispose() })
+onBeforeUnmount(() => { window.removeEventListener('beforeunload', protectUnload); monacoEditor?.dispose(); setMonacoTheme = undefined })
 onBeforeRouteLeave(() => !dirty.value || window.confirm('Discard unsaved decision changes?'))
 watch([q, status], () => { clearTimeout(debounce); debounce = window.setTimeout(() => { result.value.page = 1; void load() }, 300) })
+watch(() => route.query.q, (value) => { const next = typeof value === 'string' ? value : ''; if (q.value !== next) q.value = next })
+watch(() => store.resolvedTheme, (theme) => setMonacoTheme?.(theme === 'dark' ? 'vs-dark' : 'vs'))
 watch(editorMode, (mode) => { if (mode === 'json') void mountMonaco(); else { monacoEditor?.dispose(); monacoEditor = undefined } })
 watch(editing, (value) => monacoEditor?.updateOptions({ readOnly: !value }))
 
@@ -54,7 +60,8 @@ async function mountMonaco() {
     import('monaco-editor/esm/vs/editor/editor.api.js'),
     import('monaco-editor/esm/vs/language/json/monaco.contribution.js'),
   ])
-  const editor = monaco.editor.create(jsonHost.value, { value: JSON.stringify(selected.value.content, null, 2), language: 'json', theme: 'vs-dark', automaticLayout: true, minimap: { enabled: false }, readOnly: !editing.value, tabSize: 2, scrollBeyondLastLine: false })
+  setMonacoTheme = monaco.editor.setTheme
+  const editor = monaco.editor.create(jsonHost.value, { value: JSON.stringify(selected.value.content, null, 2), language: 'json', theme: store.resolvedTheme === 'dark' ? 'vs-dark' : 'vs', automaticLayout: true, minimap: { enabled: false }, readOnly: !editing.value, tabSize: 2, scrollBeyondLastLine: false })
   editor.onDidChangeModelContent(() => { if (editing.value) dirty.value = true })
   monacoEditor = editor
 }
