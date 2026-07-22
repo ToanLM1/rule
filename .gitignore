@@ -4,3 +4,29 @@ Thumbs.db
 
 # Office lock/temp files
 ~$*
+
+# Build / dependencies
+dist/
+node_modules/
+build/
+.gradle/
+
+# Python caches / virtual environments
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+env/
+
+# Runtime output / logs
+output/
+*.log
+
+# Environment files
+.env
+.env.*
+!.env.example
