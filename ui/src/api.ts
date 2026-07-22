@@ -1,9 +1,32 @@
 export type DecisionSummary = {
+  id?: string
+  siteId?: string
   decisionKey: string
   name: string
+  productKey?: string | null
+  flowKey?: string | null
   latestRevision: number
   latestStatus: string
+  owner?: string
+  updatedAt?: string
 }
+
+export type PlatformContext = {
+  workspaces: Array<{ id: string; key: string; name: string }>
+  sites: Array<{ id: string; workspaceId: string; key: string; name: string; status: string; defaultLocale: string; timezone: string }>
+  authentication: string
+  productionBlocked: boolean
+}
+
+export type Page<T> = { items: T[]; page: number; pageSize: number; total: number; pages: number }
+export type JobRecord = { id: string; siteId: string; type: string; status: string; progress: number; attempts: number; maxAttempts: number; cancelRequested: boolean; errorCode?: string; errorDetail?: string; result?: Record<string, unknown>; correlationId: string; createdBy: string; createdAt: string; startedAt?: string; finishedAt?: string }
+export type ImportRun = { id: string; siteId: string; jobId: string; adapter: string; sourceName: string; sourceRevision: string; status: string; progress: number; candidateCount?: number; reviewCount?: number; createdBy: string; createdAt: string; candidates?: Candidate[] }
+export type Candidate = { id: string; decisionKey: string; name: string; status: string; content: Record<string, unknown>; sourceSnapshot: Record<string, unknown>; diagnostics: Array<Record<string, unknown>>; promotedRevisionId?: string }
+export type GoldenSuite = { id: string; revision: number; status: string; contentHash: string; caseCount: number; cases: Array<{ id: string; caseKey: string; input: Record<string, unknown>; expected: unknown; provenance: Record<string, unknown> }>; createdBy: string; createdAt: string }
+export type SiteProfile = { id: string; siteId: string; revision: number; contentHash: string; document: Record<string, unknown>; createdBy: string; createdAt: string }
+export type LookupSnapshot = { id: string; name: string; contentHash: string; rowCount: number; source: Record<string, unknown>; approved: boolean; createdAt: string }
+export type ModeAPublication = { id: number; action: string; channel: string; decisionRevision: number; suiteRevision: number; artifactHash: string; previousPublicationId?: number; sourcePublicationId?: number; createdAt: string }
+export type ModeBDelivery = { id: string; jobId: string; decisionKey: string; decisionRevision: number; provider: string; status: string; branch: string; externalUrl?: string; evidence: Record<string, unknown>; createdAt: string }
 
 export type Revision = {
   envelope: {
@@ -86,6 +109,46 @@ export class BrpApi {
     }
     return response.json() as Promise<T>
   }
+
+  context() { return this.request<PlatformContext>('/api/v1/context') }
+  overview(siteId: string) { return this.request<{ decisions: number; openReviews: number; activeJobs: number; failedJobs: number }>(`/api/v1/overview?site_id=${encodeURIComponent(siteId)}`) }
+  decisionPage(siteId: string, options: { q?: string; status?: string; product?: string; flow?: string; page?: number; pageSize?: number } = {}) {
+    const query = new URLSearchParams({ site_id: siteId, page: String(options.page ?? 1), page_size: String(options.pageSize ?? 25) })
+    for (const key of ['q', 'status', 'product', 'flow'] as const) if (options[key]) query.set(key, options[key]!)
+    return this.request<Page<DecisionSummary>>(`/api/v1/decisions?${query}`)
+  }
+  decisionV1(siteId: string, key: string, revision?: number) {
+    const query = new URLSearchParams({ site_id: siteId })
+    if (revision) query.set('revision', String(revision))
+    return this.request<Revision>(`/api/v1/decisions/${encodeURIComponent(key)}?${query}`)
+  }
+  decisionRevisions(siteId: string, key: string) { return this.request<Revision[]>(`/api/v1/decisions/${encodeURIComponent(key)}/revisions?site_id=${encodeURIComponent(siteId)}`) }
+  createDecisionRevision(siteId: string, key: string, content: Record<string, unknown>, baseRevision: number, effectiveFrom: string, actor: string) {
+    return this.request<Revision>(`/api/v1/decisions/${encodeURIComponent(key)}/revisions?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor, 'If-Match': `"${baseRevision}"` }, body: JSON.stringify({ content, baseRevision, effectiveFrom }) })
+  }
+  transitionDecision(siteId: string, key: string, revision: number, action: 'submit' | 'approve' | 'reject' | 'retire', actor: string, reason?: string) { return this.request<Revision>(`/api/v1/decisions/${encodeURIComponent(key)}/revisions/${revision}/${action}?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify({ reason }) }) }
+  jobs(siteId: string) { return this.request<JobRecord[]>(`/api/v1/jobs?site_id=${encodeURIComponent(siteId)}`) }
+  cancelJob(siteId: string, jobId: string, actor: string) { return this.request<JobRecord>(`/api/v1/jobs/${jobId}/cancel?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'X-BRP-Actor': actor } }) }
+  importRuns(siteId: string) { return this.request<ImportRun[]>(`/api/v1/import-runs?site_id=${encodeURIComponent(siteId)}`) }
+  importRun(siteId: string, runId: string) { return this.request<ImportRun>(`/api/v1/import-runs/${runId}?site_id=${encodeURIComponent(siteId)}`) }
+  createImport(payload: Record<string, unknown>, actor: string) { return this.request<ImportRun>('/api/v1/import-runs', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify(payload) }) }
+  preflightImport(payload: Record<string, unknown>) { return this.request<Record<string, unknown>>('/api/v1/import-runs/preflight', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }) }
+  promoteCandidate(candidateId: string, payload: Record<string, unknown>, actor: string) { return this.request<Revision>(`/api/v1/candidates/${candidateId}/promote`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify(payload) }) }
+  reviewItems(siteId: string) { return this.request<Array<Record<string, unknown>>>(`/api/v1/review-items?site_id=${encodeURIComponent(siteId)}`) }
+  disposeReviews(siteId: string, dispositions: Array<{ itemId: string; status: string; reason?: string }>, actor: string) { return this.request<Array<Record<string, unknown>>>(`/api/v1/review-items/dispositions?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify({ dispositions }) }) }
+  siteProfiles(siteId: string) { return this.request<SiteProfile[]>(`/api/v1/sites/${siteId}/profiles`) }
+  createSiteProfile(siteId: string, document: Record<string, unknown>, actor: string) { return this.request<SiteProfile>(`/api/v1/sites/${siteId}/profiles`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify({ document }) }) }
+  goldenSuites(siteId: string, key: string) { return this.request<GoldenSuite[]>(`/api/v1/golden-suites/${encodeURIComponent(key)}?site_id=${encodeURIComponent(siteId)}`) }
+  createGoldenSuite(siteId: string, key: string, cases: Array<Record<string, unknown>>, lookupSnapshotHashes: string[], actor: string) { return this.request<GoldenSuite>(`/api/v1/golden-suites/${encodeURIComponent(key)}/revisions?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify({ cases, lookupSnapshotHashes }) }) }
+  lookupSnapshots(siteId: string) { return this.request<LookupSnapshot[]>(`/api/v1/lookup-snapshots?site_id=${encodeURIComponent(siteId)}`) }
+  createLookupSnapshot(siteId: string, payload: Record<string, unknown>, actor: string) { return this.request<LookupSnapshot>(`/api/v1/lookup-snapshots?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify(payload) }) }
+  transitionGoldenSuite(siteId: string, key: string, revision: number, action: 'submit' | 'approve', actor: string) { return this.request<GoldenSuite>(`/api/v1/golden-suites/${encodeURIComponent(key)}/revisions/${revision}/${action}?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'X-BRP-Actor': actor } }) }
+  runGoldenSuite(siteId: string, key: string, decisionRevision: number, suiteRevision: number, actor: string) { return this.request<JobRecord>(`/api/v1/golden-runs?decision_key=${encodeURIComponent(key)}&site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify({ decisionRevision, suiteRevision }) }) }
+  modeAHistory(siteId: string, key: string) { return this.request<ModeAPublication[]>(`/api/v1/releases/mode-a/${encodeURIComponent(key)}?site_id=${encodeURIComponent(siteId)}`) }
+  publishModeA(siteId: string, key: string, revision: number, suiteRevision: number, actor: string) { return this.request<JobRecord>(`/api/v1/releases/mode-a/${encodeURIComponent(key)}/publish?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify({ revision, suiteRevision, channel: 'production' }) }) }
+  rollbackModeA(siteId: string, key: string, targetPublicationId: number, actor: string) { return this.request<JobRecord>(`/api/v1/releases/mode-a/${encodeURIComponent(key)}/rollback?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify({ targetPublicationId, channel: 'production' }) }) }
+  modeBHistory(siteId: string) { return this.request<ModeBDelivery[]>(`/api/v1/releases/mode-b?site_id=${encodeURIComponent(siteId)}`) }
+  deliverModeB(siteId: string, key: string, revision: number, profileRevision: number, actor: string) { return this.request<JobRecord>(`/api/v1/releases/mode-b/${encodeURIComponent(key)}/deliver?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify({ revision, profileRevision }) }) }
 
   decisions() {
     return this.request<DecisionSummary[]>('/decisions')

@@ -7,10 +7,7 @@ from pathlib import Path
 from brp.ir.canonical import canonical_bytes
 
 FIXTURE = (
-    Path(__file__).resolve().parents[1]
-    / "fixtures"
-    / "conformance"
-    / "enrollment_eligibility.json"
+    Path(__file__).resolve().parents[1] / "fixtures" / "conformance" / "enrollment_eligibility.json"
 )
 
 

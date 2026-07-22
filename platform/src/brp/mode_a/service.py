@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from datetime import UTC, datetime
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -14,13 +15,14 @@ from brp.governance.runner import run_zen_mode_a
 from brp.governance.zen import DictLookupResolver, export_jdm, preview
 from brp.ir.models import DecisionContent
 from brp.repository.errors import ModeAPublicationError
-from brp.repository.models import Decision, ModeAPublication
+from brp.repository.models import DEFAULT_SITE_ID, Decision, ModeAPublication
 from brp.repository.service import RevisionRepository
 
 
 class ModeAService:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, site_id: UUID = DEFAULT_SITE_ID) -> None:
         self.session = session
+        self.site_id = site_id
 
     def publish(
         self,
@@ -34,8 +36,12 @@ class ModeAService:
     ) -> ModeAPublication:
         actor, channel = _identity(actor, channel)
         self._lock_decision(decision_key)
-        decision = RevisionRepository(self.session).get_revision(decision_key, revision)
-        suite = GoldenRepository(self.session).get_revision(decision_key, suite_revision)
+        decision = RevisionRepository(self.session, site_id=self.site_id).get_revision(
+            decision_key, revision
+        )
+        suite = GoldenRepository(self.session, site_id=self.site_id).get_revision(
+            decision_key, suite_revision
+        )
         instant = as_of or datetime.now(UTC)
         if decision.lifecycle_status != "APPROVED":
             raise ModeAPublicationError("Mode-A publish requires an approved decision revision")
@@ -118,7 +124,11 @@ class ModeAService:
             select(ModeAPublication)
             .join(ModeAPublication.decision_revision)
             .join(Decision)
-            .where(Decision.decision_key == decision_key, ModeAPublication.channel == channel)
+            .where(
+                Decision.site_id == self.site_id,
+                Decision.decision_key == decision_key,
+                ModeAPublication.channel == channel,
+            )
             .order_by(ModeAPublication.id.desc())
             .limit(1)
         )
@@ -134,6 +144,7 @@ class ModeAService:
                 .join(Decision)
                 .where(
                     Decision.decision_key == decision_key,
+                    Decision.site_id == self.site_id,
                     ModeAPublication.channel == channel,
                 )
                 .order_by(ModeAPublication.id)
@@ -150,7 +161,7 @@ class ModeAService:
         publication = self.active(decision_key, channel=channel)
         assert publication is not None
         self._verify_artifact(publication)
-        golden = GoldenRepository(self.session)
+        golden = GoldenRepository(self.session, site_id=self.site_id)
         snapshots = golden.lookup_snapshots(publication.lookup_snapshot_hashes)
         resolver = DictLookupResolver(
             {
@@ -177,6 +188,7 @@ class ModeAService:
             .join(Decision)
             .where(
                 Decision.decision_key == decision_key,
+                Decision.site_id == self.site_id,
                 ModeAPublication.channel == channel,
                 ModeAPublication.id == publication_id,
             )
@@ -201,7 +213,9 @@ class ModeAService:
 
     def _lock_decision(self, decision_key: str) -> None:
         self.session.scalar(
-            select(Decision).where(Decision.decision_key == decision_key).with_for_update()
+            select(Decision)
+            .where(Decision.site_id == self.site_id, Decision.decision_key == decision_key)
+            .with_for_update()
         )
 
 

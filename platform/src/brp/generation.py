@@ -11,6 +11,7 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Protocol
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -26,6 +27,7 @@ from brp.generators.java_release import java_class_name, render_golden_junit, re
 from brp.governance.golden import GoldenRepository
 from brp.ir.models import DecisionContent
 from brp.repository.errors import ApprovalEvidenceError
+from brp.repository.models import DEFAULT_SITE_ID
 from brp.repository.service import RevisionRepository
 
 
@@ -37,9 +39,12 @@ class ReleaseBuilder(Protocol):
 
 
 class GenerationOrchestrator:
-    def __init__(self, session: Session, builder: ReleaseBuilder) -> None:
+    def __init__(
+        self, session: Session, builder: ReleaseBuilder, *, site_id: UUID = DEFAULT_SITE_ID
+    ) -> None:
         self.session = session
         self.builder = builder
+        self.site_id = site_id
 
     def generate(
         self,
@@ -52,10 +57,10 @@ class GenerationOrchestrator:
     ) -> Path:
         if profile.target is None:
             raise ValueError("generation requires a Mode-B target")
-        decision = RevisionRepository(self.session).resolve_approved(
+        decision = RevisionRepository(self.session, site_id=self.site_id).resolve_approved(
             decision_key, revision=revision, as_of=as_of
         )
-        golden_repository = GoldenRepository(self.session)
+        golden_repository = GoldenRepository(self.session, site_id=self.site_id)
         suite = golden_repository.approved_for_decision(decision.decision_id)
         if suite is None:
             raise ApprovalEvidenceError("approved golden suite is required for generation")

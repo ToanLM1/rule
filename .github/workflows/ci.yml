@@ -13,19 +13,20 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:16.4-alpine
+        image: postgres:17.9-alpine
         env:
-          POSTGRES_DB: brp
+          POSTGRES_DB: brp_test
           POSTGRES_USER: brp
           POSTGRES_PASSWORD: brp
         ports: ["55432:5432"]
         options: >-
-          --health-cmd "pg_isready -U brp -d brp"
+          --health-cmd "pg_isready -U brp -d brp_test"
           --health-interval 2s
           --health-timeout 3s
           --health-retries 30
     env:
-      BRP_DATABASE_URL: postgresql+psycopg://brp:brp@localhost:55432/brp
+      BRP_DATABASE_URL: postgresql+psycopg://brp:brp@localhost:55432/brp_test
+      BRP_ENVIRONMENT: test
       PYTHONUTF8: "1"
     steps:
       - uses: actions/checkout@v4
@@ -35,7 +36,14 @@ jobs:
           enable-cache: true
       - run: uv sync --project platform --frozen
       - run: uv run --project platform ruff check platform scripts
+      - run: uv run --project platform mypy platform/src
+      - run: uv run --project platform alembic upgrade head
+        working-directory: platform
       - run: uv run --project platform pytest platform/tests
+      - run: uv run --project platform python scripts/export_openapi.py docs/openapi-v1.json
+      - run: git diff --exit-code -- docs/openapi-v1.json
+      - run: uv export --project platform --format requirements-txt --no-hashes --output-file platform/output/requirements-ci.txt
+      - run: uvx pip-audit -r platform/output/requirements-ci.txt
 
   connector:
     runs-on: ubuntu-latest
@@ -89,5 +97,26 @@ jobs:
         working-directory: ui
       - run: pnpm build
         working-directory: ui
-      - run: pnpm run test -- --run
+      - run: pnpm exec vitest run
         working-directory: ui
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: ui
+      - run: pnpm test:e2e
+        working-directory: ui
+      - run: pnpm audit --prod --audit-level high
+        working-directory: ui
+
+  container-and-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -f platform/Dockerfile -t brp-api:ci .
+      - run: docker build -f ui/Dockerfile -t brp-ui:ci .
+      - run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.24.3 detect --source=/repo --no-banner
+      - run: docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.59.1 image --exit-code 1 --severity HIGH,CRITICAL brp-api:ci
+      - run: docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:0.59.1 image --exit-code 1 --severity HIGH,CRITICAL brp-ui:ci
+      - run: docker run --rm -v /var/run/docker.sock:/var/run/docker.sock anchore/syft:v1.20.0 brp-api:ci -o cyclonedx-json=brp-api-sbom.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: brp-sbom
+          path: brp-api-sbom.json

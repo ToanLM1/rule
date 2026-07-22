@@ -50,9 +50,7 @@ def test_collect_forbids_default_output() -> None:
 def test_depth_four_is_rejected() -> None:
     document = load()
     condition = document["rules"][0]["when"]["all"][0]
-    document["rules"][0]["when"] = {
-        "all": [{"any": [{"all": [{"any": [condition]}]}]}]
-    }
+    document["rules"][0]["when"] = {"all": [{"any": [{"all": [{"any": [condition]}]}]}]}
     with pytest.raises(ValidationError, match="exceeds condition depth 3"):
         DecisionContent.model_validate(document)
 

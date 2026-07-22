@@ -1,15 +1,16 @@
 """FastAPI routes for governed decision revisions."""
 
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, sessionmaker
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from brp.api.schemas import (
     AuditEventResponse,
@@ -25,6 +26,8 @@ from brp.api.schemas import (
     ReasonRequest,
     RevisionCreateRequest,
 )
+from brp.api.v1 import build_v1_router
+from brp.artifacts import artifact_store
 from brp.db import create_database_engine
 from brp.governance.diff import semantic_diff
 from brp.governance.golden import GoldenCaseData, GoldenRepository, GoldenSuiteEvidencePolicy
@@ -32,6 +35,7 @@ from brp.governance.runner import run_zen_advisory
 from brp.governance.zen import DictLookupResolver, preview
 from brp.ir.models import DecisionContent
 from brp.mode_a import ModeAService
+from brp.observability import RequestContextMiddleware, configure_json_logging, metrics_response
 from brp.orchestration import (
     OrchestrationError,
     extract_inline,
@@ -60,7 +64,9 @@ from brp.repository.models import (
     DecisionRevision,
     GoldenSuite,
     GoldenSuiteRevision,
+    Job,
     ModeAPublication,
+    WorkerHeartbeat,
 )
 from brp.repository.review_queue import (
     BatchReviewDisposition,
@@ -75,6 +81,7 @@ from brp.security import (
     RequestAuthenticator,
     SecuritySettings,
 )
+from brp.settings import RuntimeSettings
 
 
 def create_app(
@@ -83,19 +90,24 @@ def create_app(
     security: SecuritySettings | None = None,
     key_resolver: Any = None,
 ) -> FastAPI:
+    runtime = RuntimeSettings.from_environment()
+    configure_json_logging()
     engine = create_database_engine()
     factory = sessionmaker(engine, expire_on_commit=False)
     policy = evidence_policy or GoldenSuiteEvidencePolicy()
     request_authenticator = RequestAuthenticator(
         security or SecuritySettings(), key_resolver=key_resolver
     )
-    app = FastAPI(title="Business Rules Platform", version="0.1.0")
+    app = FastAPI(title="Business Rules Platform", version="1.0.0-rc.1")
+    app.add_middleware(RequestContextMiddleware)
+    app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(runtime.trusted_hosts))
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+        allow_origins=list(runtime.cors_origins),
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    runtime.artifact_root.mkdir(parents=True, exist_ok=True)
 
     def get_session() -> Iterator[Session]:
         with factory() as session:
@@ -123,33 +135,124 @@ def create_app(
     ReviewerActor = Annotated[str, Depends(require_role("reviewer"))]
     DeployerActor = Annotated[str, Depends(require_role("deployer"))]
 
+    @app.get("/health/live", include_in_schema=False)
+    def health_live() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.get("/health/ready", include_in_schema=False)
+    def health_ready(session: SessionDependency) -> JSONResponse:
+        checks: dict[str, object] = {}
+        status = 200
+        try:
+            session.execute(text("SELECT 1"))
+            revision = session.scalar(text("SELECT version_num FROM alembic_version"))
+            checks["database"] = {"ok": True, "revision": revision}
+        except Exception:
+            checks["database"] = {"ok": False, "reason": "database unavailable"}
+            status = 503
+        try:
+            artifact_store(runtime)
+            artifact_ok = (
+                runtime.artifact_backend == "s3"
+                or (runtime.artifact_root.exists() and runtime.artifact_root.is_dir())
+            )
+        except Exception:
+            artifact_ok = False
+        checks["artifactStorage"] = {"ok": artifact_ok, "backend": runtime.artifact_backend}
+        if not artifact_ok:
+            status = 503
+        stale_before = datetime.now(UTC) - timedelta(seconds=runtime.worker_stale_seconds)
+        stale_jobs = (
+            session.scalar(
+                select(func.count())
+                .select_from(Job)
+                .where(Job.status == "RUNNING", Job.lease_expires_at < stale_before)
+            )
+            if status == 200
+            else None
+        )
+        checks["workerLeases"] = {"ok": not stale_jobs, "stale": stale_jobs or 0}
+        if stale_jobs:
+            status = 503
+        heartbeat_after = datetime.now(UTC) - timedelta(seconds=runtime.worker_stale_seconds)
+        fresh_workers = (
+            session.scalar(
+                select(func.count())
+                .select_from(WorkerHeartbeat)
+                .where(WorkerHeartbeat.last_seen_at >= heartbeat_after)
+            )
+            if status == 200
+            else 0
+        )
+        worker_ok = bool(fresh_workers) or not runtime.require_worker_heartbeat
+        checks["worker"] = {
+            "ok": worker_ok,
+            "fresh": fresh_workers or 0,
+            "required": runtime.require_worker_heartbeat,
+        }
+        if not worker_ok:
+            status = 503
+        return JSONResponse(
+            status_code=status,
+            content={"status": "ok" if status == 200 else "degraded", "checks": checks},
+        )
+
+    @app.get("/metrics", include_in_schema=False)
+    def metrics() -> Any:
+        return metrics_response()
+
     @app.exception_handler(AuthenticationError)
     async def authentication_handler(request: Request, exc: AuthenticationError) -> JSONResponse:
-        del request
-        return problem(401, "Authentication failed", str(exc))
+        return problem(
+            401, "Authentication failed", str(exc), request=request, code="AUTHENTICATION_FAILED"
+        )
 
     @app.exception_handler(AuthorizationError)
     async def authorization_handler(request: Request, exc: AuthorizationError) -> JSONResponse:
-        del request
-        return problem(403, "Role denied", str(exc))
+        return problem(403, "Role denied", str(exc), request=request, code="ROLE_DENIED")
 
     @app.exception_handler(OrchestrationError)
     async def orchestration_error_handler(
         request: Request, exc: OrchestrationError
     ) -> JSONResponse:
-        del request
-        return problem(422, "Orchestration input rejected", str(exc))
+        return problem(
+            422,
+            "Orchestration input rejected",
+            str(exc),
+            request=request,
+            code="ORCHESTRATION_REJECTED",
+        )
 
     @app.exception_handler(RepositoryError)
     async def repository_error_handler(request: Request, exc: RepositoryError) -> JSONResponse:
-        del request
         status, title = repository_problem(exc)
-        return problem(status, title, str(exc))
+        return problem(status, title, str(exc), request=request, code=type(exc).__name__.upper())
 
     @app.exception_handler(IntegrityError)
     async def integrity_error_handler(request: Request, exc: IntegrityError) -> JSONResponse:
-        del request
-        return problem(409, "Repository conflict", "A uniqueness or integrity rule failed")
+        return problem(
+            409,
+            "Repository conflict",
+            "A uniqueness or integrity rule failed",
+            request=request,
+            code="INTEGRITY_CONFLICT",
+        )
+
+    @app.exception_handler(LookupError)
+    async def lookup_error_handler(request: Request, exc: LookupError) -> JSONResponse:
+        return problem(404, "Not found", str(exc), request=request, code="RESOURCE_NOT_FOUND")
+
+    @app.exception_handler(RuntimeError)
+    async def runtime_error_handler(request: Request, exc: RuntimeError) -> JSONResponse:
+        return problem(
+            409, "Workflow conflict", str(exc), request=request, code="WORKFLOW_CONFLICT"
+        )
+
+    @app.exception_handler(ValueError)
+    async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
+        return problem(
+            422, "Validation failed", str(exc), request=request, code="VALIDATION_FAILED"
+        )
 
     @app.post("/decisions", status_code=201, response_model=DecisionRevisionResponse)
     def create_decision(
@@ -554,6 +657,7 @@ def create_app(
             for record in ModeAService(session).history(decision_key, channel=channel)
         ]
 
+    app.include_router(build_v1_router(factory, request_authenticator))
     return app
 
 
@@ -588,7 +692,16 @@ def mode_a_response(record: ModeAPublication) -> dict[str, object]:
     }
 
 
-def problem(status: int, title: str, detail: str) -> JSONResponse:
+def problem(
+    status: int,
+    title: str,
+    detail: str,
+    *,
+    request: Request | None = None,
+    code: str = "REQUEST_FAILED",
+    retryable: bool = False,
+) -> JSONResponse:
+    correlation_id = getattr(request.state, "correlation_id", None) if request else None
     return JSONResponse(
         status_code=status,
         media_type="application/problem+json",
@@ -597,6 +710,12 @@ def problem(status: int, title: str, detail: str) -> JSONResponse:
             "title": title,
             "status": status,
             "detail": detail,
+            "extensions": {
+                "code": code,
+                "correlationId": correlation_id,
+                "retryable": retryable,
+                "violations": [],
+            },
         },
     )
 

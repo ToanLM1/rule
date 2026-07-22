@@ -19,6 +19,7 @@ from brp.repository.errors import (
     RevisionNotFoundError,
 )
 from brp.repository.models import (
+    DEFAULT_SITE_ID,
     Decision,
     DecisionContentBlob,
     DecisionRevision,
@@ -27,8 +28,9 @@ from brp.repository.models import (
 
 
 class RevisionRepository:
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, site_id: UUID = DEFAULT_SITE_ID) -> None:
         self.session = session
+        self.site_id = site_id
 
     def create_decision(
         self,
@@ -37,12 +39,17 @@ class RevisionRepository:
         actor: str,
         effective_from: datetime,
         effective_to: datetime | None = None,
+        product_key: str | None = None,
+        flow_key: str | None = None,
     ) -> DecisionRevision:
         self._validate_interval(effective_from, effective_to)
         content_hash, document = self._store_content(content)
         decision = Decision(
+            site_id=self.site_id,
             decision_key=decision_key,
             name=content.decision_name,
+            product_key=product_key or content.product,
+            flow_key=flow_key,
             created_by=actor,
         )
         revision = DecisionRevision(
@@ -72,7 +79,9 @@ class RevisionRepository:
     ) -> DecisionRevision:
         self._validate_interval(effective_from, effective_to)
         decision = self.session.scalar(
-            select(Decision).where(Decision.decision_key == decision_key).with_for_update()
+            select(Decision)
+            .where(Decision.site_id == self.site_id, Decision.decision_key == decision_key)
+            .with_for_update()
         )
         if decision is None:
             raise DecisionNotFoundError(decision_key)
@@ -100,7 +109,7 @@ class RevisionRepository:
         result = self.session.execute(
             select(Decision)
             .options(joinedload(Decision.revisions))
-            .where(Decision.decision_key == decision_key)
+            .where(Decision.site_id == self.site_id, Decision.decision_key == decision_key)
         )
         decision = result.unique().scalar_one_or_none()
         if decision is None:
@@ -116,7 +125,13 @@ class RevisionRepository:
         return record
 
     def list_decisions(self) -> list[Decision]:
-        return list(self.session.scalars(select(Decision).order_by(Decision.decision_key)))
+        return list(
+            self.session.scalars(
+                select(Decision)
+                .where(Decision.site_id == self.site_id)
+                .order_by(Decision.decision_key)
+            )
+        )
 
     def get_audit(self, decision_key: str) -> list[LifecycleEvent]:
         return list(
@@ -124,7 +139,7 @@ class RevisionRepository:
                 select(LifecycleEvent)
                 .join(DecisionRevision)
                 .join(Decision)
-                .where(Decision.decision_key == decision_key)
+                .where(Decision.site_id == self.site_id, Decision.decision_key == decision_key)
                 .order_by(LifecycleEvent.id)
             )
         )
@@ -169,7 +184,7 @@ class RevisionRepository:
             select(DecisionRevision)
             .join(Decision)
             .options(joinedload(DecisionRevision.content_blob))
-            .where(Decision.decision_key == decision_key)
+            .where(Decision.site_id == self.site_id, Decision.decision_key == decision_key)
         )
 
     def _store_content(self, content: DecisionContent) -> tuple[str, dict[str, object]]:
