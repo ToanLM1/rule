@@ -1,14 +1,12 @@
-# Business Rules Platform — Architecture Design
+# Canonical Business Rules Management & Delivery Platform — Architecture
 
-> **2026-07-16 production-hardening addendum.** The runtime is now a multi-workspace,
-> multi-site internal self-hosted release candidate with a versioned `/api/v1`, a
-> PostgreSQL durable job queue, separate worker, artifact storage, enterprise Vue
-> console, English/Korean UI, Mode-A history/rollback and Mode-B Git delivery
-> evidence. Existing routes remain compatibility aliases for one release. OIDC is
-> intentionally deferred, therefore internet exposure and an unconditional
-> production claim remain blocked. See `docs/production-operations.md`.
-
-> **Status:** production-hardening release candidate in progress, v1.4 (2026-07-16). Phases 1–3 remain the completed generic/local baseline. The M11 control plane and durable workflow are implemented with isolated acceptance evidence; final container, CI-equivalent, browser and RDS-cutover gates remain open. Companion to `prd.md` (product requirements — read it first for domain/scope). This document is the source of truth for architecture detail. It reviews and supersedes `prd-architecture-revision-note.md`; customer-specific compatibility, accuracy, identity and rollout evidence remains explicitly gated in §14.
+> **Status (2026-07-23): small-first reset.** Existing control-plane, adapter,
+> governance, generation, and delivery components are retained, but the active
+> architecture target is one useful Java repository round trip followed by one
+> small cloud-PostgreSQL table round trip. Container hardening, multi-site scale,
+> heavyweight analysis, and Internet-production concerns are historical or
+> deferred capabilities, not MVP prerequisites. See `prd.md` and the active
+> roadmap at the top of `IMPLEMENTATION_PLAN.md`.
 
 ## 0. Relationship To The Knowledge Assistant
 
@@ -16,44 +14,44 @@ The Telecom Business Knowledge Assistant PRD (`../agent_testcase/services/knowle
 
 This platform therefore adopts the knowledge product's useful trust principles — evidence provenance, Korean preservation, review before activation, versioned regression sets, and configuration-driven extensibility — without reusing or depending on its chat, RAG ingestion, vector retrieval, Neptune schema, document chunks, or citation API. A manual-document adapter may consume exported source evidence through its own contract; it must not make the knowledge assistant a runtime dependency.
 
-## 1. Design Constraints (customer-confirmed)
+## 1. Active Design Constraints
 
 | Constraint | Source |
 |---|---|
-| Production path for logic-in-code sites = **generated source code** (mode B), not a runtime engine | Customer, 2026-06-30 |
-| For sites already on a third-party engine, end state = **our engine as the production runtime** (mode A) | Customer, 2026-07-03 |
-| **Java-first**, extensible to other languages; **PostgreSQL-first**, extensible to other DBMS | Customer, 2026-07-02 |
-| **Multi-site, general-purpose product** — config-driven, plug-and-play; DB access as a reusable MCP library | Customer, 2026-07-02 |
-| Source-code rule mining is the **strategic differentiator** vs other engines | Customer, 2026-06-30 |
-| Engine: **GoRules Zen** effectively accepted (license/cost concerns resolved); formal confirmation pending | Customer, 2026-07-02/03 |
-| DMN import for legacy engine assets is in scope; finance/insurance governance (maker-checker, audit) required | Customer, 2026-07-02; PRD §8 |
+| First delivery path = deterministic generated Java, target tests, pushed branch, and reviewable pull request | PRD §5.4/§7 |
+| First input = one public, small Java repository; second input = one selected small cloud-PostgreSQL table | PRD §5.2/§5.5 |
+| Business users author a Canonical Decision Package; executable Rule IR is compiled, not hand-edited | ADR-9 |
+| Source extraction is candidate-only and evidence-backed; approval and production artifacts are deterministic | ADR-4/6/8/10 |
+| Java 17 and PostgreSQL are the only active language/database targets | Active roadmap |
+| Local API, worker, UI, Git, Java, and cloud PostgreSQL must be sufficient; Docker and Joern are optional | Active roadmap |
+| Scale and heavyweight tooling require a demonstrated failure, not an assumed repository size | ADR-10 |
 
 ## 2. Architecture Decision Records
 
-### ADR-1 — The Canonical Rule IR is the system of record
+### ADR-1 — Rule IR is the only executable canonical representation
 
-**Decision.** The platform owns a lightweight, vendor-neutral **Canonical Rule IR** (§5). It is the *only* primary storage format. JDM, DMN, DRL, Java source, and every other engine/language format are **adapters**: imported *into* the IR, or generated *from* it. Never store an engine-native format as truth.
+**Decision.** The platform owns a lightweight, vendor-neutral **Canonical Rule IR** (§5). It is the only executable canonical representation. The governed user-authored source is the Canonical Decision Package introduced by ADR-9, which compiles deterministically to IR. JDM, DMN, DRL, Java source, and every other engine/language format are derived adapters; never store an engine-native or generated format as truth.
 
 **Rationale.** (i) The product must ingest many input kinds (DB tables, stored objects, Java/UI code metadata, manuals, DMN/DRL assets) and emit many targets (Java, C#, JDM, DMN) — only a neutral hub format keeps that M×N problem at M+N adapters. (ii) JDM is one vendor's format; making it the internal model silently shapes the whole product around one engine even though half the delivery story is generated source. (iii) Full DMN/DRL/ODM semantics are too broad to generate safe code from, and lack the metadata we need (source traceability, confidence, approval status, generator/deploy metadata). (iv) Codegen needs a *restricted, deterministic* rule profile — that restriction is easiest to enforce in a format we own.
 
-**Consequences.** IR schema versioning/migration becomes our responsibility (§5.5). Every new engine or language is an adapter, not a core change. Governance, diffing, and testing all operate on one format.
+**Consequences.** Package and IR schemas plus their compiler are versioned responsibilities (§5/ADR-9). Business governance and readable diff operate on package revisions; execution conformance and target generation operate on compiled IR. Every new engine or language remains an adapter, not a new source of truth.
 
 ### ADR-2 — A and B are per-site delivery modes over one IR, not an architecture fork
 
 **Decision.** "Externalization" (A: system calls our engine at runtime) and "code generation" (B: generated source is the runtime) are both **target paths from the same approved IR**, chosen per site:
 
-- **Mode B** — sites whose logic was buried in source code (PRD §5.1 macro-case a). Phase-1 lead; the differentiator.
-- **Mode A** — sites migrating off an existing third-party engine (PRD §5.1 #6). Confirmed end state (2026-07-03): converting an engine-based site to hard-coded source would forfeit the rules-as-data benefit it already has.
+- **Mode B** — sites whose logic was buried in source code. This is the only active delivery path.
+- **Mode A** — sites migrating off an existing third-party engine. It is an implemented historical capability and a deferred product path.
 
-**Consequences.** The engine is **not optional** product-wide — it is the production runtime for mode-A sites. But it is also never load-bearing for mode-B production. Adding mode A costs one export adapter (IR→JDM) plus runtime packaging, because everything upstream (adapters, repository, governance) is shared.
+**Consequences.** No engine is required for the active Mode-B MVP. If a real engine-migration case later activates Mode A, the existing IR→JDM and Zen components can be evaluated without changing the package/IR/generation boundary.
 
-### ADR-3 — Embedded GoRules Zen for preview and mode-A runtime; no bespoke rule evaluator
+### ADR-3 — Do not add another authoritative evaluator
 
-**Decision.** Do **not** build an internal Rule-IR evaluator in the MVP. Preview/simulation everywhere, and mode-A production, use **GoRules Zen embedded in-process**, fed by the IR→JDM export adapter.
+**Decision.** Do **not** build an internal Rule-IR evaluator in the MVP. Existing GoRules Zen preview may remain available as advisory feedback, but it is not required for the active flow. Mode-B validation compiles and executes generated Java plus target tests.
 
-**Rationale.** The customer has effectively accepted Zen; mode A requires it anyway; it is MIT-licensed, embeddable, and polyglot. A bespoke evaluator would add a **third execution semantics** (evaluator vs Zen vs generated Java) — three implementations of "what does this rule mean" that can silently disagree. Two is already one too many; we manage that with the authority rule below.
+**Rationale.** A bespoke evaluator would add another execution semantics that can disagree with the code that actually ships. Business scenarios should be rendered into authoritative generated-Java tests for the active path.
 
-**Consequences.** Preview semantics = JDM/Zen semantics. Therefore, for mode B, preview is *advisory only*: the **authoritative golden tests compile and execute the generated source itself** (§7). If a future constraint forbids Zen, the IR v1 profile is small enough that writing an evaluator then is a contained task.
+**Consequences.** Any Zen result is labeled advisory. The **authoritative golden tests compile and execute generated Java** (§7), and target-application tests must pass before a branch is pushed.
 
 ### ADR-4 — Production code generation is deterministic; LLMs are confined to mining
 
@@ -120,65 +118,95 @@ Golden suites are immutable, versioned records with case provenance. Lookup data
 
 **Delivery ordering.** The one-time integration seam is landed and verified on the target repository's baseline before recurring delivery begins. Each delivery branches from that seam-enabled baseline, generates code and tests, compiles and runs generated Java, runs target-application regression tests through the façade, emits a semantic diff, and only then commits/pushes or opens a review request. The Phase-1 fixture uses a local bare remote and PR-equivalent review report so the complete branch flow is testable without external credentials.
 
+### ADR-9 — Separate business authoring from executable Rule IR
+
+**Decision.** The governed user-facing object is a **Canonical Decision Package**. It contains vocabulary, business decision tables, lookup definitions, composition, effective dates, business scenarios, source evidence, and technical target bindings. A deterministic compiler validates the package and produces the existing restricted Rule IR. Rule IR remains the sole executable canonical representation, but it is not the primary non-technical editing surface.
+
+**Rationale.** The current IR is suitable for machines and deterministic generators, but exposing `when`/`then` operand JSON makes business ownership nominal rather than real. A business author needs domain labels, rows, outcomes, scenarios, and actionable validation. Separating the two models preserves strict generation semantics without forcing UI users to understand execution internals.
+
+**Consequences.** Raw IR editing moves behind an advanced/debug mode. Package-to-IR compilation is versioned and deterministic. Compilation diagnostics point to a vocabulary field, decision-table cell, lookup, composition step, or scenario. Provenance and governance are retained across compilation; generated artifacts still consume only an approved revision envelope.
+
+### ADR-10 — Progressive evidence analysis, not Joern-first mining
+
+**Decision.** Small-repository extraction uses the least expensive tool that can produce adequate evidence:
+
+1. pin the Git commit; inventory files/manifests; use `rg`, `git`, and bounded reads;
+2. use Tree-sitter or an equivalent syntax query for structural ambiguity;
+3. use JavaParser/SymbolSolver, OpenRewrite, or JDT LS when symbol, type, reference, or call-hierarchy evidence is necessary;
+4. consider Joern/SootUp only after the run records a concrete unresolved case and why the lighter tiers cannot answer it;
+5. route remaining ambiguity to human review.
+
+An LLM/agent may select and call these read-only evidence tools and propose candidates. It must return a validated `EvidenceBundle`: pinned commit and subpath, hypothesis, exact source spans and hashes, inferred inputs/outputs/rows, test evidence, assumptions, unresolved calls/fragments, confidence per field, tool transcript, and escalation recommendation.
+
+**Rationale.** Repository size alone does not establish semantic difficulty. Whole-program graph construction adds cost and operational risk before the first small repository has proved product value. Lightweight search plus bounded semantic escalation is easier to inspect and is sufficient for many small rule repositories.
+
+**Consequences.** Joern is removed from the base runtime and local-development prerequisites. There is no graph database or heavyweight worker in the active MVP. Heavy analysis is an optional, ephemeral capability whose value must be demonstrated on a real failed case. Fixed synthetic regex/templates remain test fixtures, not evidence of general Java extraction.
+
 ## 3. System Overview
 
 ```mermaid
 flowchart LR
-    subgraph IN["① Legacy inputs"]
-        A1[DB config/code tables]
-        A2[Java source repos]
-        A3[Manuals / documents]
-        A4[Existing engines / DMN]
+    subgraph IN["Bootstrap inputs"]
+        A1["Small public Java repository"]
+        A2["Selected PostgreSQL table - next slice"]
     end
-    subgraph SA["② Source adapters"]
-        B1[DB tables · PostgreSQL/SQLite MCP drivers]
-        B2[code-java · Joern]
-        B3[engine-dmn]
-        B4[docs-manual]
+    subgraph EA["Evidence acquisition"]
+        B1["git + rg + bounded reads"]
+        B2["Syntax and semantic escalation on demand"]
+        B3["EvidenceBundle + candidate package"]
     end
-    C[("③ Canonical Rule Repository<br/>Rule IR · versioned · traced · audited")]
-    subgraph GV["④ Governance & validation"]
-        D1[Review / maker-checker]
-        D2[Rule diff]
-        D3[Golden tests]
-        D4[Preview · embedded Zen]
+    subgraph CP["Canonical Decision Package"]
+        C1["Vocabulary + decision tables + lookups"]
+        C2["Business scenarios + evidence + governance"]
     end
-    subgraph TG["⑤ Target generators"]
-        E1[java-source]
-        E2[jdm-export]
-        E3[test-generator]
-        E4[dmn-export]
-        E5[csharp-source · local proof]
+    subgraph EX["Deterministic execution layer"]
+        D1["Package compiler"]
+        D2["Executable Rule IR"]
+        D3["Java + JUnit generator"]
     end
-    F1["⑥a Mode B: CI/CD<br/>build + golden tests → deploy"]
-    F2["⑥b Mode A: Zen runtime<br/>publish approved rules"]
+    E["Compile + generated tests + target tests"]
+    F["Push branch + create reviewable PR"]
 
-    A1-->B1 --> C
-    A2-->B2 --> C
-    A3-->B4 --> C
-    A4-->B3 --> C
-    C<-->GV
-    GV-->TG
-    E1-->F1
-    E3-->F1
-    E4-->F1
-    E5-->F1
-    E2-->F2
+    A1-->B1-->B2-->B3
+    A2-->B3
+    B3-->C1-->C2
+    C2-->D1-->D2-->D3-->E-->F
+    F-."source drift / reconciliation".->B1
 ```
 
-Six stages; the repository (③) is the hub. Users editing/adding rules in operation (SM phase) write to ③ through ④ — the same governance gate as extracted candidates.
+The Canonical Decision Package is the product hub. Bootstrap inputs propose it; business users own it; the compiler and generators consume only approved versions. A pull request is the MVP delivery boundary. Merge and production deployment remain outside the platform's authority.
 
 ## 4. Component Responsibilities
 
 | # | Component | Responsibility | Explicitly NOT its job |
 |---|---|---|---|
-| ② | Source adapters | Extract *candidate* IR rules from one input kind, attach `sourceReferences` + `confidence` | Approving rules; writing production artifacts |
-| ③ | Rule repository | Store IR; version every change; keep full audit trail | Storing JDM/DMN/source (generated artifacts live in git/artifact store) |
-| ④ | Governance & validation | Review workflow, approval gates, diff, golden-test execution, preview | Mutating rules silently; auto-approving anything |
-| ⑤ | Target generators | Deterministically render content from an approved revision envelope into one artifact kind | Deciding *which* rules are live (release selection is a repository/delivery responsibility) |
-| ⑥ | Delivery | Mode B: git branch/PR + CI/CD; Mode A: publish to Zen runtime | Bypassing golden tests |
+| ① | Evidence acquisition | Produce evidence-backed candidate packages from a pinned repository or selected DB table | Approving candidates; inventing unsupported semantics |
+| ② | Canonical Studio | Let business authors edit vocabulary, tables, lookups, dates, and scenarios; use GoRules JDM Editor as a constrained decision-table widget | Requiring raw IR/JSON for normal edits; making JDM or GoRules BRMS the source of truth |
+| ③ | Package repository | Store immutable package revisions, evidence, lifecycle, and audit history | Treating generated code or engine formats as truth |
+| ④ | Package compiler | Deterministically validate and compile an approved package to Rule IR | Calling an LLM or silently repairing invalid business content |
+| ⑤ | Target generators | Deterministically render Java, JUnit, and release evidence from approved inputs | Free-form source generation or choosing approval state |
+| ⑥ | Delivery | Run generated/target tests, push a branch, and open a reviewable PR | Auto-merging or claiming production deployment |
 
 ## 5. Canonical Rule IR v1
+
+### 5.0 Canonical Decision Package and compilation boundary
+
+The user-facing package sits above Rule IR and is stored as an immutable governed revision. Its minimum logical sections are:
+
+```text
+CanonicalDecisionPackage:
+  vocabulary[]          # business label, type, optional technical binding
+  decisions[]           # readable table columns, rows, outcomes, hit policy
+  lookups[]              # business definition + provider/snapshot binding
+  composition            # restricted deterministic decision composition
+  businessScenarios[]   # input + expected business outcome + provenance
+  evidenceBundles[]      # immutable source evidence and uncertainty
+  targetBinding          # Java package, seam, generated/test paths, commands
+```
+
+`compile(packageRevision) -> RuleIR[] | PackageDiagnostic[]` is pure and versioned. It resolves vocabulary references, validates table cells and operator/type compatibility, checks required outcomes and restricted composition, attaches evidence to the corresponding IR rules, and emits no partial executable output when an error exists. Lifecycle and effective dates remain in the governed revision envelope per ADR-6. The advanced UI may display compiled IR, but direct IR editing is not the normal authoring path.
+
+The Studio embeds `@gorules/jdm-editor` as a lazy-loaded React island inside the Vue application. A restricted adapter projects one Canonical Decision Package table into JDM for editing and validates the edited JDM back into the package. Only the supported literal/operator subset crosses this boundary; arbitrary Zen expressions, column-schema changes, lifecycle state, evidence metadata and governance never do. This deliberately reuses GoRules' mature spreadsheet UX without adopting GoRules BRMS or changing canonical authority.
 
 ### 5.1 Profile and invariants
 
@@ -291,49 +319,50 @@ An approved revision is immutable. Editing it creates a new `DRAFT` revision. Ap
 ```text
 SourceAdapter:
   discover(siteConfig)              -> Source[]           # what's there to extract
-  extract(source)                   -> ExtractionBatch    # decision content + unmappable items
-  # every CandidateRule carries sourceReferences + confidence; nothing is auto-approved
+  extract(source)                   -> ExtractionBatch    # candidate package + EvidenceBundle + review items
+  # every inferred field carries evidence/confidence; nothing is auto-approved
 ```
 
-Adapters are capability-declared packages (`db-postgres`, restricted `db-postgres-stored-object`, `code-java`, `engine-dmn`, restricted `engine-native`, `ui-html-validation`, and `docs-manual`; future production drivers/languages remain plug-ins). Site onboarding = a secret-free site profile plus a preflight capability matrix. Unknown, incompatible, or locally unavailable source/target/runtime capabilities stop orchestration before extraction or generation. Nothing site-specific may live inside an adapter.
+The active adapters are `code-java-agent` and, after the repository slice passes, `db-postgres-table`. Previously implemented restricted adapters remain available as historical proofs but are not active roadmap dependencies. Unknown or unavailable capabilities stop orchestration before extraction or generation. Credentials are referenced, never embedded in profiles or evidence.
 
-### 6.2 `db-postgres` — config/code tables (priority-1 source)
+### 6.2 `db-postgres-table` — second vertical slice
 
-Deterministic ETL: map condition columns / action columns per a reviewed mapping spec; each row → one IR rule, `confidence = 1.0` (still reviewed, but near-lossless). A `DB_ROW` reference records schema/table, primary-key JSON, and a snapshot hash — row ids are never overloaded into source line fields. DB access goes through the **reusable DB MCP library** — connection-info-driven, plug-and-play per the multi-site directive; the adapter never embeds site credentials or schema assumptions.
+Deterministic ETL maps explicitly selected condition and outcome columns through a reviewed mapping spec; each selected row becomes a candidate decision-table row. A `DB_ROW` reference records connection alias, schema/table, primary-key JSON or stable row identity, selected columns, and snapshot hash. The adapter never embeds credentials or lets an LLM submit arbitrary SQL.
 
 The connector authenticates with a database role that has `SELECT`/metadata permissions only. Transaction read-only mode is defense in depth, not the primary control. Dynamic identifiers are resolved from catalog-discovered allowlists and quoted by the driver; tests attempt writes and identifier injection and must prove both are rejected.
 
-### 6.3 `code-java` — source mining (the differentiator)
-
-Pipeline (detail rationale in PRD §5.1 #3):
+### 6.3 `code-java-agent` — first vertical slice
 
 ```text
-git repo → Joern parse (Code Property Graph: AST + CFG + data-dependency)
-        → seed program entry points (SCREEN/BATCH/INTERFACE/API/SERVICE)
-        → call-graph reachability (drop everything unreachable — solves repo scale)
-        → keep units containing decision constructs (if/switch/validation/lookup)
-        → backward slice per decision point (self-contained chunk + exact file/line)
-        → LLM mining: chunk → candidate IR rules (conditions/actions + sourceReferences + confidence)
-        → de-dup → PENDING_REVIEW
+public GitHub URL + revision + optional subpath/entry hint
+    → credential-free clone and immutable commit pin
+    → manifests and repository inventory
+    → git/rg search and bounded source/test reads
+    → syntax query when text evidence is insufficient
+    → symbol/type/reference query only for unresolved dependencies
+    → structured candidate package + EvidenceBundle + review items
+    → schema/package validation → PENDING_REVIEW
 ```
 
-The code graph is **throwaway scaffolding** (rebuilt per analysis run, in Joern's own store) — the durable outputs are candidate decision content, unmappable items, program-context mappings, and a slice manifest. Each source repository is pinned to an immutable commit for a mining run. Chunking criteria: real syntax boundaries (method), relevance gate (reachable ∧ decision-bearing), self-contained slices, split oversized units per decision point.
+The agent is an orchestrator over read-only evidence tools, not an authority. Tool requests and returned spans are bounded and recorded. The model receives only the necessary evidence and must return structured output. Each candidate field points to supporting spans/hashes or is marked as an assumption; unresolved calls and alternative interpretations remain visible to the reviewer.
+
+Tree-sitter is the first structural escalation. JavaParser/SymbolSolver, OpenRewrite, or JDT LS may be invoked for targeted semantic questions. Joern/SootUp is an optional final escalation and is not installed, started, or required by the base workflow. Repository size alone is never an escalation reason.
 
 ### 6.4 `engine-dmn` — external-engine import
 
 `DMN 1.3+ asset → parse decision tables → Canonical Rule IR candidate`. The implemented subset maps input columns to conditions, output columns to actions, and `FIRST`/`UNIQUE`/`COLLECT` hit policies to IR. Literal equality, comparisons, inclusive ranges, lists, and `not(...)` map to typed IR operators. Every imported rule retains asset id, immutable revision, decision id, and exact rule-element id; Korean text remains UTF-8. Unsupported FEEL and non-table boxed expressions become review items rather than guessed rules. DTD/entity declarations are forbidden, and **BPMN is rejected** because workflow orchestration is not a rule table. DRDs and full FEEL remain outside the profile. Phase 3 adds a separate restricted DRL adapter; ODM artifacts are classified and routed to customer-mapping review rather than guessed.
 
-### 6.6 Stored-object and UI validation sources (Phase 3)
+### 6.5 Stored-object and UI validation sources (historical/deferred)
 
 The stored-object adapter consumes source only through the bounded connector allowlist. It recognizes a deliberately small PL/pgSQL function form: typed scalar parameters, ordered `IF`/`ELSIF` comparisons, literal `RETURN` values, and one literal `ELSE` default. Any assignment, call, loop, SQL statement, compound condition, or unsupported type invalidates the whole object and creates a review item. Candidates carry connection alias, schema/object, content hash, and exact line provenance.
 
 The UI adapter uses a non-executing HTML parser. Numeric `min`/`max` plus explicit `data-rule-eq`/`data-rule-in` metadata can become candidate validations. Native `required`/`pattern`, event handlers, scripts, and framework expressions are review items; JavaScript is never evaluated. This is static declarative metadata coverage, not arbitrary UI-code mining.
 
-### 6.7 Engine-native boundary (Phase 3)
+### 6.6 Engine-native boundary (historical/deferred)
 
 The restricted DRL importer accepts one fact pattern containing literal field comparisons and consequences containing only literal `result.setX(...)` assignments. It requires one unconditional default, preserves rule/asset/hash/line provenance, and routes unsupported attributes, conditions, or consequences to review. ODM has no safe generic interchange shape without customer product/version artifacts, so it is identified and stopped at `ODM_FORMAT_REQUIRES_CUSTOMER_MAPPING`. BPMN remains rejected.
 
-### 6.5 `docs-manual` — manuals (supplementary)
+### 6.7 `docs-manual` — manuals (historical/deferred)
 
 Rule-oriented extraction to IR shape. May borrow low-level document-parsing utilities from the knowledge-assistant codebase, but not its RAG ingestion/output (different contract — see PRD §2). Used to *corroborate or fill gaps* in mined rules; low confidence by default.
 
@@ -364,11 +393,12 @@ Implemented target packages are `java-source`, `jdm-export`, `test-generator`, r
 one-time: land and verify façade seam on target baseline
 recurring: approve revision + golden suite → generate from recorded ReleaseInput
         → compile + generated-Java golden tests + target regression tests
-        → diff vs previous generated source → commit/push → PR/MR
-        → site CI repeats authoritative gates → merge → site CI/CD deploy
+        → diff vs previous generated source → commit/push → GitHub PR
 ```
 
-### 7.4 `jdm-export` (mode A + preview)
+For the active MVP, successful delivery ends at a remotely pushed branch and a reviewable pull request in the writable dummy repository. A local branch, artifact, or PR-equivalent report is useful diagnostic evidence but is not full-flow acceptance. Merge and downstream production deployment remain human/target-CI responsibilities and are not performed or claimed by this platform.
+
+### 7.4 `jdm-export` (implemented but deferred)
 
 IR→JDM is intentionally trivial because the IR v1 profile is a strict subset of what JDM expresses. The same export feeds (a) the embedded-Zen preview in governance and (b) the mode-A production runtime.
 
@@ -378,7 +408,7 @@ Mode-A activation is an append-only publication operation, not a mutable "active
 
 Golden suites are governed inputs rather than incidental database rows. Each immutable suite revision contains curated input/expected-output pairs, case provenance, decision-key coverage, and lookup-snapshot references. Suites are seeded from legacy behavior during initial load and extended through maker-checker review. The same suite renders as JUnit against generated Java (mode B) and as Zen evaluation fixtures (mode A), but only the executor named by §9 is authoritative.
 
-### 7.6 Phase-3 DMN and C# targets
+### 7.6 Historical/deferred DMN and C# targets
 
 `dmn-export` deterministically emits DMN 1.3 decision tables only where a flat IR condition group maps to one unary-test cell per input. It covers equality/inequality, ordering, ranges, and lists; lookup operands, `EXISTS`, `STARTS_WITH`, nested `any`, and multiple conditions for one cell fail explicitly. Provenance is written as deterministic extension metadata, repository lifecycle fields are excluded, and export→import semantic projections are byte-equal.
 
@@ -404,25 +434,26 @@ Verification of the cut-over: golden tests seeded from pre-cut-over behavior plu
 
 The asymmetry is deliberate (ADR-3): in mode B there are two executors (Zen preview, generated Java), so exactly one — the one that ships — is the authority. Any preview-vs-authority divergence found by golden tests is a generator bug to fix, tracked as such.
 
-## 10. Multi-Site Packaging
+## 10. Small-Flow Runtime And Configuration
 
-- **Site profile** (config, not code): source connection aliases, source repositories pinned per run, PGM contexts (`SCREEN/BATCH/INTERFACE/API/SERVICE`), language/DBMS, delivery mode, adapter selection, lookup-provider binding, and a target-delivery block containing repository URL/path, base branch, generated/test paths, Java package, composition spec, build/test commands, and PR provider.
-- **Reusable DB MCP library**: one bounded connector contract over database drivers. PostgreSQL remains the production reference; SQLite is the dependency-free second-driver proof. Both use catalog-derived identifier allowlists, bounded reads, read-only sessions, redacted failures, and explicit stored-object capability reporting. A production second DBMS still requires customer selection and integration evidence.
-- **Adapter registry**: source adapters and target generators register by capability; a site activates them by name in its profile.
-- **Capability preflight**: a deterministic matrix evaluates every selected source, generator, and runtime against site language, DBMS, delivery mode, and available Java/.NET/Joern/Zen/database tooling. Reports contain no connection values or repository paths; any `UNKNOWN`, `INCOMPATIBLE`, or `UNAVAILABLE` result makes the site not ready.
-- **Durable orchestration control plane**: the versioned FastAPI API persists import batches, candidates, review dispositions, jobs, artifacts and release evidence. Inline restricted previews remain non-persistent/non-authoritative compatibility tools, while pinned Java repository imports run asynchronously from immutable commits. Candidate promotion is idempotent and enters the same immutable governance lifecycle as manually authored revisions. Extraction, golden execution, generation and delivery are leased PostgreSQL jobs handled by a separate worker.
-- **Hard rule:** anything that cannot be made general (a site-specific hack) must be isolated in the site profile/plug-in layer and flagged — never merged into core (PRD §8).
-- Deployment: self-hostable, on-prem/air-gap friendly (finance/insurance); AWS acceptable. Mode-A runtime ships as an embedded library or small service alongside the site's stack.
+- **Runtime:** local FastAPI API, one durable worker, Vue UI, Git, Java 17, and the existing cloud PostgreSQL are sufficient. Docker is not required.
+- **Repository input:** public HTTPS GitHub URL, revision, optional safe subpath, bounded entry-point hint, and immutable resolved commit.
+- **Target binding:** writable repository/credential reference, base branch, generated/test paths, Java package, stable façade seam, build/test commands, and pull-request provider settings.
+- **PostgreSQL input:** a separate read-only source connection reference plus an allowlisted schema/table/view and reviewed column mapping. Platform persistence and source-rule access are distinct configurations even when hosted on the same server.
+- **Durable orchestration:** existing jobs, candidates, artifacts, releases, and worker leases are reused. A new heavyweight queue/service is not introduced for the MVP.
+- **Optional capabilities:** Zen, DMN/DRL, C#, SQLite portability, stored objects, UI validation, OIDC, multi-site controls, containers, and Joern remain dormant unless an active roadmap task explicitly needs them.
 
 ## 11. Risks & Mitigations
 
 | Risk | Mitigation |
 |---|---|
-| Mining precision (wrong/missed rules) | Candidate-only + mandatory review; confidence + exact source refs; golden tests seeded from legacy behavior; shadow comparison at cut-over (§8) |
+| Extraction proposes wrong or incomplete rules | EvidenceBundle per field; candidate-only + mandatory review; unresolved fragments stay visible; business and target tests gate delivery |
+| Business authoring remains technical | Package/IR separation (ADR-9); decision-table and vocabulary UI is the acceptance surface; JSON is advanced-only |
+| Lightweight analysis cannot resolve a dependency | Record the failed question and escalate one tier at a time per ADR-10; human review remains the final tier |
 | Preview vs production semantic drift (mode B) | Authority rule (§9); divergences = generator bugs; deterministic generation makes them reproducible |
 | FEEL / complex DMN beyond IR profile | Restricted profile + review queue with raw fragment attached; profile grows only when all generators support it (§5.1) |
 | Integration seam underestimated | Named Phase-0/1 deliverable (§8); designed against real sample code, not in the abstract |
-| IR schema drift across sites/versions | Profile+schema versioning, forward-only migrations, adapter capability declaration (§5.5) |
+| Package/IR semantics drift | Versioned deterministic Package→IR compiler plus shared conformance and generator tests (§5.0/§5.5) |
 | Engine decision reversal | Engine sits behind IR + `jdm-export`; swap = new export adapter + runtime packaging, upstream untouched (ADR-1/2) |
 | Repository row status diverges from content JSON | Lifecycle/revision metadata lives only in the ADR-6 envelope; content hashes are immutable |
 | Same rule produces different release evidence | ADR-8 manifest hashes golden-suite, lookup snapshot, site config, generator, content, and outputs |
@@ -432,86 +463,82 @@ The asymmetry is deliberate (ADR-3): in mode B there are two executors (Zen prev
 
 | Phase | Deliverables |
 |---|---|
-| **0 — Design & samples** | ADR-6..8 semantics + IR conformance corpus; adapter/generator contracts; PGM-context and target-delivery config; integration-seam design against synthetic/sample Java; confirm pilot's engine assets; **mining-model benchmark** when real samples arrive |
-| **1 — PoC (mode B)** | `db-postgres` (via MCP lib) + `code-java` (Joern) adapters; a bounded supplementary `docs-manual` adapter; IR repository + review workflow; versioned golden suites; embedded-Zen preview; `java-source` + `test-generator`; seam-enabled baseline; diff/PR-ready branch + CI golden/target tests; demo per PRD §11 |
-| **2 — Productize + mode A** | **Implemented generically/local:** restricted `engine-dmn`; append-only Mode-A IR→JDM→Zen publication/rollback; PostgreSQL/SQLite driver contract; versioned mining benchmark with synthetic-only proof; OIDC/JWT roles, configurable evidence, atomic batch review, and deployer authorization. Real customer benchmark, production IdP, pilot roles, and production second DBMS remain gated. |
-| **3 — Scale** | **Implemented generically/local:** restricted scalar PL/pgSQL mining; non-executing declarative HTML validation mining; restricted DRL import plus ODM review boundary; deterministic DMN export/round trip; C# source/golden/manifest plug-in with fail-closed compile evidence; deterministic multi-site capability preflight. Real dialect/framework/ODM/C# compatibility and rollout remain gated. |
+| **0 — Cloud-local truth** | Start API/worker/UI without Docker against cloud PostgreSQL; verify migrations, health, worker freshness, and safe test isolation |
+| **1 — Canonical Studio** | Canonical Decision Package persistence/compiler; vocabulary/table/lookup/scenario editor; readable validation/diff; governed approval; advanced-only raw IR |
+| **2 — Small Java repo full-flow** | Public-repo import; EvidenceBundle agent; candidate review/edit; deterministic Java/JUnit; generated and target tests; changed outcome; pushed branch and GitHub PR |
+| **3 — Small PostgreSQL table full-flow** | Guided read-only table selection/mapping; DB evidence; reuse the same package, approval, generation, tests, and PR delivery |
+| **4 — Evidence-triggered expansion** | Add only the smallest semantic, scale, runtime, language, DBMS, security, or packaging capability required by a demonstrated blocker |
 
 ## 13. Technology Stack And Libraries
 
-Concrete choices per component (rationale in ADR-5; all self-hostable / air-gap-mirrorable per PRD §8). **Primary** = what we build first; alternatives noted where a real fallback exists.
+Concrete choices for the active small-flow path are listed first. Historical/deferred components remain in the codebase but are not prerequisites.
 
 ### 13.1 Platform core
 
 | Component | Primary choice | Notes / alternatives |
 |---|---|---|
 | Platform API & orchestration | **Python 3.12 + FastAPI + Pydantic v2** | IR schema = Pydantic models (JSON Schema exported from them — one definition, validated everywhere). Matches existing team stack. |
-| Rule repository storage | **PostgreSQL 16** — immutable content as `JSONB`, revision envelopes, lifecycle events, versioned golden suites, and audit tables; SQLAlchemy + Alembic | PostgreSQL is the Phase-1 system of record. Git stores generated artifacts and review diffs, not canonical decision content. |
-| Governance UI | **Vue 3 + TypeScript + Vite + Pinia** | Team consistency with the existing `frontend/` app (React would work; no reason to split stacks). **ag-grid-community** (MIT) for editable decision tables; **monaco-editor** for JSON/rule-diff views. |
-| AuthN/Z | **OIDC/JWT via PyJWT + JWKS** (Keycloak as self-host reference) | Fixed asymmetric algorithm allowlist; required issuer, audience, subject, issued-at, and expiry claims; `maker`/`checker`/`reviewer`/`deployer` enforced in the API. Local `X-BRP-*` identity headers work only when `BRP_LOCAL_DEVELOPMENT_HEADERS=true`; production rejects them. Maker-checker remains an app invariant independent of IdP roles. |
-| Packaging | **Docker Compose** (api, ui, postgres, joern, decision-service); `uv` for Python, `pnpm` for UI | Compose-first for on-prem/air-gap; k8s optional, never required. |
+| Rule repository storage | **Existing cloud PostgreSQL** — immutable package/IR content, revision envelopes, lifecycle events, versioned scenarios/golden suites, and audit tables; SQLAlchemy + Alembic | No local Docker PostgreSQL requirement. Automated destructive tests use an isolated test DB/schema only. |
+| Governance UI | **Vue 3 + TypeScript + Vite + Pinia** | Decision-table/vocabulary/scenario editing is primary. Monaco/raw JSON is advanced/debug only. |
+| AuthN/Z | **Existing local development actors and maker-checker invariant** | Production OIDC is retained but deferred; it does not block dummy-repository full-flow acceptance. |
+| Local runtime | **Native API + worker + UI** using `uv`, `pnpm`, Git, and Java 17 | Docker Compose and Kubernetes are optional packaging work, not active prerequisites. |
 | Observability | structlog (JSON logs); OpenTelemetry optional per site | Keep light. |
 
 ### 13.2 Source adapters (extraction)
 
 | Adapter | Primary choice | Notes / alternatives |
 |---|---|---|
-| `code-java` mining | **Joern** (`javasrc2cpg` frontend; CPGQL in server mode, driven from Python) | The CPG store is Joern's own — **no Neo4j/Neptune needed**; the graph is throwaway scaffolding (§6.3). tree-sitter as a cheap pre-scan fallback. |
-| LLM rule mining | **Tiered + benchmark-selected, provider-swappable** — bulk extraction on a value-tier model; hard slices & verification on a frontier-tier model | Mining is token-heavy, repetitive, structured-output work with a downstream safety net (human review + golden tests). Phase 1 uses recorded mock responses; a real-provider default is selected only by the gated benchmark on customer-approved slices. Structured output is validated by the same Pydantic IR models regardless of provider. LLM output is candidate-only (ADR-4). |
-| LLM deployment per site | API where policy allows; **self-hosted open-weights (vLLM)** for air-gapped sites | Open-weights options (DeepSeek/Qwen/GLM/Kimi) are the only viable path for air-gapped finance sites — no closed API (Claude included) can serve them. Conversely, some sites may restrict specific foreign endpoints; the site profile (§10) selects the provider, the pipeline code never changes. |
-| DB MCP library | **Official Python MCP SDK (FastMCP)** + driver protocol; **psycopg 3** for PostgreSQL and stdlib **sqlite3** for the local portability proof | No arbitrary SQL MCP tool. SQLite opens file URIs with `mode=ro` and `PRAGMA query_only`; its lack of stored-procedure source is reported as an unsupported capability. Oracle/MSSQL remain candidate production drivers after customer selection. |
-| `engine-dmn` | Hardened stdlib **ElementTree** parsing plus a hand-rolled restricted FEEL parser | DTD/entities are rejected before parse. Complex FEEL/boxed expressions → review queue (§6.4); BPMN is rejected. Full XSD/DRD support is intentionally outside the implemented subset. |
-| Stored-object/UI/engine-native | Regex-bounded PL/pgSQL subset; stdlib `HTMLParser`; restricted DRL parser | These parse declarative subsets only. No SQL/UI code executes. ODM is review-only until customer artifacts define the versioned mapping. |
-| `docs-manual` | pdfplumber / python-docx / openpyxl + LLM extraction | Supplementary source; low default confidence. |
+| `code-java-agent` | **Git + ripgrep + bounded reader**, then **Tree-sitter**, then targeted **JavaParser/OpenRewrite/JDT LS** | Progressive evidence tiers per ADR-10. The base flow must work without Joern. |
+| Structured candidate extraction | Provider-swappable LLM/agent behind validated schemas | Consumes bounded evidence and returns candidate package + EvidenceBundle only. It never writes production Java. |
+| Heavy semantic escalation | **Joern or SootUp, optional and ephemeral** | Allowed only after a recorded lightweight failure shows why it is needed. Not part of base Compose/runtime. |
+| `db-postgres-table` | Existing bounded connector contract + **psycopg 3** | Read-only allowlisted catalog/table access; no model-authored arbitrary SQL. Second DBMS support is deferred. |
+| Historical adapters | Existing DMN/DRL/stored-object/UI/manual/SQLite proofs | Retained and tested where practical, but not active full-flow dependencies. |
 
 ### 13.3 Target generators & delivery
 
 | Component | Primary choice | Notes / alternatives |
 |---|---|---|
 | `java-source` generator | **Java 17 toolchain: JavaPoet** (AST-safe class generation) + **google-java-format** (deterministic formatting) — packaged as a Gradle-built CLI: release manifest + JSON IR in → `.java` out | JavaPoet is the Phase-1 choice. Site-specific style differences are formatter/import/package configuration, not alternate free-form templates. |
-| Integration-seam cut-over (§8) | **OpenRewrite** recipes — replace the mined region with the façade call | Semi-automated, always lands as a human-reviewed PR. This is *refactoring existing code*; distinct from generation (JavaPoet) and mining (Joern). |
+| Integration-seam cut-over (§8) | Targeted human-reviewed edit; **OpenRewrite** may assist when useful | The dummy repository must contain a stable seam before recurring generation. |
 | `test-generator` | JUnit 5 sources via the same Java toolchain; JSON fixtures for Zen (mode A) | Golden-test authority per §9. |
-| `jdm-export` | Pure Python JSON transform, round-trip-validated against embedded Zen | Trivial by design — IR v1 ⊂ JDM. |
-| `dmn-export` | Deterministic stdlib XML generation | Restricted unary-test subset with provenance extensions and import semantic round-trip tests. |
-| `csharp-source` | Deterministic Python renderer + xUnit source + ADR-8 manifest | All IR-v1 operators/hit policies and lookup contract are rendered. Current evidence is `COMPILE_NOT_RUN`; pin/install .NET before executable claims. |
-| Preview + mode-A runtime | **GoRules Zen** via the `zen-engine` Python binding, embedded in a thin stateless FastAPI **decision service** | Same service serves governance preview and mode-A production (scaled/hardened). No official Java Zen binding → Java sites integrate mode A via this sidecar, not in-process (ADR-5). |
-| CI/CD delivery (mode B) | git branch/PR flow (GitHub/GitLab — per site), **Gradle** builds the generated module | Platform side uses `gh`/API; the site's existing pipeline stays the deploy authority. |
+| Deferred targets | Existing JDM/DMN/C#/Zen components | Historical capabilities; not required for Java-repository MVP acceptance. |
+| Delivery | Git branch + **GitHub pull request**; target Gradle/Maven command is configured | Platform stops at the PR. Target CI/humans own merge and deployment. |
 
-### 13.4 Explicitly not in the stack
+### 13.4 Explicitly not required by the active MVP
 
-- **No graph database** (Neo4j/Neptune) — Joern's internal CPG store covers mining; the graph is rebuilt per run.
-- **No message broker** (Kafka etc.) — extraction is batch; FastAPI + task queue in-process is enough at this scale.
-- **No rule-engine BRMS suite** (GoRules BRMS paid tier, Camunda platform) — governance UI is ours; only the MIT Zen evaluator is consumed.
+- Joern, SootUp, Neo4j, Neptune, or another graph service.
+- Docker Compose, Kubernetes, a message broker, or a separate heavyweight worker pool.
+- A rule-engine runtime, DMN/DRL/ODM compatibility, C#, or a second DBMS/language.
+- OIDC/Internet exposure, high availability, 10,000-row performance rehearsal, or multi-site tenancy.
 
-## 14. Implemented Decisions And Remaining Customer Inputs
+## 14. Current Capability Truth And Gates
 
-### 14.1 Closed for implementation
+### 14.1 Reusable implemented foundations
 
-1. **Packaging:** one IR decision per independently evaluated decision table. Product/flow behavior is composed by the site façade using the restricted ADR-7 aggregators.
-2. **Lookups:** IR declares typed key/result bindings; production uses a site `LookupProvider`; golden gates use immutable lookup snapshots and record their hashes.
-3. **Repository:** PostgreSQL is the canonical Phase-1 store; Git is the delivery/review store for generated artifacts.
-4. **Java generation:** JavaPoet + google-java-format is binding for Phase 1.
-5. **Engine:** Zen is the advisory preview executor and the future Mode-A executor behind `jdm-export`; generated Java remains Mode-B authority.
-6. **Development isolation:** local/CI containers are the default for automated tests. Shared EC2/RDS resources are optional integration targets and require explicit human authorization before mutation or service-impacting changes.
-7. **Mode A:** Zen is authoritative only through an immutable publication that records passing golden evidence and artifact hashes; rollback is another publication, never history mutation.
-8. **Authentication/authorization:** OIDC issuer/audience/JWKS configuration and fixed asymmetric JWT algorithms are mandatory outside an explicitly enabled local-header mode. API roles and maker-checker identity separation are both enforced.
-9. **Portability proof:** SQLite proves the DB driver boundary locally; it is not evidence for an unnamed production DBMS.
-10. **Mining benchmark:** benchmark/ground-truth/provider-policy formats and metrics are implemented, but the checked-in result is `SYNTHETIC_NON_CUSTOMER` and cannot support customer mining-accuracy claims.
-11. **Phase-3 source boundaries:** PL/pgSQL, HTML validation, and DRL are restricted declarative subsets. Unsupported fragments are review evidence, never silently executed or coerced. ODM remains review-only without customer artifacts.
-12. **Phase-3 targets:** DMN export has semantic round-trip proof. C# has deterministic source/golden/manifest proof only; executable authority remains blocked by the absent pinned .NET toolchain.
-13. **Scale preflight:** multi-site orchestration is fail-closed through a deterministic, secret-free capability matrix.
+1. Restricted typed Rule IR, immutable revisions, lifecycle/audit records, effective dating, and maker-checker enforcement.
+2. PostgreSQL persistence, durable jobs/worker leases, candidate promotion, artifacts, and release evidence.
+3. Deterministic Java/JavaPoet generation, generated JUnit, manifest hashing, target command seams, and Git branch delivery primitives.
+4. Public GitHub URL validation, credential-free cloning, subpath validation, and immutable commit pinning.
+5. Vue console surfaces for imports, decisions, review, tests, releases, sites, and operations.
+6. Bounded PostgreSQL connector and deterministic row-to-rule proof.
+7. Historical restricted Zen/JDM, DMN/DRL, C#, stored-object, UI-validation, SQLite, OIDC, multi-site, and container capabilities.
 
-### 14.2 Still customer-gated
+### 14.2 Product-critical gaps
 
-- Real source/schema samples and the pilot product/flow.
-- Site-specific target repository conventions and the human-reviewed seam design.
-- The pilot's exact role-to-user/group mapping and release-evidence thresholds.
-- Production IdP issuer/audience/JWKS metadata and key-rotation/availability acceptance.
-- Customer provider policy, approved source-slice scope, approval metadata, and real ground truth for a real-slice mining benchmark.
-- The production second-DBMS target and its customer-owned read-only credentials/catalog acceptance (SQLite is only the local contract proof).
-- Immutable real stored-object, UI-framework, DRL, and ODM samples plus expected mappings for compatibility/accuracy evidence.
-- A pinned .NET SDK, C# target conventions/repository, and authoritative compile/golden execution evidence.
-- Product/flow/site inventory and approval for an actual multi-site rollout; the current matrix uses synthetic profiles.
-- Production lookup freshness/SLA and release-channel policy.
+1. Canonical Decision Package persistence/compiler/governance and the primary decision-table/scenario editor exist; evidence drill-down, revision diff, nested/lookup authoring, and complete browser/accessibility acceptance remain.
+2. The lightweight evidence agent has completed a live, compiling, reviewed import from an unrelated stateless discount repository. A GildedRose trial established the next concrete model gap: one concept cannot yet be both current-state input and next-state output in the v1 vocabulary.
+3. EvidenceBundle field-level provenance, uncertainty, and tool transcript are embedded in immutable candidate snapshots; first-class evidence storage and dedicated review views remain.
+4. The console guides a bounded cloud PostgreSQL table through mapping and package approval; separate least-privilege credentials and the downstream generated-Java/PR portion remain.
+5. A real remote dummy-repository acceptance — behavior edit, generated/target tests, pushed branch, and created GitHub PR — has not passed.
 
-These inputs block real-site rollout and benchmark claims, but not the synthetic/local Phase-1 and Phase-2 proofs or the generic contracts above.
+### 14.3 Expansion gate
+
+No deferred capability becomes active because it is architecturally interesting or might be needed at hypothetical scale. Its proposal must identify:
+
+- the concrete small-flow input and failed user outcome;
+- evidence from the lightest current toolchain showing the blocker;
+- why configuration, bounded analysis, or human review is insufficient;
+- the smallest new capability required and its removal/rollback boundary;
+- an acceptance case proving the addition solves that blocker without weakening provenance, governance, or deterministic delivery.
+
+Until those criteria are met, the architecture is optimized for one repo, one DB table, one Java target, and one useful governed pull request.

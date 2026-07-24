@@ -1,0 +1,22 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:05.967
+A source adapter pins an immutable revision and extracts candidate logic with exact provenance.
+
+00:00:06.000 --> 00:00:12.967
+Each candidate becomes Canonical Rule IR: explicit inputs, conditions, outcomes, and source locations.
+
+00:00:13.000 --> 00:00:18.600
+A maker creates a new revision. An independent checker compares it with the source evidence.
+
+00:00:19.000 --> 00:00:25.700
+Golden cases execute that pinned revision, comparing actual decisions with governed expected outputs.
+
+00:00:26.000 --> 00:00:32.967
+Passing evidence opens the release gate. Revisions, approvals, test runs, and artifacts remain traceable.
+
+00:00:33.000 --> 00:00:40.900
+Mode A publishes approved IR to the managed runtime. Mode B generates deterministic source and a reviewable code change.
+
+00:00:41.000 --> 00:00:44.033
+One governed model, traced from source to production.

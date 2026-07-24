@@ -7,7 +7,7 @@ import { useAppStore } from '../stores/app'
 import DecisionsPage from './DecisionsPage.vue'
 
 const summary = { decisionKey: 'enrollment_eligibility', name: 'Enrollment eligibility', latestRevision: 2, latestStatus: 'SUBMITTED', owner: 'maker-a', updatedAt: '2026-08-01T00:00:00Z' }
-const revision = { envelope: { decisionKey: summary.decisionKey, revision: 2, lifecycleStatus: 'SUBMITTED', contentHash: 'a'.repeat(64), effectiveFrom: '2026-08-01T00:00:00Z', effectiveTo: null, createdBy: 'maker-a', submittedBy: 'maker-a', approvedBy: null }, content: { decisionName: summary.name, rules: [{ ruleId: 'R001', when: { all: [] }, then: [], confidence: 0.95 }] } }
+const revision = { envelope: { decisionKey: summary.decisionKey, revision: 2, lifecycleStatus: 'SUBMITTED', contentHash: 'a'.repeat(64), effectiveFrom: '2026-08-01T00:00:00Z', effectiveTo: null, createdBy: 'maker-a', submittedBy: 'maker-a', approvedBy: null }, content: { decisionName: summary.name, inputs: [{ name: 'age', type: 'integer', sourcePath: 'customer.age' }], outputs: [{ name: 'eligible', type: 'boolean' }, { name: 'reason', type: 'string' }], rules: [{ ruleId: 'R001', when: { all: [{ left: { kind: 'INPUT', name: 'age' }, operator: 'LT', right: { kind: 'LITERAL', value: 18 } }] }, then: [{ output: 'eligible', value: false }, { output: 'reason', value: 'UNDER_AGE' }], sourceReferences: [{ type: 'JAVA_SOURCE' }], confidence: 0.95 }] } }
 let pinia: ReturnType<typeof createPinia>
 let router: ReturnType<typeof createRouter>
 
@@ -54,6 +54,9 @@ describe('DecisionsPage', () => {
     await flushPromises()
     expect(wrapper.get('[role="dialog"]').text()).toContain('Enrollment eligibility')
     expect(wrapper.text()).toContain('Immutable revision')
+    expect(wrapper.text()).toContain('Business inputs')
+    expect(wrapper.text()).toContain('customer.age')
+    expect(wrapper.text()).toContain('Business outcomes')
     expect(wrapper.text()).toContain('Advanced JSON')
   })
 

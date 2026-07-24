@@ -18,6 +18,7 @@ class RuntimeSettings(StrictModel):
     database_pool_size: int = Field(default=5, ge=1, le=50)
     database_max_overflow: int = Field(default=5, ge=0, le=100)
     database_pool_timeout_seconds: int = Field(default=10, ge=1, le=120)
+    database_connect_timeout_seconds: int = Field(default=5, ge=1, le=60)
     database_statement_timeout_ms: int = Field(default=30_000, ge=1_000, le=600_000)
     artifact_root: Path = Path("output/artifacts")
     artifact_backend: Literal["local", "s3"] = "local"
@@ -55,6 +56,9 @@ class RuntimeSettings(StrictModel):
             database_pool_size=int(os.getenv("BRP_DATABASE_POOL_SIZE", "5")),
             database_max_overflow=int(os.getenv("BRP_DATABASE_MAX_OVERFLOW", "5")),
             database_pool_timeout_seconds=int(os.getenv("BRP_DATABASE_POOL_TIMEOUT_SECONDS", "10")),
+            database_connect_timeout_seconds=int(
+                os.getenv("BRP_DATABASE_CONNECT_TIMEOUT_SECONDS", "5")
+            ),
             database_statement_timeout_ms=int(
                 os.getenv("BRP_DATABASE_STATEMENT_TIMEOUT_MS", "30000")
             ),

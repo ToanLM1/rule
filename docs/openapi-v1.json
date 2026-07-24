@@ -141,6 +141,52 @@
         "title": "BatchReviewRequest",
         "type": "object"
       },
+      "BusinessScenario": {
+        "additionalProperties": false,
+        "properties": {
+          "evidenceIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidenceids",
+            "type": "array"
+          },
+          "expected": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "minProperties": 1,
+            "title": "Expected",
+            "type": "object"
+          },
+          "inputs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonScalar"
+            },
+            "minProperties": 1,
+            "title": "Inputs",
+            "type": "object"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "scenarioId": {
+            "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+            "title": "Scenarioid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenarioId",
+          "name",
+          "inputs",
+          "expected"
+        ],
+        "title": "BusinessScenario",
+        "type": "object"
+      },
       "CandidatePromotionRequest": {
         "additionalProperties": false,
         "properties": {
@@ -204,6 +250,127 @@
         "title": "CandidatePromotionRequest",
         "type": "object"
       },
+      "CanonicalDecisionPackage": {
+        "additionalProperties": false,
+        "properties": {
+          "authoredAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authoredat"
+          },
+          "businessScenarios": {
+            "items": {
+              "$ref": "#/components/schemas/BusinessScenario"
+            },
+            "title": "Businessscenarios",
+            "type": "array"
+          },
+          "composition": {
+            "items": {
+              "$ref": "#/components/schemas/CompositionStep"
+            },
+            "title": "Composition",
+            "type": "array"
+          },
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionTable"
+            },
+            "minItems": 1,
+            "title": "Decisions",
+            "type": "array"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/PackageEvidence"
+            },
+            "title": "Evidence",
+            "type": "array"
+          },
+          "lookups": {
+            "items": {
+              "$ref": "#/components/schemas/PackageLookup"
+            },
+            "title": "Lookups",
+            "type": "array"
+          },
+          "packageId": {
+            "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+            "title": "Packageid",
+            "type": "string"
+          },
+          "packageName": {
+            "minLength": 1,
+            "title": "Packagename",
+            "type": "string"
+          },
+          "product": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Product"
+          },
+          "profile": {
+            "const": "CANONICAL_DECISION_PACKAGE_V1",
+            "title": "Profile",
+            "type": "string"
+          },
+          "programContexts": {
+            "items": {
+              "$ref": "#/components/schemas/ProgramContext"
+            },
+            "minItems": 1,
+            "title": "Programcontexts",
+            "type": "array"
+          },
+          "schemaVersion": {
+            "const": 1,
+            "title": "Schemaversion",
+            "type": "integer"
+          },
+          "targetBinding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JavaTargetBinding"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "vocabulary": {
+            "items": {
+              "$ref": "#/components/schemas/VocabularyField"
+            },
+            "minItems": 1,
+            "title": "Vocabulary",
+            "type": "array"
+          }
+        },
+        "required": [
+          "packageId",
+          "packageName",
+          "profile",
+          "schemaVersion",
+          "programContexts",
+          "vocabulary",
+          "decisions"
+        ],
+        "title": "CanonicalDecisionPackage",
+        "type": "object"
+      },
       "CompositionConfig": {
         "additionalProperties": false,
         "properties": {
@@ -245,6 +412,43 @@
           "aggregate"
         ],
         "title": "CompositionDecision",
+        "type": "object"
+      },
+      "CompositionOperation": {
+        "enum": [
+          "SUM",
+          "DISTINCT",
+          "FIRST_NON_NULL"
+        ],
+        "title": "CompositionOperation",
+        "type": "string"
+      },
+      "CompositionStep": {
+        "additionalProperties": false,
+        "properties": {
+          "decisions": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Decisions",
+            "type": "array"
+          },
+          "operation": {
+            "$ref": "#/components/schemas/CompositionOperation"
+          },
+          "output": {
+            "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+            "title": "Output",
+            "type": "string"
+          }
+        },
+        "required": [
+          "output",
+          "operation",
+          "decisions"
+        ],
+        "title": "CompositionStep",
         "type": "object"
       },
       "Condition": {
@@ -511,6 +715,50 @@
           "lineEnd"
         ],
         "title": "DbStoredObjectReference",
+        "type": "object"
+      },
+      "DbTableImportRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "authoredAt": {
+            "format": "date-time",
+            "title": "Authoredat",
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date-time",
+            "title": "Effectivefrom",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effectiveto"
+          },
+          "mapping": {
+            "$ref": "#/components/schemas/TableImportMapping"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mapping",
+          "effectiveFrom",
+          "authoredAt",
+          "reason"
+        ],
+        "title": "DbTableImportRequest",
         "type": "object"
       },
       "DecisionContent-Input": {
@@ -843,6 +1091,136 @@
         "title": "DecisionSummaryResponse",
         "type": "object"
       },
+      "DecisionTable": {
+        "additionalProperties": false,
+        "properties": {
+          "decisionId": {
+            "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+            "title": "Decisionid",
+            "type": "string"
+          },
+          "defaultOutcome": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonScalar"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Defaultoutcome"
+          },
+          "hitPolicy": {
+            "$ref": "#/components/schemas/HitPolicy"
+          },
+          "inputFields": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Inputfields",
+            "type": "array"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "outputFields": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Outputfields",
+            "type": "array"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionTableRow"
+            },
+            "minItems": 1,
+            "title": "Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "decisionId",
+          "name",
+          "hitPolicy",
+          "inputFields",
+          "outputFields",
+          "rows"
+        ],
+        "title": "DecisionTable",
+        "type": "object"
+      },
+      "DecisionTableRow": {
+        "additionalProperties": false,
+        "properties": {
+          "conditions": {
+            "items": {
+              "$ref": "#/components/schemas/PackageCondition"
+            },
+            "minItems": 1,
+            "title": "Conditions",
+            "type": "array"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "evidenceIds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidenceids",
+            "type": "array"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "outcomes": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonScalar"
+            },
+            "minProperties": 1,
+            "title": "Outcomes",
+            "type": "object"
+          },
+          "rowId": {
+            "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+            "title": "Rowid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "rowId",
+          "conditions",
+          "outcomes"
+        ],
+        "title": "DecisionTableRow",
+        "type": "object"
+      },
       "DeliveryMode": {
         "enum": [
           "A",
@@ -850,6 +1228,38 @@
         ],
         "title": "DeliveryMode",
         "type": "string"
+      },
+      "DiscoveredTable": {
+        "additionalProperties": false,
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/TableColumn"
+            },
+            "title": "Columns",
+            "type": "array"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "schemaName": {
+            "title": "Schemaname",
+            "type": "string"
+          },
+          "table": {
+            "title": "Table",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schemaName",
+          "table",
+          "kind",
+          "columns"
+        ],
+        "title": "DiscoveredTable",
+        "type": "object"
       },
       "DmnAssetReference": {
         "additionalProperties": false,
@@ -1090,10 +1500,23 @@
               "db-postgres-stored-object",
               "ui-html-validation",
               "engine-native",
-              "engine-dmn"
+              "engine-dmn",
+              "code-java"
             ],
             "title": "Adapter",
             "type": "string"
+          },
+          "className": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Classname"
           },
           "connectionAlias": {
             "default": "LOCAL_INLINE",
@@ -1102,10 +1525,17 @@
             "type": "string"
           },
           "content": {
-            "maxLength": 1000000,
-            "minLength": 1,
-            "title": "Content",
-            "type": "string"
+            "anyOf": [
+              {
+                "maxLength": 1000000,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
           },
           "filename": {
             "maxLength": 200,
@@ -1113,11 +1543,66 @@
             "title": "Filename",
             "type": "string"
           },
+          "method": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Method"
+          },
           "objectName": {
             "default": "eligibility",
             "pattern": "^[A-Za-z_][A-Za-z0-9_$]*$",
             "title": "Objectname",
             "type": "string"
+          },
+          "profileRevision": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profilerevision"
+          },
+          "repositoryAlias": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z][A-Za-z0-9_-]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repositoryalias"
+          },
+          "repositoryPath": {
+            "default": ".",
+            "maxLength": 300,
+            "title": "Repositorypath",
+            "type": "string"
+          },
+          "repositoryUrl": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Repositoryurl"
           },
           "revision": {
             "default": "uploaded-v1",
@@ -1141,7 +1626,6 @@
         "required": [
           "siteId",
           "adapter",
-          "content",
           "filename"
         ],
         "title": "ImportRunRequest",
@@ -1257,6 +1741,63 @@
           "lineEnd"
         ],
         "title": "JavaSourceReference",
+        "type": "object"
+      },
+      "JavaTargetBinding": {
+        "additionalProperties": false,
+        "properties": {
+          "baseBranch": {
+            "minLength": 1,
+            "title": "Basebranch",
+            "type": "string"
+          },
+          "buildCommands": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "minItems": 1,
+            "title": "Buildcommands",
+            "type": "array"
+          },
+          "facade": {
+            "minLength": 1,
+            "title": "Facade",
+            "type": "string"
+          },
+          "generatedPath": {
+            "minLength": 1,
+            "title": "Generatedpath",
+            "type": "string"
+          },
+          "javaPackage": {
+            "minLength": 1,
+            "title": "Javapackage",
+            "type": "string"
+          },
+          "repositoryAlias": {
+            "minLength": 1,
+            "title": "Repositoryalias",
+            "type": "string"
+          },
+          "testPath": {
+            "minLength": 1,
+            "title": "Testpath",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repositoryAlias",
+          "baseBranch",
+          "javaPackage",
+          "generatedPath",
+          "testPath",
+          "facade",
+          "buildCommands"
+        ],
+        "title": "JavaTargetBinding",
         "type": "object"
       },
       "JsonScalar": {
@@ -1417,6 +1958,39 @@
             "$ref": "#/components/schemas/LiteralOperand"
           }
         ]
+      },
+      "LookupSnapshotRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "maxItems": 100000,
+            "minItems": 1,
+            "title": "Rows",
+            "type": "array"
+          },
+          "source": {
+            "additionalProperties": true,
+            "title": "Source",
+            "type": "object"
+          }
+        },
+        "required": [
+          "name",
+          "rows",
+          "source"
+        ],
+        "title": "LookupSnapshotRequest",
+        "type": "object"
       },
       "ManualDocumentReference": {
         "additionalProperties": false,
@@ -1737,6 +2311,349 @@
           "type"
         ],
         "title": "OutputDefinition",
+        "type": "object"
+      },
+      "PackageCompilation": {
+        "additionalProperties": false,
+        "properties": {
+          "decisions": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionContent-Output"
+            },
+            "title": "Decisions",
+            "type": "array"
+          },
+          "diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/PackageDiagnostic"
+            },
+            "title": "Diagnostics",
+            "type": "array"
+          }
+        },
+        "required": [
+          "decisions",
+          "diagnostics"
+        ],
+        "title": "PackageCompilation",
+        "type": "object"
+      },
+      "PackageCompileRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "authoredAt": {
+            "format": "date-time",
+            "title": "Authoredat",
+            "type": "string"
+          },
+          "package": {
+            "$ref": "#/components/schemas/CanonicalDecisionPackage"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "package",
+          "authoredAt",
+          "reason"
+        ],
+        "title": "PackageCompileRequest",
+        "type": "object"
+      },
+      "PackageCondition": {
+        "additionalProperties": false,
+        "properties": {
+          "field": {
+            "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+            "title": "Field",
+            "type": "string"
+          },
+          "operator": {
+            "$ref": "#/components/schemas/Operator"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JsonValue"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "field",
+          "operator"
+        ],
+        "title": "PackageCondition",
+        "type": "object"
+      },
+      "PackageCreateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "authoredAt": {
+            "format": "date-time",
+            "title": "Authoredat",
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date-time",
+            "title": "Effectivefrom",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effectiveto"
+          },
+          "package": {
+            "$ref": "#/components/schemas/CanonicalDecisionPackage"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "package",
+          "authoredAt",
+          "reason",
+          "effectiveFrom"
+        ],
+        "title": "PackageCreateRequest",
+        "type": "object"
+      },
+      "PackageDiagnostic": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "severity": {
+            "const": "ERROR",
+            "default": "ERROR",
+            "title": "Severity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "code",
+          "message"
+        ],
+        "title": "PackageDiagnostic",
+        "type": "object"
+      },
+      "PackageEvidence": {
+        "additionalProperties": false,
+        "properties": {
+          "assumptions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Assumptions",
+            "type": "array"
+          },
+          "evidenceId": {
+            "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+            "title": "Evidenceid",
+            "type": "string"
+          },
+          "sourceReference": {
+            "$ref": "#/components/schemas/SourceReference"
+          },
+          "summary": {
+            "minLength": 1,
+            "title": "Summary",
+            "type": "string"
+          },
+          "unresolved": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unresolved",
+            "type": "array"
+          }
+        },
+        "required": [
+          "evidenceId",
+          "sourceReference",
+          "summary"
+        ],
+        "title": "PackageEvidence",
+        "type": "object"
+      },
+      "PackageLookup": {
+        "additionalProperties": false,
+        "properties": {
+          "keys": {
+            "items": {
+              "$ref": "#/components/schemas/FieldDefinition"
+            },
+            "minItems": 1,
+            "title": "Keys",
+            "type": "array"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "name": {
+            "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+            "title": "Name",
+            "type": "string"
+          },
+          "outputs": {
+            "items": {
+              "$ref": "#/components/schemas/FieldDefinition"
+            },
+            "minItems": 1,
+            "title": "Outputs",
+            "type": "array"
+          },
+          "ref": {
+            "pattern": "^lookup://.+",
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "ref",
+          "keys",
+          "outputs"
+        ],
+        "title": "PackageLookup",
+        "type": "object"
+      },
+      "PackageRevisionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "authoredAt": {
+            "format": "date-time",
+            "title": "Authoredat",
+            "type": "string"
+          },
+          "baseRevision": {
+            "minimum": 1.0,
+            "title": "Baserevision",
+            "type": "integer"
+          },
+          "effectiveFrom": {
+            "format": "date-time",
+            "title": "Effectivefrom",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effectiveto"
+          },
+          "package": {
+            "$ref": "#/components/schemas/CanonicalDecisionPackage"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "package",
+          "authoredAt",
+          "reason",
+          "effectiveFrom",
+          "baseRevision"
+        ],
+        "title": "PackageRevisionRequest",
+        "type": "object"
+      },
+      "PackageScenarioRevisionRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "authoredAt": {
+            "format": "date-time",
+            "title": "Authoredat",
+            "type": "string"
+          },
+          "baseRevision": {
+            "minimum": 1.0,
+            "title": "Baserevision",
+            "type": "integer"
+          },
+          "effectiveFrom": {
+            "format": "date-time",
+            "title": "Effectivefrom",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effectiveto"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "scenarios": {
+            "items": {
+              "$ref": "#/components/schemas/BusinessScenario"
+            },
+            "minItems": 1,
+            "title": "Scenarios",
+            "type": "array"
+          }
+        },
+        "required": [
+          "baseRevision",
+          "scenarios",
+          "effectiveFrom",
+          "authoredAt",
+          "reason"
+        ],
+        "title": "PackageScenarioRevisionRequest",
         "type": "object"
       },
       "PreviewRequest": {
@@ -2307,6 +3224,139 @@
           }
         ]
       },
+      "TableColumn": {
+        "additionalProperties": false,
+        "properties": {
+          "databaseType": {
+            "title": "Databasetype",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "nullable": {
+            "title": "Nullable",
+            "type": "boolean"
+          },
+          "ordinal": {
+            "title": "Ordinal",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "databaseType",
+          "nullable",
+          "ordinal"
+        ],
+        "title": "TableColumn",
+        "type": "object"
+      },
+      "TableImportMapping": {
+        "additionalProperties": false,
+        "properties": {
+          "conditionColumns": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Conditioncolumns",
+            "type": "array"
+          },
+          "connectionAlias": {
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "title": "Connectionalias",
+            "type": "string"
+          },
+          "decisionId": {
+            "title": "Decisionid",
+            "type": "string"
+          },
+          "decisionName": {
+            "minLength": 1,
+            "title": "Decisionname",
+            "type": "string"
+          },
+          "entryPoint": {
+            "default": "database-rule-table",
+            "minLength": 1,
+            "title": "Entrypoint",
+            "type": "string"
+          },
+          "maxRows": {
+            "default": 100,
+            "maximum": 500.0,
+            "minimum": 1.0,
+            "title": "Maxrows",
+            "type": "integer"
+          },
+          "outcomeColumns": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Outcomecolumns",
+            "type": "array"
+          },
+          "packageId": {
+            "title": "Packageid",
+            "type": "string"
+          },
+          "packageName": {
+            "minLength": 1,
+            "title": "Packagename",
+            "type": "string"
+          },
+          "primaryKeyColumns": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Primarykeycolumns",
+            "type": "array"
+          },
+          "programId": {
+            "default": "DB_RULE_IMPORT",
+            "minLength": 1,
+            "title": "Programid",
+            "type": "string"
+          },
+          "programKind": {
+            "$ref": "#/components/schemas/ProgramKind",
+            "default": "SERVICE"
+          },
+          "scenarios": {
+            "items": {
+              "$ref": "#/components/schemas/BusinessScenario"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          },
+          "schemaName": {
+            "title": "Schemaname",
+            "type": "string"
+          },
+          "table": {
+            "title": "Table",
+            "type": "string"
+          }
+        },
+        "required": [
+          "connectionAlias",
+          "schemaName",
+          "table",
+          "packageId",
+          "packageName",
+          "decisionId",
+          "decisionName",
+          "conditionColumns",
+          "outcomeColumns",
+          "primaryKeyColumns"
+        ],
+        "title": "TableImportMapping",
+        "type": "object"
+      },
       "TargetConfig": {
         "additionalProperties": false,
         "properties": {
@@ -2570,6 +3620,70 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "VocabularyField": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "key": {
+            "pattern": "^[A-Za-z_$][A-Za-z0-9_$]*$",
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "required": {
+            "default": true,
+            "title": "Required",
+            "type": "boolean"
+          },
+          "role": {
+            "$ref": "#/components/schemas/VocabularyRole"
+          },
+          "sourcePath": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourcepath"
+          },
+          "type": {
+            "$ref": "#/components/schemas/ScalarType"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "type",
+          "role"
+        ],
+        "title": "VocabularyField",
+        "type": "object"
+      },
+      "VocabularyRole": {
+        "enum": [
+          "INPUT",
+          "OUTPUT"
+        ],
+        "title": "VocabularyRole",
+        "type": "string"
       }
     }
   },
@@ -2683,6 +3797,636 @@
         ]
       }
     },
+    "/api/v1/candidates/{candidate_id}/promote-package": {
+      "post": {
+        "operationId": "promote_candidate_package_api_v1_candidates__candidate_id__promote_package_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "candidate_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Candidate Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CandidatePromotionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Promote Candidate Package Api V1 Candidates  Candidate Id  Promote Package Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Promote Candidate Package",
+        "tags": [
+          "v1"
+        ]
+      }
+    },
+    "/api/v1/canonical-packages": {
+      "get": {
+        "operationId": "canonical_packages_api_v1_canonical_packages_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Canonical Packages Api V1 Canonical Packages Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Canonical Packages",
+        "tags": [
+          "v1"
+        ]
+      },
+      "post": {
+        "operationId": "create_canonical_package_api_v1_canonical_packages_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Canonical Package Api V1 Canonical Packages Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Canonical Package",
+        "tags": [
+          "v1"
+        ]
+      }
+    },
+    "/api/v1/canonical-packages/compile": {
+      "post": {
+        "operationId": "compile_canonical_package_api_v1_canonical_packages_compile_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageCompileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageCompilation"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Compile Canonical Package",
+        "tags": [
+          "v1"
+        ]
+      }
+    },
+    "/api/v1/canonical-packages/{package_key}": {
+      "get": {
+        "operationId": "canonical_package_detail_api_v1_canonical_packages__package_key__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "package_key",
+            "required": true,
+            "schema": {
+              "title": "Package Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "revision",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Revision"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Canonical Package Detail Api V1 Canonical Packages  Package Key  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Canonical Package Detail",
+        "tags": [
+          "v1"
+        ]
+      }
+    },
+    "/api/v1/canonical-packages/{package_key}/audit": {
+      "get": {
+        "operationId": "canonical_package_audit_api_v1_canonical_packages__package_key__audit_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "package_key",
+            "required": true,
+            "schema": {
+              "title": "Package Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Canonical Package Audit Api V1 Canonical Packages  Package Key  Audit Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Canonical Package Audit",
+        "tags": [
+          "v1"
+        ]
+      }
+    },
+    "/api/v1/canonical-packages/{package_key}/diff": {
+      "get": {
+        "operationId": "canonical_package_diff_api_v1_canonical_packages__package_key__diff_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "package_key",
+            "required": true,
+            "schema": {
+              "title": "Package Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fromRevision",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Fromrevision",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "toRevision",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Torevision",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Canonical Package Diff Api V1 Canonical Packages  Package Key  Diff Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Canonical Package Diff",
+        "tags": [
+          "v1"
+        ]
+      }
+    },
+    "/api/v1/canonical-packages/{package_key}/revisions": {
+      "post": {
+        "operationId": "revise_canonical_package_api_v1_canonical_packages__package_key__revisions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "package_key",
+            "required": true,
+            "schema": {
+              "title": "Package Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Revise Canonical Package Api V1 Canonical Packages  Package Key  Revisions Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revise Canonical Package",
+        "tags": [
+          "v1"
+        ]
+      }
+    },
+    "/api/v1/canonical-packages/{package_key}/scenarios": {
+      "post": {
+        "operationId": "revise_package_scenarios_api_v1_canonical_packages__package_key__scenarios_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "package_key",
+            "required": true,
+            "schema": {
+              "title": "Package Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PackageScenarioRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Revise Package Scenarios Api V1 Canonical Packages  Package Key  Scenarios Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revise Package Scenarios",
+        "tags": [
+          "v1"
+        ]
+      }
+    },
+    "/api/v1/canonical-packages/{package_key}/{revision}/{action}": {
+      "post": {
+        "operationId": "transition_canonical_package_api_v1_canonical_packages__package_key___revision___action__post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "package_key",
+            "required": true,
+            "schema": {
+              "title": "Package Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revision",
+            "required": true,
+            "schema": {
+              "title": "Revision",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "submit",
+                "approve",
+                "reject"
+              ],
+              "title": "Action",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Transition Canonical Package Api V1 Canonical Packages  Package Key   Revision   Action  Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Transition Canonical Package",
+        "tags": [
+          "v1"
+        ]
+      }
+    },
     "/api/v1/context": {
       "get": {
         "operationId": "context_api_v1_context_get",
@@ -2701,6 +4445,116 @@
           }
         },
         "summary": "Context",
+        "tags": [
+          "v1"
+        ]
+      }
+    },
+    "/api/v1/db-sources/import": {
+      "post": {
+        "operationId": "import_db_source_table_api_v1_db_sources_import_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DbTableImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Import Db Source Table Api V1 Db Sources Import Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Db Source Table",
+        "tags": [
+          "v1"
+        ]
+      }
+    },
+    "/api/v1/db-sources/tables": {
+      "get": {
+        "operationId": "db_source_tables_api_v1_db_sources_tables_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "connection_alias",
+            "required": true,
+            "schema": {
+              "title": "Connection Alias",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "schema_name",
+            "required": true,
+            "schema": {
+              "title": "Schema Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DiscoveredTable"
+                  },
+                  "title": "Response Db Source Tables Api V1 Db Sources Tables Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Db Source Tables",
         "tags": [
           "v1"
         ]
@@ -2965,6 +4819,60 @@
       }
     },
     "/api/v1/decisions/{decision_key}/revisions": {
+      "get": {
+        "operationId": "decision_revisions_api_v1_decisions__decision_key__revisions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "decision_key",
+            "required": true,
+            "schema": {
+              "title": "Decision Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DecisionRevisionResponse"
+                  },
+                  "title": "Response Decision Revisions Api V1 Decisions  Decision Key  Revisions Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Decision Revisions",
+        "tags": [
+          "v1"
+        ]
+      },
       "post": {
         "operationId": "create_revision_api_v1_decisions__decision_key__revisions_post",
         "parameters": [
@@ -3478,6 +5386,49 @@
         ]
       }
     },
+    "/api/v1/import-runs/preflight": {
+      "post": {
+        "operationId": "preflight_import_api_v1_import_runs_preflight_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Preflight Import Api V1 Import Runs Preflight Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preflight Import",
+        "tags": [
+          "v1"
+        ]
+      }
+    },
     "/api/v1/import-runs/{run_id}": {
       "get": {
         "operationId": "import_run_api_v1_import_runs__run_id__get",
@@ -3737,6 +5688,117 @@
           }
         },
         "summary": "Job Events",
+        "tags": [
+          "v1"
+        ]
+      }
+    },
+    "/api/v1/lookup-snapshots": {
+      "get": {
+        "operationId": "lookup_snapshots_api_v1_lookup_snapshots_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "approved",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Approved",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Lookup Snapshots Api V1 Lookup Snapshots Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lookup Snapshots",
+        "tags": [
+          "v1"
+        ]
+      },
+      "post": {
+        "operationId": "create_lookup_snapshot_api_v1_lookup_snapshots_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "site_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Site Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LookupSnapshotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Lookup Snapshot Api V1 Lookup Snapshots Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Lookup Snapshot",
         "tags": [
           "v1"
         ]

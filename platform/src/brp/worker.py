@@ -11,6 +11,8 @@ from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 from sqlalchemy import Engine, select
+from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from brp.db import create_database_engine
@@ -23,6 +25,7 @@ def run(*, once: bool = False) -> int:
     engine = create_database_engine()
     worker_id = os.getenv("BRP_WORKER_ID", f"{socket.gethostname()}-{uuid4().hex[:8]}")
     poll_seconds = float(os.getenv("BRP_WORKER_POLL_SECONDS", "1"))
+    retry_seconds = float(os.getenv("BRP_WORKER_DATABASE_RETRY_SECONDS", "5"))
     processed = 0
     started_at = datetime.now(UTC)
     stopped = threading.Event()
@@ -35,20 +38,33 @@ def run(*, once: bool = False) -> int:
     heartbeat_thread.start()
     try:
         while True:
-            with Session(engine) as session:
-                _record_heartbeat(session, worker_id, started_at)
-                service = JobService(session)
-                service.recover_abandoned()
-                job = service.lease_next(worker_id)
-                job_id = job.id if job is not None else None
-                job_status = job.status if job is not None else None
-                session.commit()
-                if job_id is not None and job_status != "CANCELLED":
-                    with Session(engine) as work_session:
-                        leased = JobService(work_session).get(job_id)
-                        execute_leased_job(work_session, leased, worker_id)
-                        work_session.commit()
-                    processed += 1
+            job = None
+            try:
+                with Session(engine) as session:
+                    _record_heartbeat(session, worker_id, started_at)
+                    service = JobService(session)
+                    service.recover_abandoned()
+                    job = service.lease_next(worker_id)
+                    job_id = job.id if job is not None else None
+                    job_status = job.status if job is not None else None
+                    session.commit()
+                    if job_id is not None and job_status != "CANCELLED":
+                        with Session(engine) as work_session:
+                            leased = JobService(work_session).get(job_id)
+                            execute_leased_job(work_session, leased, worker_id)
+                            work_session.commit()
+                        processed += 1
+            except SQLAlchemyError as exc:
+                engine.dispose()
+                print(
+                    f"worker database unavailable ({exc.__class__.__name__}); retrying",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                if once:
+                    raise
+                stopped.wait(retry_seconds)
+                continue
             if once:
                 return processed
             if job is None:
@@ -60,18 +76,24 @@ def run(*, once: bool = False) -> int:
 
 
 def _record_heartbeat(session: Session, worker_id: str, started_at: datetime) -> None:
-    heartbeat = session.get(WorkerHeartbeat, worker_id)
-    if heartbeat is None:
-        session.add(
-            WorkerHeartbeat(
-                worker_id=worker_id,
-                last_seen_at=datetime.now(UTC),
-                started_at=started_at,
-                worker_metadata={"host": socket.gethostname(), "pid": os.getpid()},
-            )
+    now = datetime.now(UTC)
+    metadata = {"host": socket.gethostname(), "pid": os.getpid()}
+    statement = insert(WorkerHeartbeat).values(
+        worker_id=worker_id,
+        last_seen_at=now,
+        started_at=started_at,
+        worker_metadata=metadata,
+    )
+    session.execute(
+        statement.on_conflict_do_update(
+            index_elements=[WorkerHeartbeat.worker_id],
+            set_={
+                "last_seen_at": now,
+                "started_at": started_at,
+                "worker_metadata": metadata,
+            },
         )
-    else:
-        heartbeat.last_seen_at = datetime.now(UTC)
+    )
 
 
 def _heartbeat_loop(

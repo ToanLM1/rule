@@ -2,6 +2,17 @@ export type GuideLocale = 'en' | 'ko'
 
 export type GuideContent = {
   nav: { title: string; chapters: Array<{ id: string; label: string }> }
+  media: {
+    heroAlt: string
+    trustAlt: string
+    workflowAlt: string
+    deliveryAlt: string
+    roleAlts: string[]
+    previousRole: string
+    nextRole: string
+    roleSelector: string
+    video: { title: string; body: string; label: string; fallback: string; captionsEn: string; captionsKo: string }
+  }
   hero: { eyebrow: string; titleLead: string; titleEmphasis: string; titleTail: string; body: string; primary: string; secondary: string; visualTitle: string; visualCaption: string }
   marquee: string[]
   principles: { eyebrow: string; title: string; body: string; cards: Array<{ title: string; body: string; proof: string }> }
@@ -39,6 +50,29 @@ export const guideContent = {
         { id: 'simulate', label: 'Try a rule' },
         { id: 'delivery', label: 'Delivery' },
       ],
+    },
+    media: {
+      heroAlt: 'A Maker and Checker turn source documents and database logic into reviewed rule cards, golden evidence and an approved release.',
+      trustAlt: 'A Maker and Checker compare a proposed rule with highlighted source evidence before approval and release.',
+      workflowAlt: 'Five-stage workflow from code and database import through normalized rules, Maker editing, Checker approval and tested release.',
+      deliveryAlt: 'Approved rules branch to a managed runtime on the left and deterministic generated source on the right.',
+      roleAlts: [
+        'Maker editing structured business-rule cards on a tablet.',
+        'Checker comparing source evidence with a proposed rule and review checklist.',
+        'Reviewer comparing golden test cases with an expected decision.',
+        'Deployer holding an approved release package beside a server rack.',
+      ],
+      previousRole: 'Previous role',
+      nextRole: 'Next role',
+      roleSelector: 'Choose a role',
+      video: {
+        title: 'See how the governed flow works.',
+        body: 'A 45-second technical explainer of source adapters, Canonical Rule IR, maker-checker review, golden execution and both delivery paths.',
+        label: 'Rule Platform overview video',
+        fallback: 'Your browser does not support embedded video.',
+        captionsEn: 'English captions',
+        captionsKo: 'Korean captions',
+      },
     },
     hero: {
       eyebrow: 'A business guide to governed decisions',
@@ -137,6 +171,29 @@ export const guideContent = {
         { id: 'simulate', label: '규칙 체험' },
         { id: 'delivery', label: '배포 방식' },
       ],
+    },
+    media: {
+      heroAlt: 'Maker와 Checker가 소스 문서와 데이터베이스 로직을 검토 가능한 규칙, 골든 증거와 승인된 릴리스로 전환합니다.',
+      trustAlt: 'Maker와 Checker가 승인 및 릴리스 전에 제안된 규칙을 강조된 소스 증거와 비교합니다.',
+      workflowAlt: '코드와 데이터베이스 가져오기부터 규칙 정규화, Maker 편집, Checker 승인과 테스트된 릴리스까지의 5단계 흐름입니다.',
+      deliveryAlt: '승인된 규칙이 왼쪽의 관리형 런타임과 오른쪽의 결정론적 생성 소스로 나뉩니다.',
+      roleAlts: [
+        'Maker가 태블릿에서 구조화된 비즈니스 규칙 카드를 편집합니다.',
+        'Checker가 소스 증거와 제안 규칙 및 검토 체크리스트를 비교합니다.',
+        'Reviewer가 골든 테스트 케이스와 기대 의사결정을 비교합니다.',
+        'Deployer가 서버 랙 옆에서 승인된 릴리스 패키지를 들고 있습니다.',
+      ],
+      previousRole: '이전 역할',
+      nextRole: '다음 역할',
+      roleSelector: '역할 선택',
+      video: {
+        title: '관리된 흐름의 작동 방식을 확인하세요.',
+        body: '소스 어댑터, Canonical Rule IR, 메이커-체커 검토, 골든 실행과 두 배포 경로를 설명하는 45초 기술 영상입니다.',
+        label: 'Rule Platform 소개 영상',
+        fallback: '이 브라우저는 내장 영상을 지원하지 않습니다.',
+        captionsEn: '영어 자막',
+        captionsKo: '한국어 자막',
+      },
     },
     hero: {
       eyebrow: '비즈니스 사용자를 위한 거버넌스 가이드',

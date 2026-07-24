@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 import subprocess
 import tempfile
@@ -17,14 +19,28 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from brp.adapters.code_java import JavaRuleMiner
+from brp.adapters.contracts import (
+    AdapterDiagnostic,
+    ExtractionBatch,
+    SourceSnapshot,
+    UnmappableItem,
+)
+from brp.adapters.contracts import (
+    CandidateDecision as ExtractedCandidateDecision,
+)
 from brp.adapters.joern import JoernLocator, JoernSlicer
 from brp.artifacts import artifact_store
+from brp.canonical_package import compile_package
 from brp.config.models import SiteProfile
 from brp.delivery import publish_delivery_branch, transactional_delivery_gate
-from brp.delivery_providers import ChangeRequestProvider, GitHubProvider, GitLabProvider
+from brp.delivery_providers import ChangeRequestProvider, GitLabProvider
+from brp.evidence import LightweightJavaAgent
 from brp.generation import GenerationOrchestrator, JavaCliReleaseBuilder
+from brp.git_source import checkout_public_repository, public_github_url
+from brp.github_delivery import publish_pull_request
 from brp.governance.golden import GoldenRepository
 from brp.governance.runner import run_zen_advisory
+from brp.llm import client_from_environment
 from brp.mode_a import ModeAService
 from brp.orchestration import extract_inline
 from brp.repository.models import (
@@ -192,8 +208,9 @@ def handle_import(session: Session, job: Job, worker_id: str) -> dict[str, Any]:
     service = JobService(session)
     service.heartbeat(job, worker_id, progress=10)
     payload = job.payload
+    evidence_document: dict[str, Any] | None = None
     if payload["adapter"] == "code-java":
-        batch = _extract_java_repository(session, job, worker_id)
+        batch, evidence_document = _extract_java_repository(session, job, worker_id)
     else:
         batch = extract_inline(
             adapter=str(payload["adapter"]),
@@ -210,6 +227,8 @@ def handle_import(session: Session, job: Job, worker_id: str) -> dict[str, Any]:
         raise RuntimeError("import run does not belong to the leased job")
     service.heartbeat(job, worker_id, progress=55)
     snapshot = batch.source_snapshot.model_dump(mode="json", by_alias=True)
+    if evidence_document is not None:
+        snapshot.update(evidence_document)
     diagnostics = [item.model_dump(mode="json", by_alias=True) for item in batch.diagnostics]
     for candidate in batch.decisions:
         session.add(
@@ -244,8 +263,106 @@ def handle_import(session: Session, job: Job, worker_id: str) -> dict[str, Any]:
     }
 
 
-def _extract_java_repository(session: Session, job: Job, worker_id: str) -> Any:
+def _extract_java_repository(
+    session: Session, job: Job, worker_id: str
+) -> tuple[ExtractionBatch, dict[str, Any] | None]:
     payload = job.payload
+    remote_url = payload.get("repositoryUrl")
+    alias = str(payload["repositoryAlias"])
+    context_class = str(payload["className"])
+    context_method = str(payload["method"])
+    if remote_url:
+        JobService(session).heartbeat(job, worker_id, progress=20)
+        with tempfile.TemporaryDirectory(prefix="brp-java-source-") as directory:
+            checkout = Path(directory) / "repository"
+            checkout_public_repository(str(remote_url), str(payload["revision"]), checkout)
+            repository_path = str(payload.get("repositoryPath", "."))
+            repository_checkout = (checkout / repository_path).resolve()
+            if (
+                checkout.resolve() != repository_checkout
+                and checkout.resolve() not in repository_checkout.parents
+            ):
+                raise ValueError("repositoryPath escapes the public GitHub checkout")
+            if not repository_checkout.is_dir():
+                raise FileNotFoundError("configured repositoryPath is unavailable")
+            agent_result = LightweightJavaAgent(client_from_environment()).extract(
+                checkout,
+                repository_url=str(remote_url),
+                repository_alias=alias,
+                class_name=context_class,
+                method=context_method,
+                subpath=repository_path,
+            )
+            compilation = compile_package(
+                agent_result.package,
+                actor=job.created_by,
+                authored_at=datetime.now(UTC),
+                reason="Evidence-backed repository bootstrap",
+            )
+            if not compilation.valid:
+                summary = "; ".join(
+                    f"{item.path}: {item.message}" for item in compilation.diagnostics
+                )
+                raise ValueError(f"candidate package does not compile: {summary}")
+            bundle_document = agent_result.evidence_bundle.model_dump(
+                mode="json", by_alias=True, exclude_none=True
+            )
+            package_document = agent_result.package.model_dump(
+                mode="json", by_alias=True, exclude_none=True
+            )
+            snapshot_bytes = json.dumps(
+                {"evidenceBundle": bundle_document, "canonicalPackage": package_document},
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("utf-8")
+            batch = ExtractionBatch(
+                adapter="code-java-agent",
+                decisions=[
+                    ExtractedCandidateDecision(
+                        decision_key=_candidate_storage_key(decision.decision_id),
+                        content=decision,
+                    )
+                    for decision in compilation.decisions
+                ],
+                unmappable=[
+                    UnmappableItem(
+                        reason_code="UNRESOLVED_JAVA_CALL",
+                        raw_fragment=call,
+                        provenance={
+                            "repository": alias,
+                            "revision": agent_result.evidence_bundle.repository.commit,
+                            "entryPoint": f"{context_class}#{context_method}",
+                        },
+                    )
+                    for call in agent_result.evidence_bundle.unresolved_calls
+                ],
+                diagnostics=[
+                    AdapterDiagnostic(
+                        level="INFO",
+                        code="EVIDENCE_AGENT_COMPLETE",
+                        message=(
+                            "lightweight repository evidence produced "
+                            f"{len(compilation.decisions)} candidate decisions"
+                        ),
+                        details={
+                            "escalation": agent_result.evidence_bundle.escalation.model_dump(
+                                mode="json", by_alias=True, exclude_none=True
+                            )
+                        },
+                    )
+                ],
+                source_snapshot=SourceSnapshot(
+                    source_id=f"git:{alias}",
+                    revision=agent_result.evidence_bundle.repository.commit,
+                    content_hash=hashlib.sha256(snapshot_bytes).hexdigest(),
+                    captured_at=datetime.now(UTC),
+                ),
+            )
+            return batch, {
+                "evidenceBundle": bundle_document,
+                "canonicalPackage": package_document,
+            }
     profile = session.scalar(
         select(SiteProfileRevision).where(
             SiteProfileRevision.site_id == job.site_id,
@@ -255,15 +372,14 @@ def _extract_java_repository(session: Session, job: Job, worker_id: str) -> Any:
     if profile is None:
         raise LookupError("site profile revision not found")
     document = SiteProfile.model_validate(profile.document)
-    alias = str(payload["repositoryAlias"])
     repository = next((item for item in document.source.repositories if item.alias == alias), None)
     context = next(
         (
             item
             for item in document.source.program_contexts
             if item.repository == alias
-            and item.class_name == payload["className"]
-            and item.method == payload["method"]
+            and item.class_name == context_class
+            and item.method == context_method
         ),
         None,
     )
@@ -314,12 +430,10 @@ def _extract_java_repository(session: Session, job: Job, worker_id: str) -> Any:
             text=True,
         )
         repository_checkout = checkout / source_relative
-        methods = JoernLocator(repository_checkout, alias).locate(
-            context.class_name, context.method
-        )
+        methods = JoernLocator(repository_checkout, alias).locate(context_class, context_method)
         manifest = JoernSlicer().slice(methods)
         fixtures = Path(__file__).resolve().parents[2] / "tests/fixtures/conformance"
-        return JavaRuleMiner(fixtures).mine(manifest)
+        return JavaRuleMiner(fixtures).mine(manifest), None
 
 
 def handle_golden_run(session: Session, job: Job, worker_id: str) -> dict[str, Any]:
@@ -413,26 +527,53 @@ def handle_mode_b_delivery(session: Session, job: Job, worker_id: str) -> dict[s
         generated,
         stage / "gate",
     )
-    delivery = publish_delivery_branch(gate, decision_key, revision_number, {})
-    service.heartbeat(job, worker_id, progress=75)
-
-    external_url: str | None = None
-    external_id: str | None = None
     provider_name = profile.target.pr_provider
+    token: str | None = None
+    github_url: str | None = None
     if provider_name in {"github", "gitlab"}:
         assert profile.target.token_secret_ref is not None
         assert profile.target.provider_repository is not None
         token = resolve_secret(profile.target.token_secret_ref)
         if provider_name == "github":
-            provider = cast(ChangeRequestProvider, GitHubProvider(token))
-        else:
-            provider = cast(
-                ChangeRequestProvider,
-                GitLabProvider(
-                    token,
-                    base_url=profile.target.provider_api_url or "https://gitlab.com/api/v4",
-                ),
+            github_url = public_github_url(
+                f"https://github.com/{profile.target.provider_repository}"
             )
+    delivery = publish_delivery_branch(
+        gate,
+        decision_key,
+        revision_number,
+        {},
+        github_repository_url=github_url,
+        github_token=token if github_url else None,
+    )
+    service.heartbeat(job, worker_id, progress=75)
+
+    external_url: str | None = None
+    external_id: str | None = None
+    if provider_name == "github":
+        assert token is not None and github_url is not None
+        pull_request = publish_pull_request(
+            workspace=gate.workspace,
+            repository_url=github_url,
+            base_branch=profile.target.base_branch,
+            head_branch=delivery.branch,
+            expected_head=delivery.head_commit,
+            title=f"Generate {decision_key} r{revision_number}",
+            body=delivery.review_report.read_text(encoding="utf-8"),
+            environment={"GH_TOKEN": token},
+        )
+        external_url = pull_request.url
+        external_id = str(pull_request.number)
+    elif provider_name == "gitlab":
+        assert token is not None
+        assert profile.target.provider_repository is not None
+        provider = cast(
+            ChangeRequestProvider,
+            GitLabProvider(
+                token,
+                base_url=profile.target.provider_api_url or "https://gitlab.com/api/v4",
+            ),
+        )
         change = provider.ensure_change_request(
             repository=profile.target.provider_repository,
             head=delivery.branch,
@@ -499,6 +640,15 @@ def _deterministic_zip(root: Path) -> bytes:
     return stream.getvalue()
 
 
+def _candidate_storage_key(decision_id: str) -> str:
+    """Map canonical Java-style identifiers to the legacy storage key safely."""
+    snake = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", decision_id)
+    snake = re.sub(r"[^A-Za-z0-9]+", "_", snake).strip("_").lower()
+    if not snake or not snake[0].isalpha():
+        snake = f"decision_{snake}"
+    return snake
+
+
 HANDLERS: dict[str, JobHandler] = {
     "IMPORT_EXTRACT": handle_import,
     "GOLDEN_RUN": handle_golden_run,
@@ -525,10 +675,18 @@ def execute_leased_job(session: Session, job: Job, worker_id: str) -> None:
         else:
             service.succeed(job, result)
     except Exception as exc:
+        service.fail(job, code=type(exc).__name__.upper(), detail=str(exc))
         if job.job_type == "IMPORT_EXTRACT":
             run_id = job.payload.get("importRunId")
             run = session.get(ImportRun, UUID(str(run_id))) if run_id else None
             if run is not None:
-                run.status = "FAILED"
-                run.completed_at = datetime.now(UTC)
-        service.fail(job, code=type(exc).__name__.upper(), detail=str(exc))
+                run.status = (
+                    "CANCELLED"
+                    if job.status == "CANCELLED"
+                    else ("FAILED" if job.status == "FAILED" else "QUEUED")
+                )
+                run.completed_at = (
+                    datetime.now(UTC)
+                    if job.status in {"FAILED", "CANCELLED"}
+                    else None
+                )

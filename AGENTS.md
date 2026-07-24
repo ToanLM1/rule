@@ -1,37 +1,76 @@
 # AGENTS.md
 
 ## Purpose
-This directory is an **isolated track**: the **Rule-Engine-Based Source Generation Module** for finance/insurance enrollment logic. It is the separately designed "PGM source-generation" direction mentioned in the Telecom Business Knowledge Assistant PRD (`../agent_testcase/services/knowledge-api/prd.md`, §4.10), kept separate so its scope does not pollute the active knowledge-assistant work.
 
-Read `prd.md` in this directory as the source of truth for this track before doing anything here.
+This directory is an isolated application: the **Canonical Business Rules Management & Delivery Platform** for governed finance/insurance decision logic. It is not part of the Telecom Business Knowledge Assistant chat/RAG product.
 
-## Scope Boundary (read first)
-- This track is **NOT** part of the knowledge-assistant chat/RAG product; it is **effectively a separate application**. Do not mix its requirements with `agent/` or `frontend/`.
-- Inputs are the customer's **git repositories and databases**; the analysis/mining stack (Joern static analysis + a purpose-built rule miner, ETL, JDM code-gen) is **all new**. It does **not** run on the knowledge assistant's document/knowledge (RAG) ingestion.
-- There is **no meaningful shared component**. At most, the optional/supplementary manuals source (`prd.md` §5.1 #2, §5.2) may borrow low-level document-parsing utilities — but it needs rule-oriented extraction, not the RAG ingestion as-is. Do not call the document pipeline "the shared component."
-- Not reused from the main project: chat/RAG retrieval, citation surfaces, Neptune telecom graph schema, NUEL/ProcessMap content.
-- **Status: production-hardening implementation is in progress on top of the completed Phase-3 baseline.** The multi-site control plane, durable jobs/imports, governed releases and enterprise console are implemented and have targeted isolated acceptance evidence. Container packaging, the final CI-equivalent regression, and the hardening RDS cutover are still open; see M11 and `docs/production-hardening-progress.md`. Build strictly per `IMPLEMENTATION_PLAN.md`. Still do not wire anything into the knowledge-assistant backend/frontend or claim real-site compatibility from synthetic fixtures.
+Read `prd.md` first, then `architecture.md`, then the **active roadmap at the top** of `IMPLEMENTATION_PLAN.md`.
 
-## Domain
-- Business problem: enrollment logic (`가입 Rule`) for financial/insurance products is buried in source code; this track manages it as **rules-as-data** in a governed repository, with an optional path to reflect edited rules back into deployable source.
-- Customer context confirmed 2026-06-23 and 2026-06-29 (see `prd.md` §1, §10).
+## Current Product Goal
 
-## Files In This Track
-- `prd.md` — track PRD (product source of truth).
-- `architecture.md` — architecture design (design source of truth: ADRs, IR spec, adapter contracts, tech stack).
-- `IMPLEMENTATION_PLAN.md` — execution plan + progress tracker for AI coding agents (milestones M0–M8, task checkboxes, agent protocol). **Implementing agents start here.**
-- `prd-architecture-revision-note.md` — superseded historical note (do not follow).
-- `proposals/business-rules-platform-design-review.en.docx` — customer-facing design review document (approved 2026-07-04).
-- `vendor-survey.ko.md` / `vendor-survey.vi.md` — rule-engine vendor comparison (license, deployment, pricing, pros/cons, recommendation). Appendix to `prd.md` §7.
-- `proposals/item2-source-module.en.docx` / `.ko.docx` — the initial design proposal for the customer (Item 2 reply).
+Complete one useful small-repository round trip:
 
-## Working Rules
-- Keep this track's context here. If a change affects the main project, make it in `agent/` or `frontend/` instead, not here.
-- Engine decision for Phase 1 is **GoRules Zen/JDM** for advisory preview; generated Java remains Mode-B production authority. Mode A uses Zen in Phase 2. See `architecture.md` ADR-2/3 and §9.
-- Delivery mode is selected per site: Mode B for logic-in-code sites and Mode A for engine-migration sites. Phase 1 implements Mode B first.
-- Rule extraction from legacy code is precision-sensitive: any extracted rule is a **human-reviewed candidate**, never auto-applied. Preserve source traceability and Korean text.
-- Implement the approved synthetic Phase-1 reference path even while customer samples remain gated. Do not claim real-site mining accuracy or begin real-site rollout until the §10 inputs arrive.
+```text
+public GitHub Java repo → pinned evidence-backed candidates
+→ business-friendly canonical edit → review/approve
+→ deterministic Java + tests → target tests
+→ pushed branch → reviewable GitHub pull request
+```
 
-## Instruction Priority
-- This `AGENTS.md` and `prd.md` govern work inside `rule-engine/`.
-- For anything outside this directory, defer to the root `AGENTS.md` and the relevant app's `AGENTS.md`.
+After that passes, complete the same governed delivery loop from one selected small cloud-PostgreSQL table/view.
+
+The product core is canonical rule authoring, governance, testing, and delivery. Mining is a bootstrap/reconciliation assistant, not the product source of truth.
+
+## Active Architecture Rules
+
+- The user-facing governed model is the **Canonical Decision Package**: vocabulary, decision tables, lookups, composition, business scenarios, evidence, effective dates, and target binding.
+- The restricted Canonical Rule IR is the deterministic executable representation compiled from an approved package. Normal business authoring must not require editing IR or raw JSON.
+- Extracted rules are candidates only. Preserve exact immutable source evidence, assumptions, unresolved fragments, tool transcript, and confidence per field. Nothing is auto-approved.
+- Production Java and JUnit are generated deterministically. For the active Mode-B path, compiled generated Java and configured target tests are authoritative.
+- “Deploy back” for the active MVP means a remotely pushed branch and reviewable GitHub pull request. Never auto-merge or claim downstream production deployment.
+- Keep Korean text byte-safe and preserve maker-checker, immutable revisions, effective dating, audit, secret redaction, and test-database safety.
+
+## Small-First Analysis Policy
+
+Use progressive evidence acquisition:
+
+1. pinned Git commit, manifests, `git`, `rg`, and bounded source/test reads;
+2. Tree-sitter or equivalent structural query when text evidence is insufficient;
+3. targeted JavaParser/SymbolSolver, OpenRewrite, or JDT LS when a concrete symbol/type/reference question remains;
+4. human review for unresolved ambiguity;
+5. Joern/SootUp only after a recorded real failure demonstrates why lighter tiers are insufficient and a human activates that work.
+
+Joern, a graph database, Docker, or a heavyweight analysis worker is not a base prerequisite. Repository size alone is not a reason to escalate.
+
+## Task Selection
+
+- Select the first unblocked unchecked `F-*` task in the active section of `IMPLEMENTATION_PLAN.md`.
+- M0–M11 are historical appendix records. Do not select or resume them unless a human explicitly reactivates a specific item.
+- Do not prioritize container hardening, RDS cutover, OIDC, multi-site scale, 10k performance, second languages/DBMSs, Mode A, DMN/DRL/C#, stored procedures, UI mining, or heavyweight analysis before the active full-flow acceptance passes.
+- Preserve existing historical capabilities and regression coverage, but do not expand them speculatively.
+
+## Evidence And Claims
+
+- Synthetic fixtures prove only their explicit contracts.
+- The current fixed Java miner does not prove arbitrary Java compatibility.
+- A local bare Git branch or PR-equivalent report does not prove a real GitHub pull-request flow.
+- A deterministic C# artifact without a compiler does not prove executable C# delivery.
+- Restricted DMN/DRL/PL/pgSQL/HTML fixtures do not prove real-site compatibility.
+- Never claim production readiness, real-site mining accuracy, scale, or non-technical usability without matching acceptance evidence.
+
+Label results explicitly as unit/synthetic, dummy-repository, cloud-DB integration, or real-site evidence.
+
+## Runtime And Safety
+
+- Active local runtime: native API, worker, and UI using Git, Java 17, and the existing cloud PostgreSQL. Docker PostgreSQL is not required.
+- Platform persistence and source-rule DB access use separate configuration/roles even if hosted on the same PostgreSQL server. Source-rule access is read-only and allowlisted.
+- Destructive automated DB tests must target an isolated `*_test` database or explicitly disposable isolated schema and must fail closed otherwise.
+- Secrets come from environment/secret references. Never commit or print credentials, tokens, connection URLs with passwords, or provider keys.
+- Do not modify or wire this application into the knowledge-assistant backend/frontend.
+
+## Files
+
+- `prd.md` — product requirements and acceptance source of truth.
+- `architecture.md` — architecture decisions, package/IR boundary, evidence pipeline, and active technology choices.
+- `IMPLEMENTATION_PLAN.md` — active `F-*` execution queue followed by historical M0–M11 evidence.
+- `docs/` — operational and demo material; historical production-hardening documents do not override the active roadmap.

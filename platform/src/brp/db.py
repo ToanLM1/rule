@@ -24,7 +24,10 @@ def create_database_engine(*, echo: bool = False) -> Engine:
         pool_size=settings.database_pool_size,
         max_overflow=settings.database_max_overflow,
         pool_timeout=settings.database_pool_timeout_seconds,
-        connect_args={"options": f"-c statement_timeout={settings.database_statement_timeout_ms}"},
+        connect_args={
+            "connect_timeout": settings.database_connect_timeout_seconds,
+            "options": f"-c statement_timeout={settings.database_statement_timeout_ms}",
+        },
     )
 
 

@@ -21,12 +21,43 @@ export type PlatformContext = {
 export type Page<T> = { items: T[]; page: number; pageSize: number; total: number; pages: number }
 export type JobRecord = { id: string; siteId: string; type: string; status: string; progress: number; attempts: number; maxAttempts: number; cancelRequested: boolean; errorCode?: string; errorDetail?: string; result?: Record<string, unknown>; correlationId: string; createdBy: string; createdAt: string; startedAt?: string; finishedAt?: string }
 export type ImportRun = { id: string; siteId: string; jobId: string; adapter: string; sourceName: string; sourceRevision: string; status: string; progress: number; candidateCount?: number; reviewCount?: number; createdBy: string; createdAt: string; candidates?: Candidate[] }
-export type Candidate = { id: string; decisionKey: string; name: string; status: string; content: Record<string, unknown>; sourceSnapshot: Record<string, unknown>; diagnostics: Array<Record<string, unknown>>; promotedRevisionId?: string }
+export type Candidate = { id: string; decisionKey: string; name: string; status: string; content: Record<string, unknown>; sourceSnapshot: Record<string, unknown>; diagnostics: Array<Record<string, unknown>>; promotedRevisionId?: string; promotedPackageRevisionId?: string }
 export type GoldenSuite = { id: string; revision: number; status: string; contentHash: string; caseCount: number; cases: Array<{ id: string; caseKey: string; input: Record<string, unknown>; expected: unknown; provenance: Record<string, unknown> }>; createdBy: string; createdAt: string }
 export type SiteProfile = { id: string; siteId: string; revision: number; contentHash: string; document: Record<string, unknown>; createdBy: string; createdAt: string }
 export type LookupSnapshot = { id: string; name: string; contentHash: string; rowCount: number; source: Record<string, unknown>; approved: boolean; createdAt: string }
 export type ModeAPublication = { id: number; action: string; channel: string; decisionRevision: number; suiteRevision: number; artifactHash: string; previousPublicationId?: number; sourcePublicationId?: number; createdAt: string }
 export type ModeBDelivery = { id: string; jobId: string; decisionKey: string; decisionRevision: number; provider: string; status: string; branch: string; externalUrl?: string; evidence: Record<string, unknown>; createdAt: string }
+export type CanonicalPackageSummary = { id: string; siteId: string; packageKey: string; name: string; latestRevision: number; latestStatus: string; contentHash: string; updatedAt: string }
+export type CanonicalPackageRevision = {
+  id: string
+  packageKey: string
+  revision: number
+  status: string
+  contentHash: string
+  effectiveFrom: string
+  effectiveTo?: string | null
+  createdBy: string
+  submittedBy?: string | null
+  approvedBy?: string | null
+  package: Record<string, unknown> & {
+    packageId: string
+    packageName: string
+    vocabulary: Array<{ key: string; label: string; type: string; role: 'INPUT' | 'OUTPUT'; sourcePath?: string }>
+    decisions: Array<{
+      decisionId: string
+      name: string
+      hitPolicy: 'FIRST' | 'UNIQUE' | 'COLLECT'
+      inputFields: string[]
+      outputFields: string[]
+      rows: Array<{ rowId: string; conditions: Array<{ field: string; operator: string; value?: unknown }>; outcomes: Record<string, unknown>; evidenceIds?: string[]; confidence?: number; notes?: string }>
+      defaultOutcome?: Record<string, unknown>
+    }>
+    businessScenarios: Array<{ scenarioId: string; name: string; inputs: Record<string, unknown>; expected: Record<string, unknown>; evidenceIds?: string[] }>
+    evidence: Array<{ evidenceId: string; summary: string; sourceReference: Record<string, unknown> }>
+  }
+  compiledDecisions: Array<Record<string, unknown>>
+}
+export type DiscoveredTable = { schemaName: string; table: string; kind: string; columns: Array<{ name: string; databaseType: string; nullable: boolean; ordinal: number }> }
 
 export type Revision = {
   envelope: {
@@ -42,6 +73,8 @@ export type Revision = {
   }
   content: Record<string, unknown> & {
     decisionName: string
+    inputs?: Array<{ name: string; type: 'boolean' | 'integer' | 'decimal' | 'string' | 'date'; sourcePath?: string; required?: boolean }>
+    outputs?: Array<{ name: string; type: 'boolean' | 'integer' | 'decimal' | 'string' | 'date' }>
     rules: Array<Record<string, unknown>>
   }
 }
@@ -134,6 +167,7 @@ export class BrpApi {
   createImport(payload: Record<string, unknown>, actor: string) { return this.request<ImportRun>('/api/v1/import-runs', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify(payload) }) }
   preflightImport(payload: Record<string, unknown>) { return this.request<Record<string, unknown>>('/api/v1/import-runs/preflight', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }) }
   promoteCandidate(candidateId: string, payload: Record<string, unknown>, actor: string) { return this.request<Revision>(`/api/v1/candidates/${candidateId}/promote`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify(payload) }) }
+  promoteCanonicalCandidate(candidateId: string, payload: Record<string, unknown>, actor: string) { return this.request<CanonicalPackageRevision>(`/api/v1/candidates/${candidateId}/promote-package`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor, 'X-BRP-Roles': 'maker' }, body: JSON.stringify(payload) }) }
   reviewItems(siteId: string) { return this.request<Array<Record<string, unknown>>>(`/api/v1/review-items?site_id=${encodeURIComponent(siteId)}`) }
   disposeReviews(siteId: string, dispositions: Array<{ itemId: string; status: string; reason?: string }>, actor: string) { return this.request<Array<Record<string, unknown>>>(`/api/v1/review-items/dispositions?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify({ dispositions }) }) }
   siteProfiles(siteId: string) { return this.request<SiteProfile[]>(`/api/v1/sites/${siteId}/profiles`) }
@@ -149,6 +183,29 @@ export class BrpApi {
   rollbackModeA(siteId: string, key: string, targetPublicationId: number, actor: string) { return this.request<JobRecord>(`/api/v1/releases/mode-a/${encodeURIComponent(key)}/rollback?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify({ targetPublicationId, channel: 'production' }) }) }
   modeBHistory(siteId: string) { return this.request<ModeBDelivery[]>(`/api/v1/releases/mode-b?site_id=${encodeURIComponent(siteId)}`) }
   deliverModeB(siteId: string, key: string, revision: number, profileRevision: number, actor: string) { return this.request<JobRecord>(`/api/v1/releases/mode-b/${encodeURIComponent(key)}/deliver?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify({ revision, profileRevision }) }) }
+  canonicalPackages(siteId: string) { return this.request<CanonicalPackageSummary[]>(`/api/v1/canonical-packages?site_id=${encodeURIComponent(siteId)}`) }
+  canonicalPackage(siteId: string, key: string, revision?: number) {
+    const query = new URLSearchParams({ site_id: siteId })
+    if (revision) query.set('revision', String(revision))
+    return this.request<CanonicalPackageRevision>(`/api/v1/canonical-packages/${encodeURIComponent(key)}?${query}`)
+  }
+  reviseCanonicalPackage(siteId: string, key: string, revision: number, document: Record<string, unknown>, actor: string, reason: string) {
+    const at = new Date().toISOString()
+    return this.request<CanonicalPackageRevision>(`/api/v1/canonical-packages/${encodeURIComponent(key)}/revisions?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor, 'X-BRP-Roles': 'maker', 'If-Match': `"${revision}"` }, body: JSON.stringify({ package: document, baseRevision: revision, effectiveFrom: at, authoredAt: at, reason }) })
+  }
+  transitionCanonicalPackage(siteId: string, key: string, revision: number, action: 'submit' | 'approve' | 'reject', actor: string, reason?: string) {
+    const role = action === 'submit' ? 'maker' : 'checker'
+    return this.request<CanonicalPackageRevision>(`/api/v1/canonical-packages/${encodeURIComponent(key)}/${revision}/${action}?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor, 'X-BRP-Roles': role }, body: JSON.stringify({ reason }) })
+  }
+  canonicalPackageDiff(siteId: string, key: string, from: number, to: number) { return this.request<Record<string, unknown>>(`/api/v1/canonical-packages/${encodeURIComponent(key)}/diff?site_id=${encodeURIComponent(siteId)}&fromRevision=${from}&toRevision=${to}`) }
+  discoverDbTables(connectionAlias: string, schemaName: string, actor: string) {
+    const query = new URLSearchParams({ connection_alias: connectionAlias, schema_name: schemaName })
+    return this.request<DiscoveredTable[]>(`/api/v1/db-sources/tables?${query}`, { headers: { 'X-BRP-Actor': actor, 'X-BRP-Roles': 'maker' } })
+  }
+  importDbTable(siteId: string, mapping: Record<string, unknown>, actor: string) {
+    const at = new Date().toISOString()
+    return this.request<CanonicalPackageRevision>(`/api/v1/db-sources/import?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor, 'X-BRP-Roles': 'maker' }, body: JSON.stringify({ mapping, effectiveFrom: at, authoredAt: at, reason: 'Guided PostgreSQL table import' }) })
+  }
 
   decisions() {
     return this.request<DecisionSummary[]>('/decisions')

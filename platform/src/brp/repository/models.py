@@ -182,6 +182,81 @@ class LifecycleEvent(Base):
     revision_record: Mapped[DecisionRevision] = relationship(back_populates="events")
 
 
+class CanonicalPackage(Base):
+    __tablename__ = "canonical_packages"
+    __table_args__ = (UniqueConstraint("site_id", "package_key"),)
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    site_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("sites.id", ondelete="CASCADE"), nullable=False
+    )
+    package_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    name: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    revisions: Mapped[list[CanonicalPackageRevision]] = relationship(
+        back_populates="package", cascade="all, delete-orphan"
+    )
+
+
+class CanonicalPackageRevision(Base):
+    __tablename__ = "canonical_package_revisions"
+    __table_args__ = (UniqueConstraint("package_id", "revision"),)
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
+    package_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("canonical_packages.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    document: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    compiled_decisions: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    lifecycle_status: Mapped[str] = mapped_column(String(32), nullable=False, default="DRAFT")
+    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by: Mapped[str] = mapped_column(String(200), nullable=False)
+    submitted_by: Mapped[str | None] = mapped_column(String(200))
+    approved_by: Mapped[str | None] = mapped_column(String(200))
+    rejected_by: Mapped[str | None] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    package: Mapped[CanonicalPackage] = relationship(back_populates="revisions")
+    events: Mapped[list[CanonicalPackageEvent]] = relationship(
+        back_populates="revision_record", cascade="all, delete-orphan"
+    )
+
+
+class CanonicalPackageEvent(Base):
+    __tablename__ = "canonical_package_events"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    revision_id: Mapped[UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("canonical_package_revisions.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    actor: Mapped[str] = mapped_column(String(200), nullable=False)
+    action: Mapped[str] = mapped_column(String(64), nullable=False)
+    from_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    to_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+    revision_record: Mapped[CanonicalPackageRevision] = relationship(back_populates="events")
+
+
 class ReviewQueueItem(Base):
     __tablename__ = "review_queue_items"
 
@@ -447,6 +522,10 @@ class CandidateDecision(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="PENDING_REVIEW")
     promoted_revision_id: Mapped[UUID | None] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("decision_revisions.id", ondelete="SET NULL")
+    )
+    promoted_package_revision_id: Mapped[UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("canonical_package_revisions.id", ondelete="SET NULL"),
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()

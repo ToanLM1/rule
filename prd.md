@@ -1,191 +1,227 @@
-# Rule-Engine-Based Source Generation Module
-## Product Requirements Description / Track Overview
+# Canonical Business Rules Management & Delivery Platform
+## Product Requirements Description
 
-> **Scope isolation note.** This document describes a **separate track** from the Telecom Business Knowledge Assistant (`agent/services/knowledge-api/prd.md`). It is the deferred **PGM source-generation** direction referenced in that PRD (§4.10), confirmed with the customer on 2026-06-23 and 2026-06-29. It is **effectively a different application**: its inputs are the customer's **git repositories and databases** (not documents/knowledge), and it runs on its **own analysis and mining stack** (e.g. Joern static analysis + a purpose-built rule miner + ETL + deterministic source/JDM generation) — **not** the knowledge assistant's document/knowledge (RAG) ingestion. It has its own domain (finance/insurance enrollment logic), its own data model, and its own architecture. Keep this context out of the knowledge-assistant PRD to avoid polluting either scope. Nothing here is in active implementation; this is a design/groundwork document.
+> **Status (2026-07-23): small-first reset.** This is a separate application from the Telecom Business Knowledge Assistant. The repository already contains substantial governance, adapter, generation, and delivery plumbing proven mainly with synthetic fixtures. It has **not** yet proved useful extraction from an arbitrary small Java repository, a genuinely non-technical authoring experience, or a real repository round trip. Those gaps are now the active product priority. Do not infer production readiness, large-repository requirements, or multi-site scale from the existing infrastructure.
 
-## 1. Track Summary
+## 1. Product Summary
 
-The goal of this track is a module that **manages complex business logic as data (rules-as-data) instead of source code, and can reflect edited rules back into deployable source.**
+The product lets an organization manage business decisions as governed data and deliver approved changes back into software safely.
 
-In financial/insurance systems, the logic for product enrollment (`가입 Rule`) is currently buried inside source code, which makes it hard to (a) understand the enrollment rules and (b) modify them when products or policies change. This module externalizes that logic into a governed rule repository so that:
+Its core value is not static analysis by itself. The core is a controlled loop in which:
 
-- adding a product or changing enrollment logic means **editing data, not code**;
-- business users can read, review, version, and approve rules;
-- (longer-term) an edited rule can be **reflected into the source and deployed**.
+1. existing rules are bootstrapped from a small source repository or database;
+2. a business user can understand and edit them without editing JSON or Java;
+3. reviewers approve a version with source evidence and business scenarios;
+4. the platform deterministically generates Java and tests;
+5. the generated change is pushed as a reviewable branch and pull request.
 
-**Architecture stance (2026-07-03, see `architecture.md`):** the platform's source of truth is a vendor-neutral **Canonical Rule IR** — not JDM, DMN, or any engine-native format. Production delivery is a **per-site choice between two modes** over that same IR: **generated source code** (mode B — for sites whose logic lives in code; the Phase-1 lead) or **our rule engine as the runtime** (mode A — for sites migrating off an existing third-party engine, confirmed by the customer 2026-07-03). Engine formats are adapters around the IR, never the system of record.
+The first useful proof is one public, writable dummy Java repository. A small PostgreSQL rule/config table is the next vertical slice. Scale work starts only after a real input demonstrates a real scale problem.
 
-This is a substantially larger and separate effort from the knowledge assistant. It should begin with its own design phase and a narrow PoC. (This track is now being actively driven by the customer, 2026-07-02.)
+## 2. Product Boundary
 
-## 2. Relationship To The Existing Project
+- This application does not depend on the knowledge assistant's chat, RAG ingestion, vector retrieval, Neptune schema, or citation API.
+- Git repositories and databases are source systems for bootstrap and reconciliation. PostgreSQL is also the platform system of record.
+- Mining is an onboarding and reconciliation assistant. It produces evidence-backed candidates; it is not the canonical model and never auto-approves changes.
+- The governed canonical package is the product source of truth. Java, JDM, DMN, reports, and generated tests are derived artifacts.
+- Merge and production deployment remain controlled by the target repository and its CI/CD. For the MVP, “deploy back” ends at a pushed branch and reviewable pull request with passing tests.
 
-This track is **largely a separate application**, not an extension of the knowledge assistant. Be precise about what is and is not shared:
+## 3. Users And Outcomes
 
-- **Effectively independent:** the inputs are the customer's **git repositories and databases**; the analysis/mining stack (Joern-based static analysis + a purpose-built rule miner, tabular ETL, and JDM code generation) is **all new**. It does **not** run on the knowledge assistant's document/knowledge (RAG) ingestion.
-- **At most a minor overlap (not a foundation):** manuals/documents are an *optional, supplementary* source (§5.1 #2). That one sub-path may borrow low-level document-parsing utilities, but it still needs **rule-oriented extraction** producing structured condition/action rules — **not** the existing RAG ingestion as-is, whose output (retrieval chunks for citation/search) has a different contract. Do not describe the document pipeline as "the shared component."
-- **Not reused:** the chat/RAG retrieval flow, citation surfaces, Neptune graph schema for telecom domains, and NUEL/ProcessMap content are **not** part of this track.
-- **New:** a canonical rule repository (Canonical Rule IR), Joern-based static analysis + source-code rule mining, tabular ETL, a DMN/external-engine import adapter (DMN→Canonical Rule IR), target generators (Java source, JDM), engine-runtime integration (GoRules Zen), and the CI/CD deploy path are all new to this track.
+### 3.1 Business author
 
-## 3. Business Goal
+Can read and edit vocabulary, decision-table rows, lookup references, effective dates, and business scenarios through guided forms. Raw JSON is an advanced diagnostic view, not the normal authoring surface.
 
-Reduce the cost and risk of changing business logic in finance/insurance systems by decoupling enrollment/decision logic from application code. Target outcomes (industry benchmark, to be validated against the customer's own baseline):
+### 3.2 Reviewer / approver
 
-- faster product time-to-market (decoupling business logic from code is reported to cut 40–60%);
-- lower IT cost for rule maintenance;
-- clearer, auditable, business-owned rules.
+Can compare revisions, inspect exact source evidence and assumptions, run scenarios, and approve or reject a change. Extracted candidates are never approved automatically, and maker-checker separation remains enforced.
 
-## 4. Domain And Terminology
+### 3.3 Engineer / delivery owner
 
-- **Enrollment rule (`가입 Rule`)** — the conditions and actions governing whether/how a customer can enroll in a financial/insurance product (eligibility, required documents, rate selection, validations).
-- **Rules-as-data** — rules stored as structured data (decision tables / JSON) in a repository, not as code.
-- **Canonical Rule IR** — the platform-owned, vendor-neutral rule representation (restricted, codegen-friendly JSON) used as the governed source of truth. See `architecture.md`.
-- **Source adapter** — a plug-in that extracts candidate rules from one legacy input kind (DB tables, source code, manuals, DMN/engine assets) into the Canonical Rule IR shape.
-- **Target generator** — a plug-in that emits artifacts from approved IR: Java source, JDM, DMN export, golden tests, reports.
-- **Rule engine** — a component that loads rules and evaluates inputs at runtime. Here: GoRules Zen, fed from the IR via JDM export. It is the *production runtime* only in delivery mode A, and a *preview/simulation* tool everywhere else. It is never the system of record.
-- **Externalization (mode A)** — the running system **calls the rule engine** at runtime; the delivery mode for engine-migration sites (§5.1 #6).
-- **Code generation (mode B)** — source code is **generated from rule data**, then compiled and deployed; the delivery mode for logic-in-code sites, and the Phase-1 lead.
-- **Delivery mode** — the per-site choice between A and B; both are target paths over the same Canonical Rule IR, so this is a deployment decision, not an architecture fork.
-- **Round-trip** — the full loop: edit rule in repository → reflect into the running system (A or B).
+Can configure the target repository seam, generate deterministic Java and JUnit artifacts, run target tests, inspect the diff, and push a branch/create a pull request. The target repository remains the merge and deployment authority.
 
-## 5. Core Functional Requirements
+### 3.4 Product success measure
 
-### 5.1 Initial Data Loading From Legacy
-The module must be able to populate the rule repository from existing legacy assets ("initial data loading"). Candidate legacy sources, ranked by ease and risk:
+The initial north-star metric is **elapsed time from a requested business-policy change to a mergeable, tested, auditable pull request**. Baseline and target values must be measured from the first real vertical slice; this PRD does not invent percentage savings or scale targets without evidence.
 
-| Priority | Legacy item | Nature | Ease | Note |
-|---|---|---|---|---|
-| 1 (priority 1) | Config/code tables in DB (product master, rate tables, eligibility code tables) | Already tabular | Easiest | Direct ETL → rule data, near-lossless. Confirmed priority 1 by customer (2026-06-30). |
-| 2 | Business manuals/documents | Structured text | Easy | Rule-oriented extraction (new; supplementary); may borrow document-parsing utilities but not the RAG ingestion as-is. Needs a supplementary path when the manual is sparse (customer 2026-06-30). |
-| 3 (strategic differentiator) | Validation logic in source code (if-else, switch) | Code | Hard | Rule mining + mandatory human review; source DB via the reusable MCP. **Elevated to a strategic differentiator (customer 2026-06-30)** — pursued despite difficulty; this is what sets our Rule-Engine apart from other engines. |
-| 4 | Stored procedures / SQL business logic | DB code | Hard | Same as #3. **Deferred / out of current scope (customer 2026-06-30).** |
-| 5 | Screen/UI validation rules (required fields, value ranges) | UI code | Medium | Supplementary. **Excluded for now (customer 2026-06-30).** |
-| 6 (distinct macro-case) | Rules already running in an **external rule engine** (DMN or engine-native format) | Rules-as-data (a standard) | Easy–Medium | **Import/migration path (customer 2026-07-02).** Some sites are not "logic in code" but "already an engine" — DMN is the OMG international standard, so DMN-based legacy is common. Serves the **original purpose** ("migrate systems on other companies' engines to ours") and the multi-site directive. Simple decision tables map cleanly; complex FEEL expressions / DRDs are the hard part. |
+## 4. Domain Model
 
-**Selection criterion (updated 2026-06-30 / 2026-07-02):** a legacy site falls into one of two macro-cases. **(a) Logic buried in code/data** (#1–#5): #1 (DB config/code tables) is the priority-1 initial source; #2 (manuals) follows, with a supplementary path for sparse manuals; #3 (source code) is **elevated to a strategic differentiator** — pursued despite its difficulty, under strict mandatory human review, because reflecting rules back into source (Option B, §5.5) is the customer's chosen direction; #4 (stored procedures) and #5 (UI rules) are deferred / out of current scope. **(b) Already on an external rule engine** (#6): import via DMN→canonical→JDM (§5.2) — the easier, standard case that broadens multi-site coverage, though it is table-stakes rather than the differentiator.
+### 4.1 Canonical Decision Package
 
-### 5.2 Extraction To Candidate Rules
-The system must convert heterogeneous legacy logic into normalized **candidate rules** via parallel sub-pipelines, all producing a common output contract. Nothing extracted is auto-applied; every item is a suggestion routed to human review.
+The user-facing governed object is a **Canonical Decision Package**, containing:
 
-- **Tabular config → ETL** (deterministic, highest trust): map condition columns and action columns; each row → one rule row.
-- **Source code → rule mining** (static analysis + LLM assist): locate decision points, convert each branch to a human-readable rule + structured condition/action, de-duplicate, attach exact source location for traceability. Candidate-only; mandatory review.
-- **Stored procedures/SQL → rule mining** (same pattern, DB-side).
-- **Manuals/documents → rule-oriented extraction** (new; supplementary source): produce candidate rules (structured condition/action) mapped to the same shape. May borrow low-level document-parsing utilities from the existing pipeline, but not its RAG/knowledge-chunk output as-is.
-- **External rule engine (DMN / engine-native) → import adapter** (customer request, 2026-07-02): parse the DMN (or engine-native) rules and **map to the Canonical Rule IR** — never convert DMN directly into a production artifact. Targets (JDM for the engine runtime, or generated source) are emitted from the IR after governance. This keeps validation, review, versioning, and future code/rule generation under our control. Simple decision tables map cleanly (DMN inputs→conditions, outputs→actions, hit policy→decision logic, DRD→decision-graph structure); complex **FEEL** expressions / boxed expressions may not map 1:1 and go to a manual-review queue. **BPMN is not importable as rules** — it is workflow orchestration; decisions embedded in BPMN need a separate analysis path, candidate-only with mandatory review. Treat all of this as an *import/conversion module*, not native compatibility.
+- domain vocabulary with business labels, types, and optional technical bindings;
+- one or more decision tables with readable conditions and outcomes;
+- lookup definitions and immutable test snapshots where needed;
+- deterministic composition between decisions;
+- effective dates and lifecycle/governance metadata;
+- business scenarios with inputs and expected outcomes;
+- source evidence, assumptions, unresolved items, and extraction confidence;
+- target bindings needed to compile the package for a Java repository.
 
-Common output contract for every extracted item:
+### 4.2 Executable Rule IR
 
-```
-{ conditions, action(s), product / domain, source_reference, confidence, status = pending }
-```
+The existing restricted Canonical Rule IR remains the vendor-neutral executable representation. The platform compiles a validated Decision Package into IR. Business users do not need to understand IR operands, repository envelopes, JDM, or generated Java.
 
-### 5.3 Rule Repository (Rules-As-Data)
-A canonical system of record storing rules as the vendor-neutral **Canonical Rule IR** (decision tables / restricted JSON; spec in `architecture.md`). Engine formats (JDM, DMN) and source code are **generated artifacts**, never the primary storage format.
+The separation is intentional:
 
-- **Data model:** rule id, conditions, actions, product, version, effective/expiry dates, source trace, confidence, status (pending/approved/retired).
-- **Governance:** maker-checker approval workflow, versioning and diff, full audit log (essential for finance/insurance compliance).
-- **Quality:** a regression/golden test set so rule changes are validated before publishing.
-- Downstream targets (engine runtime or code generation) consume **only approved rules**; pending/rejected suggestions never reach production.
+- the Decision Package optimizes for safe business authoring and review;
+- the Rule IR optimizes for deterministic validation and generation;
+- compilation errors are shown as actionable field/table diagnostics, not raw schema failures.
 
-### 5.4 Execution, Preview, And Validation
-Production execution depends on the site's delivery mode (§5.5): generated source (mode B) or the rule engine as runtime (mode A). In both modes the platform provides **preview/simulation** by exporting IR→JDM and evaluating with an embedded GoRules Zen engine (stateless; reference/lookup data attached as needed) — no bespoke rule evaluator is built.
+### 4.3 Evidence Bundle
 
-**Validation authority (avoid semantic drift):** for **mode B**, authoritative golden tests run against the **generated source itself** (compile + execute) — engine preview is advisory only, because preview (Zen/JDM semantics) and production (generated Java) are two different executors. For **mode A**, the engine *is* production, so engine-run golden tests are authoritative.
+Every source-derived candidate carries an immutable `EvidenceBundle` with:
 
-### 5.5 Round-Trip And Deploy (Two Delivery Modes)
-The phrase "reflect edited rules into source and deployed" has two interpretations. Both are real; they map to the two site macro-cases (§5.1) and are **per-site delivery modes over the same Canonical Rule IR**, not competing architectures.
+- repository URL, pinned commit, configured subpath, and entry-point hypothesis;
+- exact file/range and content hashes for supporting source spans;
+- inferred inputs, outcomes, rule rows, and technical bindings;
+- assumptions, unresolved calls/fragments, and alternative interpretations;
+- relevant test locations and any observed test results;
+- confidence per extracted field, not one misleading aggregate score;
+- analysis tool transcript and escalation recommendation.
 
-| | A — Engine runtime (engine-migration sites) | B — Code generation (logic-in-code sites; Phase-1 lead) |
-|---|---|---|
-| How | System calls our rule engine at runtime (IR→JDM→Zen, API/embedded) | Generate source code from approved IR → compile → deploy via CI/CD |
-| "Deploy" means | Publish a new approved rule version (no app rebuild) | Rebuild & redeploy the generated code module |
-| Pros | Fast rule changes, industry standard, keeps rules-as-data live | Logic runs inside legacy, no engine runtime dependency |
-| Cons | Requires the engine running alongside | Complex; safe/correct code generation is hard; higher risk |
-| Use when | Site already ran a third-party engine (§5.1 #6) — confirmed end state (customer 2026-07-03) | Logic was buried in source; production must stay engine-free |
+Unsupported or ambiguous logic is preserved as a review item. The system must never silently coerce it into an executable rule.
 
-**Decision (customer, 2026-06-30 → 2026-07-03): per-site delivery mode, with B leading.** For logic-in-code sites (macro-case a), the confirmed target is **B**: after the one-time initial load, users edit rules in the repository and the system **regenerates source and deploys** — the source, not an engine, runs in production. For engine-migration sites (macro-case b, §5.1 #6), the customer confirmed (2026-07-03) the end state is **our engine as the production runtime** (mode A) — converting an engine-based site to hard-coded source would forfeit the rules-as-data benefit it already has. Phase 1 leads with B (the harder, differentiating path); mode A arrives with the DMN/engine import work in Phase 2 (§9).
+## 5. Functional Requirements
 
-**Mode-B integration seam (critical, often missed):** generating a rule module is not enough — during initial load, the mined region in the legacy source must be **replaced by a call into the generated module** (a one-time, human-reviewed surgical change per site). Otherwise edited rules regenerate code that nothing calls. Defining this seam is part of Phase 0/1 design (`architecture.md`).
+### 5.1 Canonical Studio — active priority
 
-> Note: Option B (code generation) is **not the engine's job** — it is a separate, templated code generator that reads the canonical rule repository and renders source. Therefore the engine choice does not lock the code-gen approach.
+- Display business labels and decision tables as the primary editor.
+- Support adding, changing, reordering, and deleting rule rows within the restricted profile.
+- Provide guided editors for conditions, outcomes, vocabulary fields, lookups, dates, and scenarios.
+- Validate missing values, incompatible types/operators, duplicate or conflicting rows, and unsupported composition before submission.
+- Show a human-readable revision diff plus advanced raw JSON on demand.
+- Preserve immutable revisions, effective dating, audit history, and maker-checker approval.
+- Compile only approved packages to executable Rule IR and derived artifacts.
 
-## 6. Architecture — Adapter Pipeline Around A Canonical IR
+### 5.2 Small Java repository bootstrap — first vertical slice
 
-Full design in **`architecture.md`** (source of truth for architecture detail). Summary:
+The platform accepts a public HTTPS GitHub repository URL, revision, optional repository subpath, and a bounded entry-point hint. It clones without credentials, pins the immutable commit, and runs progressive evidence collection:
 
-```
-① Legacy inputs    → ② Source adapters   → ③ Canonical Rule    → ④ Governance &     → ⑤ Target           → ⑥ Delivery
-(DB tables, code,     (db-postgres,          Repository            validation           generators           B: CI/CD build +
- manuals, external     code-java/Joern,      - Canonical Rule IR   - review/approve     - Java source gen       golden tests →
- engines / DMN)        engine-dmn,           - versioned, traced   - rule diff          - JDM export            deploy
-                       docs-manual)          - audited             - golden tests       - DMN export         A: Zen engine
-                                                                   - Zen preview        - test/report gen       runtime
-```
+1. repository inventory, manifests, `git`, `rg`, and bounded source reads;
+2. syntax-aware parsing/query only where text evidence is insufficient;
+3. symbol/type/reference tooling only for unresolved dependencies;
+4. heavyweight whole-program analysis only after a recorded lightweight failure and explicit escalation decision.
 
-1. **Legacy inputs** — inventory per §5.1; pick a narrow pilot.
-2. **Source adapters** — per §5.2; pluggable per input kind; output candidate IR rules.
-3. **Canonical rule repository** — per §5.3; the governed system of record (IR, never engine formats).
-4. **Governance & validation** — per §5.3/§5.4; review, approval, golden tests, Zen-based preview.
-5. **Target generators** — pluggable emitters from approved IR (Java source, JDM, DMN, tests, reports).
-6. **Delivery** — per-site mode (§5.5): B = CI/CD build/test/deploy of generated source; A = Zen engine runtime.
+The extractor may use an LLM to form candidates from bounded evidence. LLM output is candidate-only, schema validated, and linked to the Evidence Bundle. Fixed synthetic pattern matching is not acceptable evidence of arbitrary-repository support.
 
-## 7. Rule Representation And Engine Strategy
+### 5.3 Review and business scenarios
 
-**The primary architecture decision is the Canonical Rule IR and the adapter model around it — not the engine** (see `architecture.md`, ADR-1). No engine-native format (JDM, DMN, DRL) may become the system of record; engines consume artifacts *generated from* the IR.
+- Promote extracted candidates into editable draft packages without losing their source evidence.
+- Let users add or correct vocabulary mappings and business scenarios.
+- Run scenarios before submission and authoritative generated-Java tests before delivery.
+- Require explicit disposition of unresolved or unmappable fragments.
 
-**Engine (working decision, 2026-07-03): GoRules Zen.** The customer has effectively accepted GoRules/Zen (license/cost concerns addressed 2026-07-02); formal confirmation pending (§10 Q6). Zen fits both of its roles here: **mode-A production runtime** for engine-migration sites, and **embedded preview/simulation** everywhere (MIT license, in-process embedding, polyglot bindings — Rust/Node/Python/Go/Java/C#). JDM is JSON-native, so the IR→JDM export adapter is straightforward. Because the engine sits behind the IR + export adapter, swapping it later would be localized, not a rewrite.
+### 5.4 Deterministic Java delivery — first vertical slice
 
-Fallback alternatives by scenario (if the final engine decision changes):
+- Compile an approved package to Rule IR and generate Java plus JUnit tests deterministically.
+- Keep a stable, human-reviewed integration seam in the target repository so generated code is actually invoked.
+- Run generated golden tests and configured target-repository tests from the delivery branch.
+- Produce a manifest containing all behavior-affecting input and output hashes.
+- Push a branch and create a pull request when writable GitHub credentials are configured.
+- Never auto-merge or claim production deployment. Without a pushed branch and reviewable PR, the external repository full-flow is incomplete.
 
-| If the customer… | Engine | Why |
-|---|---|---|
-| Wants a fast, cheap, automation-heavy PoC (default) | **GoRules** | JSON-native, free, self-host |
-| Requires business-user UI + audit/versioning up front (common in insurance) | **DecisionRules.io** | API-first managed BRMS, lookup tables, audit; self-host available |
-| Is a Java shop wanting zero vendor risk + Excel decision tables | **Drools** | Proven open-source, business-editable Excel tables |
-| Mandates enterprise governance and has an IBM footprint and budget | IBM ODM | Strongest governance, but expensive and least automation-friendly |
+### 5.5 PostgreSQL table bootstrap — second vertical slice
 
-**Generally not recommended for this track:** Camunda (8.6+ production licensing tightened; BPMN-oriented, not needed here) and Corticon (commercial; smaller community) — except that Corticon.js natively compiles rules to JavaScript source, which could be relevant if Option B is prioritized.
+After the repository flow passes, support one explicitly selected small table or bounded view from a cloud PostgreSQL source:
 
-A fuller vendor survey (license, deployment, pricing, pros/cons) is maintained as an appendix in this track: `vendor-survey.ko.md` / `vendor-survey.vi.md`. The customer-facing initial design proposal is in `proposals/item2-source-module.en.docx` / `proposals/item2-source-module.ko.docx`.
+- use a named, read-only source connection distinct from platform persistence;
+- discover and allowlist selected columns; do not accept arbitrary SQL from the model;
+- map configured condition/outcome columns deterministically into a draft Decision Package;
+- retain table, primary-key/row identity, snapshot/hash, and column mapping evidence;
+- pass through the same authoring, approval, generation, test, and pull-request path as repository-derived rules.
 
-## 8. Non-Functional Requirements
+Docker PostgreSQL is not required for this flow. Automated destructive tests must still use an isolated test database or schema and must never target the shared cloud database.
 
-- **Trust & explainability:** every rule traces back to its legacy source; candidate rules are human-reviewed before activation.
-- **Governance/compliance:** maker-checker approval, versioning, audit trail — required for finance/insurance.
-- **Korean preservation:** Korean text in rules, product names, and conditions must survive extraction, storage, and execution.
-- **Safety:** rule mining from code is error-prone; human review is mandatory before any candidate rule is approved, and production delivery is gated by golden tests.
-- **Deterministic generation:** production source code is generated by deterministic templates/AST-based generators. LLMs assist *mining only* (producing human-reviewed candidates); no free-form LLM code ever reaches production.
-- **Vendor neutrality:** no rule-engine-native format (JDM, DMN, DRL) may become the system of record; the Canonical Rule IR is the only primary storage format.
-- **Preview–production consistency:** golden-test authority follows the delivery mode (§5.4) — generated source for mode B, engine runtime for mode A; engine preview is never the authority for mode-B behavior.
-- **Deployment fit:** self-hostable (on-prem/air-gapped possible for finance/insurance); AWS acceptable.
-- **Co-deployment with the knowledge assistant (MIGHT-HAVE, not MUST-HAVE):** for PoC/MVP the rule-engine and the knowledge/manual agent may be **co-located on the same server** (e.g. one EC2) as **separate apps** — the customer's preference (2026-07-03): keep them independently configured but on one host to avoid extra deployment/cost complexity. On the same host they communicate over `localhost`, so no special network setup and negligible call latency. Inter-service communication (rule-engine ↔ knowledge/manual agent, e.g. sharing indexed info via API) should be **kept possible but treated as optional** — in most cases the two are expected to run without needing each other's data, so this is a precaution, not a designed dependency. Keep the boundary clean so either app can later split onto its own server without a rewrite.
-- **Multi-site / general-purpose (customer directive, 2026-07-02):** this must be built as a reusable product/solution applied across many sites, not a per-customer one-off. Every component must be generic and configuration-driven; anything that cannot be made general must be explicitly flagged as such. In particular the DB access layer must be a **plug-and-play, connection-info-driven MCP library** (a reusable owned asset), not rebuilt per site. Language and DBMS support must be pluggable (see §10 Q1).
+### 5.6 Reconciliation
 
-## 9. Phasing
+After initial onboarding, a new source commit or selected DB snapshot can be compared with the evidence recorded on the approved package. Drift creates review candidates; it never overwrites authored canonical rules.
 
-> Reworked 2026-07-03: **per-site delivery modes** with **B (code generation) leading** (§5.5); **Canonical Rule IR** as the system of record (`architecture.md`); stack **Java-first / PostgreSQL-first with pluggable adapters** (§10 Q1); **reusable multi-site solution** (§8); engine = **GoRules Zen** (working decision, §10 Q6).
+## 6. Validation And Authority
 
-- **Phase 0 — Design & samples:** finalize **Canonical Rule IR v1** and its restricted profile; define the source-adapter and target-generator contracts; design the **mode-B integration seam** (§5.5) against sample code; obtain sample legacy materials (Java enrollment source + PostgreSQL schema, anonymized); confirm whether pilot sites hold existing engine assets (Camunda DMN etc.).
-- **Phase 1 — PoC (mode B reference path):** one financial/insurance product, one enrollment flow. Adapters: PostgreSQL config-table (#1) + Java source mining via Joern (#3, the differentiator), manuals (#2) as supplement. Store as IR; preview via IR→JDM→embedded Zen; **generate Java source deterministically from an edited approved rule**, run golden tests against the generated code, produce a reviewable diff/PR, deploy. **Success criterion:** editing one approved rule regenerates Java source that passes golden tests and changes the enrollment outcome — no hand-written code change.
-- **Phase 2 — Productize + mode A:** harden the reusable DB MCP library (connection-info-driven, PostgreSQL first) and the adapter/generator contracts; build the **DMN/engine import adapter** and deliver the **engine-runtime mode (A)** for an engine-migration site (IR→JDM→Zen runtime); harden governance (maker-checker, versioning, audit). Prove a second DBMS or language lands as a plug-in, not a rewrite.
-- **Phase 3 — Scale:** more products/flows/sites; broaden language, DBMS, and engine-import adapters; revisit deferred sources (#4 stored procedures, #5 UI rules) under review; DMN export.
+- Source extraction is probabilistic and advisory.
+- Decision Package validation and Package→IR compilation are deterministic.
+- Java generation is deterministic for the same recorded release inputs.
+- For the active Mode-B path, compiled generated Java plus target-application tests are authoritative.
+- Preview engines may assist users but cannot substitute for generated-Java and target-test evidence.
+- Every claim must identify whether its evidence is synthetic, dummy-repository, or real-site evidence.
 
-## 10. Open Questions / Inputs Still Needed
+## 7. First Full-Flow Acceptance
 
-1. **Legacy stack** — *Answered (2026-07-02): **Java first**, but the design must remain extensible to other languages (this is a solution, not a one-off).* Drives the mining parser (Joern has strong Java support) and the code-gen target. Parser + generator must be pluggable per language.
-   - **DB** — *Answered (2026-07-02): **PostgreSQL first**, extensible to other DBMS.* DB access is delivered as a reusable plug-and-play MCP library (see §8 multi-site directive).
-2. **Meaning of "reflected & deployed"** — *Answered, refined 2026-07-03: **per-site delivery mode** (§5.5).* B (code generation) for logic-in-code sites — the Phase-1 lead; A (our engine as production runtime) confirmed as the end state for engine-migration sites (§5.1 #6). Both are target paths over the same Canonical Rule IR.
-3. **Pilot product/flow** — which one? *(still open)*
-4. **Compliance/audit constraints** — what governance is required before a rule can go live? *(still open)*
-5. **Sample materials** — sample source code with enrollment logic, DB schema/table definitions, and/or sample config/rate-table data (anonymized/masked acceptable), to ground the extraction design with real data points. *(still open — requested 2026-07-02)*
-6. **Final engine decision** — *Working decision (2026-07-03): **GoRules Zen** effectively accepted by the customer; license/cost concerns addressed 2026-07-02.* Formal confirmation still pending, but the engine now sits behind the IR + JDM-export adapter (§7), so a late swap would be localized. Confirmed the "Zen" reference = GoRules Zen Engine (JDM).
+The repository MVP is complete only when one small public Java repository that is not coupled to the checked-in synthetic miner templates can complete all of the following:
 
-## 11. Demo / Validation Direction (Future)
+1. import by URL and pin an immutable commit;
+2. produce useful candidates with exact Evidence Bundles;
+3. let a non-technical user correct and edit a decision through the table/form UI;
+4. submit and approve it with an audit trail;
+5. edit one business rule and add/confirm expected business scenarios;
+6. deterministically generate Java and JUnit artifacts;
+7. compile and pass generated and configured target-repository tests;
+8. prove the edited rule changes the expected target behavior;
+9. push a branch and create a reviewable pull request in the writable dummy repository.
 
-A minimal validation for Phase 1 (mode B):
+A local artifact, synthetic fixture result, advisory preview, or PR-ready diff without a remote branch/PR does not satisfy this acceptance criterion.
 
-- load a small enrollment rule set from a sample config table + Java source slice into the rule repository (IR);
-- review and approve the candidate rules;
-- preview a sample enrollment request (IR→JDM→embedded Zen);
-- edit one rule (e.g., change an eligibility threshold), approve, **regenerate the Java rule module**, run golden tests against the generated code, and confirm the enrollment outcome changes — with **no hand-written code change**.
+The PostgreSQL vertical slice repeats steps 2–9 after importing a selected small cloud table through the bounded read-only adapter.
 
-A follow-on validation for Phase 2 (mode A): import a sample DMN asset → IR → approve → publish to the Zen runtime → confirm the same edited-rule flow changes the outcome with no rebuild.
+## 8. Non-Functional Requirements For The Vertical Slice
+
+- **Traceability:** every candidate field links to immutable source evidence.
+- **Safety:** candidate-only extraction, explicit review, maker-checker approval, and authoritative tests before delivery.
+- **Usability:** the normal authoring path requires no JSON, Java, JDM, or DMN knowledge.
+- **Reproducibility:** pinned commits, source hashes, package/IR hashes, generator version, scenario suite, lookup snapshots, and output hashes are recorded.
+- **Korean preservation:** Korean business labels and values remain UTF-8 across evidence, storage, generation, diffs, and reports.
+- **Secrets:** credentials are referenced through environment or secret configuration and never persisted in profiles, logs, artifacts, or prompts.
+- **Local footprint:** API, worker, UI, Git, Java 17, and cloud PostgreSQL are sufficient for MVP development. Docker and a heavyweight analysis service are optional.
+
+## 9. Active Phasing
+
+### Phase 0 — Truthful cloud-local baseline
+
+Run API, worker, and UI locally against the existing cloud PostgreSQL; verify migrations, health, a fresh worker heartbeat, and isolated test safety. Document exact prerequisites and current limitations.
+
+### Phase 1 — Canonical Studio
+
+Deliver business vocabulary, decision-table editing, scenarios, validation, readable diff, and approval without requiring raw JSON.
+
+### Phase 2 — Small public Java repository full-flow
+
+Replace the fixed synthetic miner as the active path with the evidence-driven repository agent. Complete import through pushed branch and pull request, including authoritative Java and target tests and a demonstrated behavior change.
+
+### Phase 3 — Small cloud PostgreSQL table full-flow
+
+Add guided source-table selection and mapping, then reuse the same canonical authoring and Java delivery path.
+
+### Phase 4 — Evidence-triggered expansion only
+
+Consider semantic-heavy analysis, Joern/SootUp, Mode A, DMN/DRL, stored procedures, UI mining, other languages/DBMSs, multi-site controls, containers, OIDC, performance engineering, or high-availability operations only when a real use case is blocked and the smallest sufficient addition is identified.
+
+No repository-size threshold, throughput target, customer count, or infrastructure topology is assumed in advance.
+
+## 10. Current Implementation Truth
+
+The repository now includes Canonical Decision Package persistence/compiler/governance, a business-facing Canonical Studio, immutable Rule IR, durable jobs, public-repository pinning and bounded evidence tools, Java generation, golden-test generation, verified Git delivery seams, guided PostgreSQL mapping, and several restricted import/export proofs.
+
+The current limitations are product-critical:
+
+- the lightweight Java agent is wired as the public-repository path and has completed a live Groq import, deterministic compilation and source review for an unrelated stateless discount repo; a GildedRose trial exposed that v1 cannot yet represent one concept as both current-state input and next-state output;
+- Canonical Studio supports package decision-table/scenario editing and governance without raw JSON. Decision tables reuse the GoRules JDM Editor through a constrained adapter rather than adopting GoRules BRMS or JDM as canonical truth. Evidence drill-down, revision diff, nested/lookup editing and full accessibility/browser coverage remain incomplete;
+- EvidenceBundle is retained inside the immutable candidate snapshot rather than as a first-class durable evidence record;
+- guided cloud PostgreSQL discovery/import and package approval work, but a distinct least-privilege source credential and DB-derived Java/PR delivery have not been accepted;
+- real remote branch/pull-request delivery has not been accepted end to end against the user's dummy repository;
+- completed synthetic and local proofs do not establish real-site accuracy or production readiness.
+
+These are the active gaps. Existing multi-site, engine-import, C#, stored-object, UI-validation, container, and production-hardening work is retained as historical capability but does not outrank them.
+
+## 11. Explicitly Deferred
+
+- automatic merge or production deployment;
+- arbitrary-language or arbitrary-DBMS compatibility;
+- arbitrary Java/SQL/UI execution or unrestricted expression support;
+- Mode-A engine migration and production runtime;
+- DMN/DRL/ODM/C# expansion;
+- stored-procedure and frontend-validation mining;
+- multi-site productization and enterprise tenancy;
+- Docker/Kubernetes packaging as an MVP prerequisite;
+- OIDC/Internet exposure, high availability, and speculative performance targets;
+- heavyweight whole-repository graph analysis without a demonstrated lightweight failure.

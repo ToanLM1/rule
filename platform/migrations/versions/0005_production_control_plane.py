@@ -97,6 +97,10 @@ def upgrade() -> None:
         sa.UniqueConstraint("site_id", "revision", name="uq_site_profile_revisions_site_id"),
     )
 
+    # ``lookup_snapshots`` is immutable in the Phase-1 schema.  Backfilling the
+    # new site scope is a one-time schema migration, so temporarily remove its
+    # trigger inside this transaction and restore it immediately afterwards.
+    op.execute("DROP TRIGGER IF EXISTS lookup_snapshots_immutable ON lookup_snapshots")
     for table in ("decisions", "review_queue_items", "ingestion_fingerprints", "lookup_snapshots"):
         op.add_column(table, sa.Column("site_id", postgresql.UUID(as_uuid=True), nullable=True))
         op.execute(
@@ -108,6 +112,11 @@ def upgrade() -> None:
         op.create_foreign_key(
             f"fk_{table}_site_id_sites", table, "sites", ["site_id"], ["id"], ondelete="CASCADE"
         )
+    op.execute(
+        "CREATE TRIGGER lookup_snapshots_immutable "
+        "BEFORE UPDATE OR DELETE ON lookup_snapshots "
+        "FOR EACH ROW EXECUTE FUNCTION brp_reject_immutable_mutation()"
+    )
     op.add_column(
         "review_queue_items",
         sa.Column("import_run_id", postgresql.UUID(as_uuid=True), nullable=True),

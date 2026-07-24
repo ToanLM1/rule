@@ -1,19 +1,179 @@
 # Implementation Plan — Business Rules Platform
 
-> **Production-hardening milestone (2026-07-16, in progress).** The implementation now targets
-> the complete governed workflow rather than a Phase-3 workbench: multi-site
-> control plane, durable import/golden/release jobs, enterprise console, versioned
-> API, artifacts, GitHub/GitLab delivery seams, non-root containers, operational
-> health/metrics and destructive-test isolation. Final RDS cutover is permitted
-> only after isolated CI-equivalent gates pass and a checked backup exists. M11 is
-> the authoritative tracker for this milestone; completed Phase-1/2/3 tasks below
-> remain historical baselines.
-
-> **Audience: AI coding agents and reviewers. Status: v1.4 implementation tracker (2026-07-16).** Historical tasks implement the v1.1 baseline; M11 tracks the production-hardening addendum in `architecture.md`. The Telecom Knowledge Assistant PRD (`../agent_testcase/services/knowledge-api/prd.md`, §4.10) is context only: it establishes this as a separate PGM source-generation track and contributes trust, provenance, Korean-preservation, review, and extensibility principles. It does not authorize reuse of chat/RAG/Neptune components.
+> **Active roadmap (2026-07-23): small-first, full-flow-first.** The next product
+> outcome is one unrelated small public Java repository completing the governed
+> loop through a pushed branch and GitHub pull request. A selected small cloud-
+> PostgreSQL table follows. Docker, Joern, production hardening, multi-site scale,
+> Mode A, additional languages/DBMSs, and enterprise rollout are not prerequisites.
+> M0–M11 are retained in the historical appendix and must not be used to select
+> new work.
 
 ---
 
-## 0. Execution Protocol
+## 0. Active Execution Rules
+
+1. Read `AGENTS.md`, `prd.md`, and `architecture.md` before selecting work.
+2. Pick the first unchecked `F-*` task whose dependencies are complete. Do not resume a historical M0–M11 task unless a human explicitly reactivates it.
+3. Preserve existing capability, but do not spend work on container hardening, RDS cutover, OIDC, multi-site scale, 10k performance, second language/DBMS, Mode A, DMN/DRL/C#, stored procedures, UI mining, or Joern without an active-task dependency.
+4. Synthetic fixtures remain regression tests. They cannot satisfy arbitrary-repository, business-usability, real-PR, real-site, or production-readiness acceptance.
+5. Use the existing cloud PostgreSQL for local platform state. No Docker PostgreSQL is required. Any destructive automated DB test must target an isolated `*_test` database or explicitly isolated disposable schema and must fail closed otherwise.
+6. Source extraction produces evidence-backed candidates only. Package compilation, Java generation, and release evidence are deterministic; compiled generated Java plus configured target tests are authoritative.
+7. A repository full-flow is incomplete until the branch exists on the configured remote and a reviewable GitHub pull request has been created. Never auto-merge or claim production deployment.
+
+## 1. Active Reference Outcome
+
+Use one public, writable dummy Java repository containing a small but non-template decision flow and business tests. The successful demonstration is:
+
+```text
+public GitHub repo → immutable commit → EvidenceBundle/candidate
+→ business vocabulary + decision-table edit → submit/approve
+→ deterministic Rule IR → Java + JUnit → target build/tests
+→ changed expected outcome → pushed branch → GitHub pull request
+```
+
+The source repository must not be coupled to the existing `EnrollmentValidator` fixture patterns. At least one extracted field must require evidence gathered from a second source or test file so the flow proves evidence navigation rather than one-file regex matching.
+
+After this passes, use one small selected table or view on cloud PostgreSQL as a separate source. Map it through the same Canonical Decision Package, governance, Java generation, test, and pull-request path.
+
+## 2. Active Roadmap
+
+### F0 — Truthful cloud-local baseline
+
+*Exit: API, worker, and UI run natively against cloud PostgreSQL with current migrations, a fresh worker heartbeat, and a repeatable smoke guide; no Docker or Joern process is required.*
+
+- [x] **F-001 — Reconcile runtime configuration and status.** COMPLETE 2026-07-23
+  - Implemented: native launcher refreshes the process-local Windows tool path, verifies uv/pnpm/Git/Java 17 before database access, normalizes `JAVA_HOME` without changing machine configuration, runs migrations, and starts API/worker/UI; SQLAlchemy connections fail fast and the worker retries transient PostgreSQL failures.
+  - Verified 2026-07-23: Microsoft OpenJDK `17.0.19`, cloud PostgreSQL `17.9`, Alembic `0009_candidate_package_promotion`, `/health/ready` database/artifact/worker checks, fresh worker leases, and `/studio` HTTP/browser smoke. The native stop script traverses only its recorded process trees.
+  - Verify the actual cloud migration revision, API health/readiness, worker lease/heartbeat, UI/API routing, Git, and Java 17 availability. Keep secrets out of logs/docs.
+  - Update startup documentation to use the existing native cloud-local scripts and list exact prerequisites plus download links only for missing software.
+  - Acceptance: a fresh native start followed by health, readiness, worker-freshness, and UI smoke checks; stop scripts leave no project-owned processes running.
+
+- [ ] **F-002 — Establish safe test tiers.**
+  - Separate pure/unit tests, isolated `*_test` DB tests, cloud read-only integration smoke, and external GitHub tests. Never weaken the destructive-test fuse to make shared cloud tests pass.
+  - Acceptance: documented commands accurately report what was run/skipped; the shared application DB is rejected by destructive suites.
+  - Depends: F-001.
+
+### F1 — Canonical Studio for non-technical authors
+
+*Exit: a user can correct and edit a governed decision using vocabulary, table cells, lookups, effective dates, and scenarios without editing JSON.*
+
+- [x] **F-101 — Canonical Decision Package schema and compiler.** COMPLETE 2026-07-23
+  - Implemented: strict v1 package models for vocabulary, decisions, lookups, composition, scenarios, evidence, and Java target binding; deterministic fail-closed Package→Rule-IR compiler with field/cell diagnostics; governed immutable revisions, effective-date lifecycle, audit and semantic diff; `/api/v1/canonical-packages/compile`; Korean/evidence/determinism/unit/API tests.
+  - Add a versioned package model for vocabulary, decisions, lookups, restricted composition, business scenarios, evidence links, and Java target binding.
+  - Implement pure deterministic Package→Rule-IR compilation. Return field/cell-addressed diagnostics and no partial IR on error. Preserve immutable revision/effective-date lifecycle and evidence linkage.
+  - Acceptance: round-trip/storage tests, valid compiler fixtures, invalid type/operator/reference/composition cases, deterministic bytes, Korean UTF-8, and evidence preservation.
+
+- [x] **F-102 — Business authoring API.** COMPLETE 2026-07-23
+  - Implemented: create/read/revise, compile preview, scenario revision, submit/approve/reject, optimistic concurrency, maker-checker, effective-overlap rejection, audit and semantic diff under `/api/v1/canonical-packages`.
+  - Expose package draft create/read/revise, validation/compile preview, submit/approve/reject, readable semantic diff, and business-scenario management through `/api/v1`.
+  - Keep compiled/raw IR read-only through an explicit advanced endpoint/view. Existing IR APIs remain compatibility paths, not the new UI default.
+  - Acceptance: maker-checker, optimistic concurrency, immutable approved revision, effective-date overlap, actionable diagnostics, audit, and compatibility tests.
+  - Depends: F-101.
+
+- [ ] **F-103 — Canonical Studio UI.** IN PROGRESS 2026-07-23
+  - Implemented: `/studio` persists and edits package revisions directly; decision-table authoring uses the mature `@gorules/jdm-editor` spreadsheet experience through a constrained Canonical Package↔JDM adapter. GoRules is a UI component only: vocabulary, evidence, lifecycle, scenarios, canonical storage, compilation and approval remain platform-owned. The adapter permits supported row/value edits, rejects arbitrary Zen expressions and schema changes, and preserves evidence/confidence outside JDM. The Studio also maintains business scenarios, shows evidence/confidence, and supports maker/checker submit/approve. The guided PostgreSQL tab discovers and maps bounded tables without raw SQL. A live browser smoke rendered the GoRules table and discovered `brp_demo_source.eligibility_rules`.
+  - Remaining: dedicated component/Playwright coverage for validation failure, evidence drill-down, revision diff, responsive/accessibility behavior, and guided nested/lookup editors.
+  - Make vocabulary, decision-table rows/cells, outcomes, lookup bindings, dates, scenarios, validation, evidence, and readable diff the primary Decisions experience.
+  - Move raw `when`/`then` JSON and Monaco IR behind an “Advanced” disclosure. A standard edit/submit/approve flow must not require JSON knowledge.
+  - Acceptance: component and Playwright flows cover create/edit row, validation failure, scenario edit/run, evidence inspection, submit, separate-actor approval, revision diff, and responsive/accessibility checks.
+  - Depends: F-102.
+
+### F2 — Evidence-driven small Java repository bootstrap
+
+*Exit: an unrelated small public Java repository produces useful candidates and complete EvidenceBundles without Joern or hard-coded fixture patterns.*
+
+- [ ] **F-201 — EvidenceBundle and tool contracts.** IN PROGRESS 2026-07-23
+  - Implemented: strict EvidenceBundle with field-level links, assumptions, unresolved calls, tests, contiguous transcript, and escalation; bounded Git inventory/history, ripgrep search, UTF-8 source reads, hashes, root confinement, output/file/range limits, and tests for traversal/oversize/binary inputs.
+  - Verified: subprocess timeout/failure paths expose only the tool name and exit class; tests assert search arguments and stderr are never leaked.
+  - Remaining: durable first-class storage rather than snapshot embedding.
+  - Define persisted schemas for commit/subpath, hypothesis, exact spans/hashes, inferred fields, assumptions, unresolved calls, alternative interpretations, test evidence/results, per-field confidence, tool transcript, and escalation recommendation.
+  - Define bounded read-only tools for repository inventory/manifests, `rg`, Git history/diff, source/test reads, and structural query. Enforce repository-root containment, output/size limits, timeouts, and secret-safe logs.
+  - Acceptance: schema/canonicalization tests plus traversal, oversized-output, timeout, binary, malformed UTF-8, and redaction cases.
+
+- [x] **F-202 — Lightweight repository agent.** COMPLETE 2026-07-23
+  - Implemented: commit-pinned inventory/search/bounded source and related-test collection; schema-only prompt; provider-swappable structured inference; evidence-link verification; conservative normalization that removes invalid optional claims while recording unresolved evidence; package compilation; public-import worker integration; fail-closed environment provider factory. Public preflight no longer invokes Joern or synthetic construct matching.
+  - Verified live: Groq `openai/gpt-oss-120b` imported `novoda/dojos` at `2e7391623b42617af1bbdad227e3e4701e89af2c`, subpath `harry-potter/09102010-blundell-xavi`, entry point `silent.DiscountCalculator#calculate`, in one durable attempt. It produced one compiling discount candidate, exact Java evidence, related test evidence and one scenario. An earlier Groq 70B run was reviewed against source and promoted to a Canonical Decision Package.
+  - Demonstrated boundary: GildedRose state transition uses the same `quality` concept as current input and new output, which v1's single-role vocabulary cannot represent without inventing a rename. It remains a concrete model-extension/escalation case, not a reason to add Joern.
+  - Orchestrate commit pinning and evidence tools to locate decision logic, related types/constants/lookups, and relevant tests; produce a candidate Decision Package plus EvidenceBundle and review items.
+  - Use structured provider output through the existing provider abstraction. Do not accept candidates with missing support for asserted source-derived fields; unsupported logic remains unresolved evidence.
+  - Acceptance: recorded deterministic provider tests and a live-provider gated test on the dummy repo; prove the path works with Joern unavailable and does not match fixture-specific names/templates.
+  - Depends: F-201.
+
+- [ ] **F-203 — Targeted semantic escalation.**
+  - Add Tree-sitter structural queries as the first escalation. Add only the smallest targeted Java semantic tool needed by a demonstrated dummy-repo unresolved case (JavaParser/SymbolSolver, OpenRewrite, or JDT LS).
+  - Record the failed question, selected tier, returned evidence, and remaining uncertainty. Joern/SootUp is explicitly outside this task.
+  - Acceptance: one case resolved by text/bounded reads and one case requiring structural or targeted semantic evidence; both produce auditable transcripts.
+  - Depends: F-202.
+
+- [ ] **F-204 — Durable import and review integration.** IN PROGRESS 2026-07-23
+  - Implemented: public repository jobs persist the candidate package and complete EvidenceBundle inside the immutable candidate source snapshot; unresolved calls create review items; Imports UI shows evidence counts, assumptions, and unresolved calls; synthetic fallback is disabled for public URLs. Candidate-to-package promotion is durable, idempotent, audited, linked to the promoted revision, and now routes from Imports into Canonical Studio. Live public/LLM imports use one outer job attempt so a free-tier 429 or malformed output is not immediately multiplied by the durable worker retry loop. Cloud run `6900df8c-2dea-4b81-8efe-9a244077f4e9` succeeded, and candidate `8a559c9f-7f7d-4e95-9b21-f131aa0c3cfa` promoted to package revision 1.
+  - Remaining: full retry/cancel acceptance against cloud DB and dedicated evidence views.
+  - Replace the fixed synthetic miner as the default public-repository import path. Persist candidate package/evidence, show progress, allow retry/cancel, promote idempotently into a governed draft, and preserve unresolved-fragment dispositions.
+  - Acceptance: URL/revision/subpath validation, immutable pin, idempotent retry/promotion, cancellation/recovery, evidence visibility in UI, and explicit unsupported/review outcomes.
+  - Depends: F-103, F-202.
+
+### F3 — Repository full-flow delivery
+
+*Exit: one business edit in the dummy repository path changes the expected behavior, passes generated and target tests, and lands as a pushed branch plus GitHub pull request.*
+
+- [ ] **F-301 — Dummy target repository and stable seam.**
+  - Configure the user-owned public dummy Java repository with a stable façade/integration seam, baseline business tests, generated/test paths, package name, base branch, and pinned Gradle or Maven commands.
+  - Acceptance: baseline clone/build/test passes from the pinned commit; tests exercise the façade used by generated rules.
+
+- [ ] **F-302 — Package release compilation and target gates.**
+  - Generate Rule IR, Java, JUnit, and manifest only from an approved package revision, approved scenarios/golden suite, lookup snapshots, target config, and generator version.
+  - Run generated tests and configured target tests in the delivery worktree. A failing or unavailable authoritative command blocks branch push/PR.
+  - Acceptance: byte-identical rerun; planted business failure blocks delivery; successful edit changes the asserted outcome through the target façade.
+  - Depends: F-101, F-301.
+
+- [ ] **F-303 — Remote branch and GitHub pull request.** IN PROGRESS 2026-07-23
+  - Implemented: the approved-release delivery job now pushes through a command-scoped GitHub credential helper, then invokes a secret-safe GitHub CLI publisher which verifies origin identity and the independently fetched remote branch head, creates or idempotently reuses one open PR, and verifies PR base/head/OID/state before returning evidence. Unit and local delivery tests cover create, reuse, mismatched heads, deterministic commits, compile/test and delivered execution.
+  - Remaining: run it against a distinct user-owned writable Java target repository after the target gate passes.
+  - Use a secret reference for writable credentials, branch from the configured base commit, write only allowlisted generated/test paths, commit the manifest/diff, push the branch, and create a PR containing evidence and test summaries.
+  - Make retries idempotent by release id/branch; never log tokens, force-push unrelated history, auto-merge, or trigger/claim production deployment.
+  - Acceptance: remote branch and PR are independently fetched/verified; PR commit hashes and generated hashes match release evidence; failure before push leaves no false success status.
+  - Depends: F-302.
+
+- [ ] **F-304 — Full-flow acceptance rehearsal.**
+  - Execute PRD §7 from public import through non-technical edit, separate approval, deterministic generation, behavior change, target tests, remote branch, and GitHub PR.
+  - Record exact evidence and limitations. Synthetic/local-only results are reported separately.
+  - Depends: F-204, F-303.
+
+### F4 — Small cloud PostgreSQL table full-flow
+
+*Exit: one selected small table/view is imported read-only and completes the same governed Java/PR delivery flow.*
+
+- [ ] **F-401 — Guided table discovery and mapping.** IN PROGRESS 2026-07-23
+  - Implemented: read-only bounded `pg_catalog` discovery, validated/quoted identifiers, deterministic row-to-package mapping with stable DB-row evidence and snapshot hash, `/api/v1/db-sources/*`, and guided `/studio` mapping. Cloud smoke imported three rows from `brp_demo_source.eligibility_rules`, then completed package submit/approve without modifying the source table.
+  - Remaining: demonstrate a distinct least-privilege source credential rather than the current separately named connection reference to the same cloud database.
+  - Configure a source connection reference distinct from platform persistence, browse allowlisted schemas/tables/views, select bounded rows/columns, and map condition/outcome/vocabulary fields through a reviewed UI.
+  - Persist source object, stable row identity, selected columns, mapping, snapshot/hash, and read-only evidence. No arbitrary model-authored SQL.
+  - Acceptance: least-privilege/read-only enforcement, injection/identifier containment, bounds, redaction, Korean text, deterministic mapping, and cloud integration smoke.
+  - Depends: F-002, F-103.
+
+- [ ] **F-402 — DB-derived governed delivery.**
+  - Promote mapped rows to a draft Decision Package, correct/edit/approve it, then reuse F-302/F-303 for Java generation, authoritative tests, remote branch, and PR.
+  - Acceptance: a selected DB-row change is visible in evidence/diff and produces the expected tested target behavior without modifying the source DB.
+  - Depends: F-303, F-401.
+
+### F5 — Evidence-triggered expansion gate
+
+- [ ] **F-501 — Evaluate real blockers only after F-304 and F-402.**
+  - For each proposed heavy/scale capability, record the real failed input/outcome, evidence from current lightweight tooling, smallest sufficient addition, operational cost, rollback boundary, and acceptance test.
+  - Joern/SootUp, Mode A, DMN/DRL/C#, stored procedures, UI mining, second language/DBMS, multi-site controls, containers, OIDC, HA, and performance engineering remain deferred until this gate approves a concrete case.
+  - Depends: F-304, F-402.
+
+## 3. Active Definition Of Done
+
+An `F-*` task is complete only when its listed acceptance evidence passes, changed projects remain lint/type/build clean, documentation matches actual behavior, and no claim exceeds the evidence tier. F-304 and F-402 require external remote/DB evidence respectively; mocks cannot replace them.
+
+---
+
+# Appendix A — Historical Implementation Record (M0–M11)
+
+The material below is retained for audit and regression context. Its task ordering, environment assumptions, scale work, and unchecked items are **not active instructions**. In particular, historical M11 production-hardening work is paused until the active vertical slices pass and a human explicitly reprioritizes it.
+
+## 0. Historical Execution Protocol
 
 ### 0.1 Required reading
 
@@ -498,12 +658,11 @@ Writes require `X-BRP-Actor`; reads do not. Phase-1 actor headers are developmen
 
 **T-907 verification:** platform Ruff and strict mypy passed with 190 non-E2E tests; UI 4 component tests, production build, and 2 Playwright flows passed. Live API/UI served on ports 8100/5173 and produced one candidate plus a hashed DMN preview. The in-app browser-control plugin could not attach because its local kernel-asset setup failed; repository Playwright and live HTTP verification remained green.
 
-### M11 — Internal self-hosted production hardening
+### M11 — Internal self-hosted production hardening (historical, paused)
 
-*Exit: the complete governed workflow runs through the enterprise console and
-durable worker on an isolated release stack; CI-equivalent and container gates are
-green; a checked backup exists before only `brp` is recreated and smoke-tested on
-RDS. OIDC remains an explicit blocker for Internet exposure.*
+*Historical target only. Do not resume T-1003–T-1006 from this appendix unless a
+human explicitly reactivates production hardening after F-304 and F-402. The
+unchecked status records unfinished historical work; it is not the current queue.*
 
 - [x] **T-1001 — Multi-workspace/site control plane and `/api/v1`.** ✅ 2026-07-16 working-tree
   - Implemented: workspace/site scoping, versioned secret-reference-only profiles,

@@ -14,6 +14,8 @@ from pathlib import Path
 
 import yaml
 
+from brp.git_source import public_github_url
+
 
 def establish_seam_baseline(
     repository_root: Path,
@@ -120,6 +122,9 @@ def publish_delivery_branch(
     decision_key: str,
     revision: int,
     semantic_diff: dict[str, object],
+    *,
+    github_repository_url: str | None = None,
+    github_token: str | None = None,
 ) -> DeliveryResult:
     """Commit/push only after a successful gate and emit PR-equivalent evidence."""
     branch = f"rules/gen-{decision_key}-r{revision}"
@@ -130,12 +135,41 @@ def publish_delivery_branch(
         cwd=gate.workspace,
     )
     _run(["git", "add", "release-manifest.json", "src/generated"], cwd=gate.workspace)
+    commit_date = _capture(
+        ["git", "show", "-s", "--format=%cI", gate.base_commit], cwd=gate.workspace
+    )
+    commit_environment = {
+        "GIT_AUTHOR_DATE": commit_date,
+        "GIT_COMMITTER_DATE": commit_date,
+    }
     _run(
         ["git", "commit", "-m", f"feat(rules): generate {decision_key} r{revision}"],
         cwd=gate.workspace,
+        environment=commit_environment,
     )
     head = _capture(["git", "rev-parse", "HEAD"], cwd=gate.workspace)
-    _run(["git", "push", "-u", "origin", branch], cwd=gate.workspace)
+    if (github_repository_url is None) != (github_token is None):
+        raise ValueError("GitHub URL and token must be configured together")
+    if github_repository_url is not None:
+        normalized = public_github_url(github_repository_url)
+        _run(["git", "remote", "set-url", "origin", normalized], cwd=gate.workspace)
+        _run(
+            [
+                "git",
+                "-c",
+                "credential.helper=",
+                "-c",
+                "credential.helper=!gh auth git-credential",
+                "push",
+                "-u",
+                "origin",
+                branch,
+            ],
+            cwd=gate.workspace,
+            environment={"GH_TOKEN": github_token or ""},
+        )
+    else:
+        _run(["git", "push", "-u", "origin", branch], cwd=gate.workspace)
     manifest = json.loads((gate.workspace / "release-manifest.json").read_text(encoding="utf-8"))
     generated_diff = _capture(
         ["git", "diff", "--stat", f"{gate.base_commit}..{head}"],
@@ -163,19 +197,13 @@ def publish_delivery_branch(
 def prove_delivered_execution(remote: Path, branch: str, clone: Path) -> ExecutionProof:
     _run(["git", "clone", "--branch", branch, str(remote), str(clone)])
     _run(_gradle(clone, "test"), cwd=clone)
-    completed = subprocess.run(
-        _gradle(clone, "deliveryProbe"),
-        cwd=clone,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
+    output = _capture(_gradle(clone, "deliveryProbe"), cwd=clone)
     manifest = clone / "release-manifest.json"
     return ExecutionProof(
         branch=branch,
         commit=_capture(["git", "rev-parse", "HEAD"], cwd=clone),
         manifest_hash=_file_hash(manifest) if manifest.exists() else None,
-        output=completed.stdout,
+        output=output,
     )
 
 
@@ -267,14 +295,63 @@ def _gradle(workspace: Path, task: str) -> list[str]:
     return [str(workspace / ("gradlew.bat" if os.name == "nt" else "gradlew")), task, "--no-daemon"]
 
 
-def _run(command: list[str], *, cwd: Path | None = None) -> None:
-    subprocess.run(command, cwd=cwd, check=True)
+def _run(
+    command: list[str],
+    *,
+    cwd: Path | None = None,
+    environment: dict[str, str] | None = None,
+) -> None:
+    process_environment = _process_environment(environment)
+    subprocess.run(command, cwd=cwd, env=process_environment, check=True)
 
 
 def _capture(command: list[str], *, cwd: Path) -> str:
     return subprocess.run(
-        command, cwd=cwd, check=True, capture_output=True, text=True
+        command,
+        cwd=cwd,
+        env=_process_environment(),
+        check=True,
+        capture_output=True,
+        text=True,
     ).stdout.strip()
+
+
+def _process_environment(overrides: dict[str, str] | None = None) -> dict[str, str]:
+    environment = os.environ.copy()
+    java_home = _detect_java_home(environment)
+    if java_home is not None:
+        environment["JAVA_HOME"] = str(java_home)
+        environment["PATH"] = (
+            str(java_home / "bin") + os.pathsep + environment.get("PATH", "")
+        )
+    environment.update(overrides or {})
+    return environment
+
+
+def _detect_java_home(environment: dict[str, str]) -> Path | None:
+    configured = environment.get("JAVA_HOME")
+    executable = "java.exe" if os.name == "nt" else "java"
+    if configured:
+        configured_home = Path(configured)
+        if (configured_home / "bin" / executable).is_file():
+            return configured_home
+
+    java = shutil.which("java", path=environment.get("PATH"))
+    if java:
+        return Path(java).resolve().parent.parent
+
+    if os.name == "nt":
+        program_files = Path(environment.get("ProgramFiles", r"C:\Program Files"))
+        patterns = (
+            program_files / "Microsoft",
+            program_files / "Eclipse Adoptium",
+            program_files / "Java",
+        )
+        for parent in patterns:
+            for candidate in sorted(parent.glob("jdk-17*"), reverse=True):
+                if (candidate / "bin" / executable).is_file():
+                    return candidate
+    return None
 
 
 def _file_hash(path: Path) -> str:

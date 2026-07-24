@@ -3,10 +3,13 @@
 import asyncio
 import hashlib
 import json
+import os
 import re
 import subprocess
+import tempfile
 from collections.abc import AsyncIterator, Iterator
 from datetime import datetime
+from pathlib import Path
 from typing import Annotated, Any, Literal, Self
 from uuid import UUID
 
@@ -23,7 +26,27 @@ from brp.api.schemas import (
     GoldenSuiteCreateRequest,
 )
 from brp.artifacts import artifact_store, safe_storage_key
+from brp.canonical_package import (
+    CanonicalDecisionPackage,
+    CanonicalPackageRepository,
+    PackageCompilation,
+    compile_package,
+)
+from brp.canonical_package.models import BusinessScenario
 from brp.config.models import SiteProfile
+from brp.db_table_source import (
+    DiscoveredTable,
+    TableImportMapping,
+    discover_tables,
+    import_table_package,
+)
+from brp.evidence import RepositoryEvidenceTools
+from brp.git_source import (
+    checkout_public_repository,
+    public_github_url,
+    safe_repository_subpath,
+    safe_revision,
+)
 from brp.governance.golden import GoldenCaseData, GoldenRepository, GoldenSuiteEvidencePolicy
 from brp.ir.models import DecisionContent
 from brp.jobs import JobService
@@ -32,6 +55,9 @@ from brp.repository.lifecycle import LifecycleService
 from brp.repository.models import (
     Artifact,
     CandidateDecision,
+    CanonicalPackage,
+    CanonicalPackageEvent,
+    CanonicalPackageRevision,
     Decision,
     DecisionRevision,
     DeliveryRecord,
@@ -67,20 +93,38 @@ class ImportRunRequest(ApiModel):
     schema_name: str = Field(default="public", pattern=r"^[A-Za-z_][A-Za-z0-9_$]*$")
     object_name: str = Field(default="eligibility", pattern=r"^[A-Za-z_][A-Za-z0-9_$]*$")
     profile_revision: int | None = Field(default=None, ge=1)
+    repository_url: str | None = Field(default=None, min_length=1, max_length=500)
+    repository_path: str = Field(default=".", max_length=300)
     repository_alias: str | None = Field(default=None, pattern=r"^[A-Za-z][A-Za-z0-9_-]*$")
     class_name: str | None = Field(
         default=None, pattern=r"^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$"
     )
     method: str | None = Field(default=None, pattern=r"^[A-Za-z_$][A-Za-z0-9_$]*$")
 
+    @model_validator(mode="before")
+    @classmethod
+    def validate_git_strings(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if data.get("repositoryUrl") or data.get("repository_url"):
+                key = "repositoryUrl" if "repositoryUrl" in data else "repository_url"
+                data = {**data, key: public_github_url(str(data[key]))}
+            if data.get("adapter") == "code-java" and data.get("revision"):
+                data = {**data, "revision": safe_revision(str(data["revision"]))}
+            if data.get("adapter") == "code-java" and (
+                data.get("repositoryPath") or data.get("repository_path")
+            ):
+                key = "repositoryPath" if "repositoryPath" in data else "repository_path"
+                data = {**data, key: safe_repository_subpath(str(data[key]))}
+        return data
+
     @model_validator(mode="after")
     def source_shape(self) -> Self:
         if self.adapter == "code-java":
-            if not all(
-                (self.profile_revision, self.repository_alias, self.class_name, self.method)
-            ):
+            if not all((self.repository_alias, self.class_name, self.method)):
+                raise ValueError("code-java requires repositoryAlias, className and method")
+            if (self.profile_revision is None) == (self.repository_url is None):
                 raise ValueError(
-                    "code-java requires profileRevision, repositoryAlias, className and method"
+                    "code-java requires exactly one of profileRevision or repositoryUrl"
                 )
         elif self.content is None:
             raise ValueError("inline adapters require source content")
@@ -137,6 +181,55 @@ class ModeBDeliveryRequest(ApiModel):
     profile_revision: int = Field(ge=1)
 
 
+class PackageCompileRequest(ApiModel):
+    package: CanonicalDecisionPackage
+    authored_at: datetime
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class PackageCreateRequest(PackageCompileRequest):
+    effective_from: datetime
+    effective_to: datetime | None = None
+
+
+class PackageRevisionRequest(PackageCreateRequest):
+    base_revision: int = Field(ge=1)
+
+
+class PackageScenarioRevisionRequest(ApiModel):
+    base_revision: int = Field(ge=1)
+    scenarios: list[BusinessScenario] = Field(min_length=1)
+    effective_from: datetime
+    effective_to: datetime | None = None
+    authored_at: datetime
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class DbTableImportRequest(ApiModel):
+    mapping: TableImportMapping
+    effective_from: datetime
+    effective_to: datetime | None = None
+    authored_at: datetime
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+def _evidence_agent_configured() -> bool:
+    provider = os.getenv("BRP_LLM_PROVIDER", "").strip().lower()
+    groq = provider == "groq"
+    return (
+        os.getenv("BRP_LLM_LIVE", "false").lower() in {"1", "true", "yes"}
+        and bool(provider)
+        and bool(
+            os.getenv("BRP_LLM_MODEL")
+            or os.getenv("BRP_LLM_FRONTIER_MODEL")
+            or os.getenv("BRP_LLM_BULK_MODEL")
+            or groq
+        )
+        and bool(os.getenv("BRP_LLM_API_KEY") or os.getenv("GROQ_API_KEY"))
+        and bool(os.getenv("BRP_LLM_BASE_URL") or groq)
+    )
+
+
 def build_v1_router(
     factory: sessionmaker[Session], request_authenticator: RequestAuthenticator
 ) -> APIRouter:
@@ -162,6 +255,179 @@ def build_v1_router(
     MakerActor = Annotated[str, Depends(actor_for("maker"))]
     ReviewerActor = Annotated[str, Depends(actor_for("reviewer"))]
     DeployerActor = Annotated[str, Depends(actor_for("deployer"))]
+
+    @router.post("/canonical-packages/compile", response_model=PackageCompilation)
+    def compile_canonical_package(
+        body: PackageCompileRequest, actor: MakerActor
+    ) -> PackageCompilation:
+        return compile_package(
+            body.package,
+            actor=actor,
+            authored_at=body.authored_at,
+            reason=body.reason,
+        )
+
+    @router.post("/canonical-packages", status_code=201)
+    def create_canonical_package(
+        site_id: UUID,
+        body: PackageCreateRequest,
+        actor: MakerActor,
+        session: SessionDependency,
+    ) -> dict[str, object]:
+        require_site(session, site_id)
+        record = CanonicalPackageRepository(session, site_id=site_id).create(
+            body.package,
+            actor=actor,
+            effective_from=body.effective_from,
+            effective_to=body.effective_to,
+            authored_at=body.authored_at,
+            reason=body.reason,
+        )
+        session.commit()
+        return canonical_package_revision_response(record)
+
+    @router.get("/canonical-packages")
+    def canonical_packages(
+        site_id: UUID, session: SessionDependency
+    ) -> list[dict[str, object]]:
+        return [
+            canonical_package_summary(item)
+            for item in CanonicalPackageRepository(session, site_id=site_id).list_packages()
+        ]
+
+    @router.get("/canonical-packages/{package_key}")
+    def canonical_package_detail(
+        package_key: str,
+        site_id: UUID,
+        session: SessionDependency,
+        revision: int | None = Query(default=None, ge=1),
+    ) -> dict[str, object]:
+        record = CanonicalPackageRepository(session, site_id=site_id).get_revision(
+            package_key, revision
+        )
+        return canonical_package_revision_response(record)
+
+    @router.post("/canonical-packages/{package_key}/revisions", status_code=201)
+    def revise_canonical_package(
+        package_key: str,
+        site_id: UUID,
+        body: PackageRevisionRequest,
+        actor: MakerActor,
+        session: SessionDependency,
+        if_match: Annotated[str | None, Header(alias="If-Match")] = None,
+    ) -> dict[str, object]:
+        if if_match is not None and if_match.strip('W/"') != str(body.base_revision):
+            raise RuntimeError("If-Match and baseRevision identify different revisions")
+        record = CanonicalPackageRepository(session, site_id=site_id).add_revision(
+            package_key,
+            body.package,
+            actor=actor,
+            effective_from=body.effective_from,
+            effective_to=body.effective_to,
+            authored_at=body.authored_at,
+            reason=body.reason,
+            base_revision=body.base_revision,
+        )
+        session.commit()
+        return canonical_package_revision_response(record)
+
+    @router.post("/canonical-packages/{package_key}/scenarios", status_code=201)
+    def revise_package_scenarios(
+        package_key: str,
+        site_id: UUID,
+        body: PackageScenarioRevisionRequest,
+        actor: MakerActor,
+        session: SessionDependency,
+    ) -> dict[str, object]:
+        repository = CanonicalPackageRepository(session, site_id=site_id)
+        previous = repository.get_revision(package_key, body.base_revision)
+        document = CanonicalDecisionPackage.model_validate(previous.document).model_copy(
+            update={"business_scenarios": body.scenarios}, deep=True
+        )
+        record = repository.add_revision(
+            package_key,
+            document,
+            actor=actor,
+            effective_from=body.effective_from,
+            effective_to=body.effective_to,
+            authored_at=body.authored_at,
+            reason=body.reason,
+            base_revision=body.base_revision,
+        )
+        session.commit()
+        return canonical_package_revision_response(record)
+
+    @router.post("/canonical-packages/{package_key}/{revision}/{action}")
+    def transition_canonical_package(
+        package_key: str,
+        revision: int,
+        action: Literal["submit", "approve", "reject"],
+        site_id: UUID,
+        body: LifecycleRequest,
+        request: Request,
+        session: SessionDependency,
+    ) -> dict[str, object]:
+        actor = actor_for("maker" if action == "submit" else "checker")(request)
+        repository = CanonicalPackageRepository(session, site_id=site_id)
+        record = repository.get_revision(package_key, revision)
+        if action == "submit":
+            repository.submit(record, actor)
+        elif action == "approve":
+            repository.approve(record, actor)
+        else:
+            repository.reject(record, actor, body.reason or "")
+        session.commit()
+        return canonical_package_revision_response(record)
+
+    @router.get("/canonical-packages/{package_key}/diff")
+    def canonical_package_diff(
+        package_key: str,
+        site_id: UUID,
+        session: SessionDependency,
+        from_revision: int = Query(alias="fromRevision", ge=1),
+        to_revision: int = Query(alias="toRevision", ge=1),
+    ) -> dict[str, object]:
+        return CanonicalPackageRepository(session, site_id=site_id).semantic_diff(
+            package_key, from_revision, to_revision
+        )
+
+    @router.get("/canonical-packages/{package_key}/audit")
+    def canonical_package_audit(
+        package_key: str, site_id: UUID, session: SessionDependency
+    ) -> list[dict[str, object]]:
+        return [
+            canonical_package_event_response(item)
+            for item in CanonicalPackageRepository(session, site_id=site_id).audit(package_key)
+        ]
+
+    @router.get("/db-sources/tables", response_model=list[DiscoveredTable])
+    def db_source_tables(
+        connection_alias: str,
+        schema_name: str,
+        actor: MakerActor,
+    ) -> list[DiscoveredTable]:
+        del actor
+        return discover_tables(connection_alias, schema_name)
+
+    @router.post("/db-sources/import", status_code=201)
+    def import_db_source_table(
+        site_id: UUID,
+        body: DbTableImportRequest,
+        actor: MakerActor,
+        session: SessionDependency,
+    ) -> dict[str, object]:
+        require_site(session, site_id)
+        package = import_table_package(body.mapping)
+        record = CanonicalPackageRepository(session, site_id=site_id).create(
+            package,
+            actor=actor,
+            effective_from=body.effective_from,
+            effective_to=body.effective_to,
+            authored_at=body.authored_at,
+            reason=body.reason,
+        )
+        session.commit()
+        return canonical_package_revision_response(record)
 
     @router.get("/context")
     def context(session: SessionDependency) -> dict[str, object]:
@@ -422,12 +688,17 @@ def build_v1_router(
         body: ImportRunRequest, actor: MakerActor, session: SessionDependency
     ) -> dict[str, object]:
         require_site(session, body.site_id)
+        if body.adapter == "code-java" and body.repository_url and not _evidence_agent_configured():
+            raise ValueError(
+                "public Java import requires a live structured LLM provider configuration"
+            )
         payload = body.model_dump(mode="json", by_alias=True)
         job = JobService(session).enqueue(
             site_id=body.site_id,
             job_type="IMPORT_EXTRACT",
             payload=payload,
             actor=actor,
+            max_attempts=1 if body.repository_url is not None else 3,
         )
         run = ImportRun(
             site_id=body.site_id,
@@ -451,6 +722,51 @@ def build_v1_router(
                 "ready": True,
                 "adapter": body.adapter,
                 "checks": ["safe filename", "bounded input", "durable worker"],
+            }
+        if body.repository_url is not None:
+            with tempfile.TemporaryDirectory(prefix="brp-github-preflight-") as directory:
+                checkout = Path(directory) / "repository"
+                commit = checkout_public_repository(body.repository_url, body.revision, checkout)
+                repository_path = (checkout / body.repository_path).resolve()
+                if (
+                    checkout.resolve() != repository_path
+                    and checkout.resolve() not in repository_path.parents
+                ):
+                    raise ValueError("repositoryPath escapes the public GitHub checkout")
+                if not repository_path.is_dir():
+                    raise LookupError("configured repositoryPath is unavailable")
+                tools = RepositoryEvidenceTools(checkout)
+                prefix = "" if body.repository_path == "." else body.repository_path + "/"
+                java_glob = "*.java" if not prefix else f"{prefix}**/*.java"
+                simple_class = str(body.class_name).rsplit(".", 1)[-1]
+                class_matches = tools.search(
+                    f"class {simple_class}", glob=java_glob, limit=20
+                )
+                method_matches = tools.search(
+                    f"{body.method}(", glob=java_glob, limit=50
+                )
+                if not class_matches and not method_matches:
+                    raise ValueError("entry-point hint was not found in tracked Java source")
+                agent_configured = _evidence_agent_configured()
+            return {
+                "ready": agent_configured,
+                "adapter": body.adapter,
+                "repositoryAlias": body.repository_alias,
+                "repositoryUrl": body.repository_url,
+                "repositoryPath": body.repository_path,
+                "resolvedRevision": commit,
+                "entryPoint": f"{body.class_name}#{body.method}",
+                "evidenceAgentConfigured": agent_configured,
+                "entryMatches": len(class_matches) + len(method_matches),
+                "checks": [
+                    "public GitHub HTTPS allowlist",
+                    "credential-free clone",
+                    "immutable revision",
+                    "repository subpath confinement",
+                    "bounded program context",
+                    "tracked Java entry-point evidence",
+                    "live structured LLM provider configuration",
+                ],
             }
         profile = session.scalar(
             select(SiteProfileRevision).where(
@@ -595,6 +911,67 @@ def build_v1_router(
         return DecisionRevisionResponse.from_record(
             repository.get_revision(candidate.decision_key, record.revision)
         )
+
+    @router.post("/candidates/{candidate_id}/promote-package", status_code=201)
+    def promote_candidate_package(
+        candidate_id: UUID,
+        body: CandidatePromotionRequest,
+        actor: MakerActor,
+        session: SessionDependency,
+    ) -> dict[str, object]:
+        candidate = session.scalar(
+            select(CandidateDecision).where(CandidateDecision.id == candidate_id).with_for_update()
+        )
+        if candidate is None:
+            raise LookupError("candidate not found")
+        repository = CanonicalPackageRepository(session, site_id=candidate.site_id)
+        if candidate.promoted_package_revision_id is not None:
+            existing = session.get(
+                CanonicalPackageRevision, candidate.promoted_package_revision_id
+            )
+            if existing is None:
+                raise RuntimeError("promoted package revision is unavailable")
+            return canonical_package_revision_response(
+                repository.get_revision(existing.package.package_key, existing.revision)
+            )
+        package_document = candidate.source_snapshot.get("canonicalPackage")
+        if not isinstance(package_document, dict):
+            raise ValueError("candidate does not contain a Canonical Decision Package")
+        package = CanonicalDecisionPackage.model_validate(package_document)
+        existing_package = session.scalar(
+            select(CanonicalPackage).where(
+                CanonicalPackage.site_id == candidate.site_id,
+                CanonicalPackage.package_key == package.package_id,
+            )
+        )
+        authored_at = datetime.now().astimezone()
+        if existing_package is None:
+            record = repository.create(
+                package,
+                actor=actor,
+                effective_from=body.effective_from,
+                effective_to=body.effective_to,
+                authored_at=authored_at,
+                reason="Promoted evidence-backed repository candidate",
+            )
+        else:
+            latest = max(existing_package.revisions, key=lambda item: item.revision)
+            if body.base_revision != latest.revision:
+                raise RuntimeError("baseRevision does not match latest package revision")
+            record = repository.add_revision(
+                package.package_id,
+                package,
+                actor=actor,
+                effective_from=body.effective_from,
+                effective_to=body.effective_to,
+                authored_at=authored_at,
+                reason="Promoted evidence-backed repository candidate",
+                base_revision=latest.revision,
+            )
+        candidate.promoted_package_revision_id = record.id
+        candidate.status = "PROMOTED"
+        session.commit()
+        return canonical_package_revision_response(record)
 
     @router.get("/review-items")
     def review_items(site_id: UUID, session: SessionDependency) -> list[dict[str, object]]:
@@ -894,6 +1271,56 @@ def require_site(session: Session, site_id: UUID) -> Site:
     return site
 
 
+def canonical_package_summary(item: CanonicalPackage) -> dict[str, object]:
+    latest = max(item.revisions, key=lambda record: record.revision)
+    return {
+        "id": str(item.id),
+        "siteId": str(item.site_id),
+        "packageKey": item.package_key,
+        "name": item.name,
+        "latestRevision": latest.revision,
+        "latestStatus": latest.lifecycle_status,
+        "contentHash": latest.content_hash,
+        "updatedAt": latest.created_at.isoformat(),
+    }
+
+
+def canonical_package_revision_response(
+    item: CanonicalPackageRevision,
+) -> dict[str, object]:
+    return {
+        "id": str(item.id),
+        "packageKey": item.package.package_key,
+        "revision": item.revision,
+        "status": item.lifecycle_status,
+        "contentHash": item.content_hash,
+        "effectiveFrom": item.effective_from.isoformat(),
+        "effectiveTo": item.effective_to.isoformat() if item.effective_to else None,
+        "createdBy": item.created_by,
+        "submittedBy": item.submitted_by,
+        "approvedBy": item.approved_by,
+        "rejectedBy": item.rejected_by,
+        "createdAt": item.created_at.isoformat(),
+        "submittedAt": item.submitted_at.isoformat() if item.submitted_at else None,
+        "decidedAt": item.decided_at.isoformat() if item.decided_at else None,
+        "package": item.document,
+        "compiledDecisions": item.compiled_decisions,
+    }
+
+
+def canonical_package_event_response(item: CanonicalPackageEvent) -> dict[str, object]:
+    return {
+        "id": item.id,
+        "actor": item.actor,
+        "action": item.action,
+        "fromStatus": item.from_status,
+        "toStatus": item.to_status,
+        "reason": item.reason,
+        "contentHash": item.content_hash,
+        "at": item.at.isoformat(),
+    }
+
+
 def workspace_response(item: Workspace) -> dict[str, object]:
     return {"id": str(item.id), "key": item.workspace_key, "name": item.name}
 
@@ -986,6 +1413,11 @@ def candidate_response(item: CandidateDecision) -> dict[str, object]:
         "sourceSnapshot": item.source_snapshot,
         "diagnostics": item.diagnostics,
         "promotedRevisionId": str(item.promoted_revision_id) if item.promoted_revision_id else None,
+        "promotedPackageRevisionId": (
+            str(item.promoted_package_revision_id)
+            if item.promoted_package_revision_id
+            else None
+        ),
     }
 
 
