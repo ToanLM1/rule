@@ -5,7 +5,7 @@ COPY mcp-db-connector /build/mcp-db-connector
 COPY platform/pyproject.toml platform/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 COPY platform ./
-RUN uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev --no-editable
 
 FROM python:3.12-slim-bookworm AS runtime
 ENV PATH=/app/.venv/bin:$PATH \
