@@ -1,18 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue";
-import { PhArrowClockwise, PhCheck, PhDatabase, PhPlus, PhUploadSimple } from "@phosphor-icons/vue";
+import { PhArrowClockwise, PhCheck, PhPlus, PhUploadSimple } from "@phosphor-icons/vue";
 import {
   BrpApi,
   type CanonicalPackageRevision,
   type CanonicalPackageSummary,
-  type DiscoveredTable,
 } from "../api";
 import GoRulesDecisionTable from "../components/GoRulesDecisionTable.vue";
 import { useAppStore } from "../stores/app";
 
 const store = useAppStore();
 const api = new BrpApi(store.apiBaseUrl);
-const tab = ref<"packages" | "database">("packages");
 const packages = ref<CanonicalPackageSummary[]>([]);
 const selected = ref<CanonicalPackageRevision | null>(null);
 const draft = ref<CanonicalPackageRevision["package"] | null>(null);
@@ -23,19 +21,6 @@ const maker = ref("business-author");
 const checker = ref("business-checker");
 const changeReason = ref("Business policy update");
 
-const connectionAlias = ref("BRP_PSQL_URL");
-const schemaName = ref("brp_demo_source");
-const tables = ref<DiscoveredTable[]>([]);
-const selectedTableName = ref("");
-const primaryKeys = ref<string[]>([]);
-const conditionColumns = ref<string[]>([]);
-const outcomeColumns = ref<string[]>([]);
-const newPackageId = ref("db_eligibility_rules");
-const newPackageName = ref("DB eligibility rules");
-
-const selectedTable = computed(() =>
-  tables.value.find((item) => item.table === selectedTableName.value),
-);
 const currentDecision = computed(() => draft.value?.decisions[0]);
 const inputFields = computed(() =>
   (draft.value?.vocabulary ?? []).filter((item) => item.role === "INPUT"),
@@ -46,16 +31,6 @@ const outputFields = computed(() =>
 
 onMounted(loadPackages);
 watch(() => store.siteId, loadPackages);
-watch(selectedTableName, () => {
-  const columns = selectedTable.value?.columns.map((item) => item.name) ?? [];
-  primaryKeys.value = columns.filter((name) => /(^id$|_id$)/i.test(name)).slice(0, 1);
-  outcomeColumns.value = columns.filter((name) =>
-    /eligible|reason|status|result|outcome/i.test(name),
-  );
-  conditionColumns.value = columns.filter(
-    (name) => !primaryKeys.value.includes(name) && !outcomeColumns.value.includes(name),
-  );
-});
 
 async function loadPackages() {
   if (!store.siteId) return;
@@ -112,49 +87,6 @@ async function transition(action: "submit" | "approve" | "reject") {
     draft.value = JSON.parse(JSON.stringify(selected.value.package));
     notice.value = `Revision ${selected.value.revision} is ${selected.value.status}.`;
     await loadPackages();
-  });
-}
-
-async function discover() {
-  await run(async () => {
-    tables.value = await api.discoverDbTables(
-      connectionAlias.value,
-      schemaName.value,
-      maker.value,
-    );
-    selectedTableName.value = tables.value[0]?.table ?? "";
-    notice.value = `Found ${tables.value.length} table/view(s).`;
-  });
-}
-
-async function importTable() {
-  if (!store.siteId || !selectedTable.value) return;
-  await run(async () => {
-    const result = await api.importDbTable(
-      store.siteId,
-      {
-        connectionAlias: connectionAlias.value,
-        schemaName: schemaName.value,
-        table: selectedTable.value!.table,
-        packageId: newPackageId.value,
-        packageName: newPackageName.value,
-        decisionId: newPackageId.value.replace(/_rules$/, ""),
-        decisionName: newPackageName.value,
-        conditionColumns: conditionColumns.value,
-        outcomeColumns: outcomeColumns.value,
-        primaryKeyColumns: primaryKeys.value,
-        maxRows: 100,
-        programId: "DB_RULE_IMPORT",
-        programKind: "SERVICE",
-        entryPoint: `${schemaName.value}.${selectedTable.value!.table}`,
-        scenarios: [],
-      },
-      maker.value,
-    );
-    tab.value = "packages";
-    await loadPackages();
-    await openPackage(result.packageKey);
-    notice.value = "Imported read-only DB snapshot. Add a business scenario before submit.";
   });
 }
 
@@ -216,24 +148,23 @@ function showError(cause: unknown) {
   <main class="studio-page">
     <header class="page-header">
       <div>
-        <p class="eyebrow">Business authoring</p>
+        <p class="eyebrow">Author · governed change · step 3</p>
         <h1>Canonical Studio</h1>
-        <p>Maintain business decisions first; executable Rule IR remains generated and read-only.</p>
+        <p>Business decision packages. Edit vocabulary, rules and scenarios; executable Rule IR stays generated and read-only. Start a source in Imports; govern immutable revisions in Decisions.</p>
       </div>
-      <div class="studio-actors">
-        <label>Maker<input v-model="maker" /></label>
-        <label>Checker<input v-model="checker" /></label>
+      <div class="studio-header-side">
+        <div class="studio-actors">
+          <label>Maker<input v-model="maker" /></label>
+          <label>Checker<input v-model="checker" /></label>
+        </div>
+        <RouterLink class="secondary-button" to="/test-suites">Next: Test suites →</RouterLink>
       </div>
     </header>
 
-    <div class="studio-tabs">
-      <button :class="{ active: tab === 'packages' }" @click="tab = 'packages'">Decision packages</button>
-      <button :class="{ active: tab === 'database' }" @click="tab = 'database'"><PhDatabase :size="16" /> PostgreSQL import</button>
-    </div>
     <p v-if="error" class="studio-message error">{{ error }}</p>
     <p v-if="notice" class="studio-message success">{{ notice }}</p>
 
-    <section v-if="tab === 'packages'" class="studio-layout">
+    <section class="studio-layout">
       <aside class="studio-list">
         <div class="section-title"><strong>Packages</strong><button class="icon-button" @click="loadPackages"><PhArrowClockwise :size="16" /></button></div>
         <button v-for="item in packages" :key="item.id" :class="{ selected: selected?.packageKey === item.packageKey }" @click="openPackage(item.packageKey)">
@@ -298,25 +229,7 @@ function showError(cause: unknown) {
           </article>
         </section>
       </div>
-      <div v-else class="studio-empty">Select a package to edit its business model.</div>
-    </section>
-
-    <section v-else class="studio-card db-import-card">
-      <div><p class="eyebrow">Read-only source</p><h2>Guided PostgreSQL table import</h2><p>No model-authored SQL. Schema, table and selected columns are validated and bounded.</p></div>
-      <div class="form-grid">
-        <label>Connection reference<input v-model="connectionAlias" /></label>
-        <label>Schema<input v-model="schemaName" /></label>
-        <button class="secondary-button align-end" :disabled="busy" @click="discover"><PhArrowClockwise :size="16" /> Discover</button>
-        <label>Table/view<select v-model="selectedTableName"><option v-for="item in tables" :key="item.table" :value="item.table">{{ item.table }} · {{ item.kind }}</option></select></label>
-        <label>Package ID<input v-model="newPackageId" /></label>
-        <label>Package name<input v-model="newPackageName" /></label>
-      </div>
-      <div v-if="selectedTable" class="column-mapping">
-        <div><h3>Primary key</h3><label v-for="column in selectedTable.columns" :key="column.name"><input v-model="primaryKeys" type="checkbox" :value="column.name" />{{ column.name }} <small>{{ column.databaseType }}</small></label></div>
-        <div><h3>Conditions</h3><label v-for="column in selectedTable.columns" :key="column.name"><input v-model="conditionColumns" type="checkbox" :value="column.name" />{{ column.name }} <small>{{ column.databaseType }}</small></label></div>
-        <div><h3>Outcomes</h3><label v-for="column in selectedTable.columns" :key="column.name"><input v-model="outcomeColumns" type="checkbox" :value="column.name" />{{ column.name }} <small>{{ column.databaseType }}</small></label></div>
-      </div>
-      <button class="primary-button" :disabled="busy || !selectedTable || !primaryKeys.length || !conditionColumns.length || !outcomeColumns.length" @click="importTable"><PhDatabase :size="16" /> Import bounded snapshot</button>
+      <div v-else class="studio-empty">Select a package to edit its business model. New here? Start a source in <RouterLink to="/imports">Imports</RouterLink>.</div>
     </section>
   </main>
 </template>

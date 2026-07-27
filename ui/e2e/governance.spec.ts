@@ -11,8 +11,9 @@ test('decision studio preserves governance controls in dark mode', async ({ page
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await expect(page.getByRole('heading', { name: 'Decisions' })).toBeVisible()
   await expect(page.getByLabel('Search decisions')).toHaveValue('eligibility')
-  await expect(page.getByText('가입 자격 판정')).toBeVisible()
-  await page.getByRole('button', { name: 'Open decision' }).click()
+  // Two live decisions share this display name; both must remain listed.
+  await expect(page.getByText('가입 자격 판정').first()).toBeVisible()
+  await page.getByRole('button', { name: 'Open decision' }).first().click()
   await expect(page.getByRole('dialog', { name: 'Decision editor' })).toBeVisible()
   await expect(page.getByText('Optimistic concurrency: base r2')).toBeVisible()
   await expect(page.locator('.ag-root')).toBeVisible()

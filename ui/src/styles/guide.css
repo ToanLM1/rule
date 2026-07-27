@@ -41,16 +41,33 @@
 }
 .guide-nav-brand { color: var(--guide-ink); display: inline-flex; align-items: center; gap: 9px; text-decoration: none; white-space: nowrap; }
 .guide-nav-brand svg { color: var(--guide-blue); }
-.guide-nav-brand strong { font-size: 12px; font-weight: 700; }
+.guide-nav-brand strong { font-size: 16px; font-weight: 700; }
 .guide-local-nav > div { display: flex; align-items: center; gap: 4px; overflow-x: auto; scrollbar-width: none; }
 .guide-local-nav > div::-webkit-scrollbar { display: none; }
-.guide-local-nav > div a { position: relative; min-height: 32px; padding: 0 10px; color: var(--guide-faint); display: inline-flex; align-items: center; font-size: 9px; font-weight: 650; text-decoration: none; white-space: nowrap; }
+.guide-local-nav > div a { position: relative; min-height: 32px; padding: 0 12px; color: var(--guide-faint); display: inline-flex; align-items: center; font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap; }
 .guide-local-nav > div a::after { content: ''; position: absolute; right: 10px; bottom: 0; left: 10px; height: 2px; background: var(--guide-blue); transform: scaleX(0); transition: transform .2s ease; }
 .guide-local-nav > div a:hover, .guide-local-nav > div a.active { color: var(--guide-ink); }
 .guide-local-nav > div a.active::after { transform: scaleX(1); }
 
+/* Standalone landing top bar */
+.landing-page { min-height: 100vh; }
+.landing-nav { top: 0; }
+.landing-nav-anchors { flex: 1 1 auto; justify-content: center; }
+.landing-nav-actions { display: inline-flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+.landing-nav .landing-nav-actions a { position: static; min-height: 40px; padding: 9px 16px; font-size: 14px; }
+.landing-nav .landing-nav-actions a::after { display: none; }
+.landing-lang { display: inline-flex; align-items: center; gap: 6px; padding: 9px 13px; border: 1px solid rgb(17 26 43 / 12%); border-radius: 8px; background: transparent; color: var(--guide-ink); font-size: 13px; font-weight: 640; cursor: pointer; }
+.landing-lang svg { color: var(--guide-blue); }
+.landing-nav .landing-nav-docs { display: inline-flex; align-items: center; gap: 7px; color: var(--guide-ink); font-weight: 650; text-decoration: none; }
+.landing-nav .landing-nav-docs svg { color: var(--guide-blue); }
+.landing-nav .landing-nav-cta { gap: 7px; color: #fff; }
+@media (max-width: 720px) {
+  .landing-nav-anchors { justify-content: flex-start; }
+  .landing-nav-actions { width: 100%; padding-top: 8px; }
+}
+
 .guide-content { width: 100%; overflow-x: hidden; }
-.guide-eyebrow { margin: 0 0 16px; color: var(--guide-blue); font-family: 'Outfit Variable', Outfit, sans-serif; font-size: 10px; font-weight: 720; letter-spacing: .1em; line-height: 1.2; text-transform: uppercase; }
+.guide-eyebrow { margin: 0 0 16px; color: var(--guide-blue); font-family: 'Outfit Variable', Outfit, sans-serif; font-size: 12px; font-weight: 720; letter-spacing: .1em; line-height: 1.2; text-transform: uppercase; }
 .guide-hero { min-height: min(770px, calc(100dvh - 118px)); padding: clamp(72px, 9vw, 124px) clamp(22px, 5vw, 72px) clamp(90px, 11vw, 148px); background:
   radial-gradient(circle at 82% 28%, rgb(21 94 239 / 9%), transparent 29%),
   linear-gradient(180deg, var(--guide-paper), var(--guide-canvas));
@@ -59,7 +76,7 @@
 }
 .guide-hero-inner { display: grid; grid-template-columns: minmax(0, 1.22fr) minmax(340px, .78fr); align-items: center; gap: clamp(48px, 6vw, 82px); }
 .guide-hero-copy { min-width: 0; }
-.guide-hero h1 { max-width: 72rem; margin: 0; color: var(--guide-ink); font-size: clamp(1.95rem, 4.2vw, 4.75rem); font-weight: 700; letter-spacing: -.058em; line-height: .93; text-wrap: balance; }
+.guide-hero h1 { max-width: 72rem; margin: 0; color: var(--guide-ink); font-size: clamp(1.85rem, 3.2vw, 3.5rem); font-weight: 700; letter-spacing: -.048em; line-height: .97; text-wrap: balance; }
 .guide-hero h1 em, .guide-hero-line { display: block; white-space: nowrap; }
 .guide-hero h1 em { color: var(--guide-blue); font-style: normal; }
 .guide-inline-visual { position: relative; top: -.08em; width: clamp(76px, 8vw, 124px); height: clamp(27px, 2.8vw, 43px); margin: 0 .05em; border: 1px solid #b7c9f2; border-radius: 999px; overflow: hidden; background: linear-gradient(110deg, #dae5ff, #f7f9ff); display: inline-flex; align-items: center; justify-content: center; gap: 7px; vertical-align: middle; }
@@ -69,7 +86,7 @@
 .guide-inline-visual i { position: relative; z-index: 1; width: 6px; height: 6px; border: 1px solid #fff; border-radius: 50%; background: var(--guide-blue); box-shadow: 0 0 0 4px rgb(21 94 239 / 10%); }
 .guide-hero-body { max-width: 610px; margin: 27px 0 0; color: var(--guide-copy); font-family: 'Outfit Variable', Outfit, sans-serif; font-size: clamp(14px, 1.3vw, 18px); line-height: 1.65; text-wrap: pretty; }
 .guide-actions { margin-top: 30px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.guide-button { min-height: 43px; padding: 0 16px; border: 1px solid transparent; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; font-family: 'Outfit Variable', Outfit, sans-serif; font-size: 10px; font-weight: 680; text-decoration: none; transition: transform .2s ease, color .2s ease, background-color .2s ease, border-color .2s ease; }
+.guide-button { min-height: 46px; padding: 0 22px; border: 1px solid transparent; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; gap: 9px; font-family: 'Outfit Variable', Outfit, sans-serif; font-size: 14px; font-weight: 640; text-decoration: none; transition: transform .2s ease, color .2s ease, background-color .2s ease, border-color .2s ease; }
 .guide-button:hover { transform: translateY(-2px); }
 .guide-button-primary { border-color: var(--guide-blue); background: var(--guide-blue); color: #fff; box-shadow: 0 12px 30px rgb(21 94 239 / 18%); }
 .guide-button-primary:hover { background: var(--guide-blue-dark); }
@@ -114,7 +131,7 @@
 
 .guide-section { padding: clamp(96px, 12vw, 168px) clamp(22px, 5vw, 72px); scroll-margin-top: 112px; }
 .guide-heading { max-width: 830px; margin-bottom: 48px; }
-.guide-heading h2, .guide-trust h2, .guide-journey-intro h2, .guide-role-sidebar h2, .guide-glossary h2, .guide-cta h2 { margin: 0; color: var(--guide-ink); font-size: clamp(2.35rem, 4.4vw, 4.8rem); font-weight: 700; letter-spacing: -.05em; line-height: .98; text-wrap: balance; }
+.guide-heading h2, .guide-trust h2, .guide-journey-intro h2, .guide-role-sidebar h2, .guide-glossary h2, .guide-cta h2 { margin: 0; color: var(--guide-ink); font-size: clamp(1.9rem, 3vw, 3.35rem); font-weight: 700; letter-spacing: -.04em; line-height: 1.02; text-wrap: balance; }
 .guide-heading > p:last-child, .guide-journey-intro > p:last-child { max-width: 650px; margin: 20px 0 0; color: var(--guide-copy); font: 14px/1.65 'Outfit Variable', sans-serif; }
 
 .guide-principles { background: var(--guide-canvas); }
@@ -124,44 +141,44 @@
 .guide-bento-card > svg { margin-top: auto; color: var(--guide-blue); transition: transform .7s cubic-bezier(.2,.8,.2,1); }
 .guide-bento-card:hover > svg { transform: scale(1.12); }
 .guide-bento-card > div { margin-top: 22px; }
-.guide-bento-card h3 { margin: 0; color: var(--guide-ink); font-size: 16px; letter-spacing: -.02em; }
-.guide-bento-card p { max-width: 480px; margin: 9px 0 0; color: var(--guide-copy); font: 10px/1.6 'Outfit Variable', sans-serif; }
-.guide-bento-card strong { margin-top: 17px; color: var(--guide-blue); display: block; font: 9px 'Outfit Variable', sans-serif; }
-.guide-card-index { position: absolute; top: 22px; right: 24px; color: #9ca1aa; font: 9px var(--font-mono); }
+.guide-bento-card h3 { margin: 0; color: var(--guide-ink); font-size: 19px; letter-spacing: -.02em; }
+.guide-bento-card p { max-width: 480px; margin: 9px 0 0; color: var(--guide-copy); font: 14px/1.6 'Outfit Variable', sans-serif; }
+.guide-bento-card strong { margin-top: 17px; color: var(--guide-blue); display: block; font: 12px 'Outfit Variable', sans-serif; font-weight: 600; }
+.guide-card-index { position: absolute; top: 22px; right: 24px; color: #9ca1aa; font: 11px var(--font-mono); }
 .guide-bento-1 { grid-area: span 2 / span 8; }
 .guide-bento-2, .guide-bento-3, .guide-bento-4, .guide-bento-5 { grid-area: span 2 / span 4; }
 .guide-bento-1 { background: #e8efff; }
-.guide-bento-1 h3 { font-size: clamp(22px, 3vw, 37px); }
-.guide-bento-1 p { font-size: 12px; }
+.guide-bento-1 h3 { font-size: clamp(20px, 2.3vw, 29px); }
+.guide-bento-1 p { font-size: 15px; }
 
 .guide-trust { background: #172338; }
 .guide-trust-layout { display: grid; grid-template-columns: minmax(250px, .65fr) minmax(0, 1.35fr); align-items: start; gap: clamp(48px, 9vw, 128px); }
 .guide-trust .guide-eyebrow { color: #79a5ff; }
-.guide-trust h2 { color: #fff; font-size: clamp(2.2rem, 4vw, 4.2rem); }
-.guide-trust-copy { margin: 0; color: #fff; font-size: clamp(2rem, 4.2vw, 4.7rem); font-weight: 650; letter-spacing: -.04em; line-height: 1.08; }
+.guide-trust h2 { color: #fff; font-size: clamp(1.9rem, 3vw, 3.2rem); }
+.guide-trust-copy { margin: 0; color: #fff; font-size: clamp(1.7rem, 2.9vw, 3rem); font-weight: 650; letter-spacing: -.03em; line-height: 1.14; }
 .guide-trust-copy span { opacity: .12; }
-.guide-trust aside { max-width: 650px; margin-top: 42px; padding-top: 20px; border-top: 1px solid #40506a; color: #aebbd0; display: flex; align-items: flex-start; gap: 11px; font: 11px/1.6 'Outfit Variable', sans-serif; }
+.guide-trust aside { max-width: 650px; margin-top: 42px; padding-top: 20px; border-top: 1px solid #40506a; color: #aebbd0; display: flex; align-items: flex-start; gap: 11px; font: 14px/1.6 'Outfit Variable', sans-serif; }
 .guide-trust aside svg { flex: 0 0 auto; color: #79a5ff; }
 
 .guide-journey { background: #ece9df; }
 .guide-journey-grid { display: grid; grid-template-columns: minmax(280px, .72fr) minmax(0, 1.28fr); align-items: start; gap: clamp(54px, 9vw, 126px); }
 .guide-journey-intro { align-self: start; }
-.guide-journey-intro h2 { font-size: clamp(2.5rem, 4.3vw, 4.8rem); }
+.guide-journey-intro h2 { font-size: clamp(2rem, 3.2vw, 3.45rem); }
 .guide-journey-steps { display: grid; gap: 18px; }
 .guide-journey-steps article { min-height: 240px; padding: clamp(25px, 3vw, 36px); border: 1px solid #d0cec6; border-radius: 14px; background: var(--guide-paper); box-shadow: 0 14px 34px rgb(47 50 56 / 6%); transition: transform .7s cubic-bezier(.2,.8,.2,1), box-shadow .25s ease; }
 .guide-journey-steps article:hover { transform: translateY(-5px) scale(1.01); box-shadow: 0 22px 48px rgb(47 50 56 / 10%); }
-.guide-journey-steps header { color: var(--guide-faint); display: flex; align-items: center; justify-content: space-between; font: 9px 'Outfit Variable', sans-serif; }
+.guide-journey-steps header { color: var(--guide-faint); display: flex; align-items: center; justify-content: space-between; font: 12px 'Outfit Variable', sans-serif; }
 .guide-journey-steps header span { font-family: var(--font-mono); }
 .guide-journey-steps header strong { color: var(--guide-blue); font-weight: 650; }
-.guide-journey-steps h3 { max-width: 570px; margin: 48px 0 0; color: var(--guide-ink); font-size: clamp(21px, 2.6vw, 32px); line-height: 1.05; letter-spacing: -.035em; }
-.guide-journey-steps p { max-width: 590px; margin: 12px 0 0; color: var(--guide-copy); font: 11px/1.65 'Outfit Variable', sans-serif; }
-.guide-journey-steps a { margin-top: 28px; color: var(--guide-blue); display: inline-flex; align-items: center; gap: 8px; font: 9px 'Outfit Variable', sans-serif; font-weight: 680; text-decoration: none; }
+.guide-journey-steps h3 { max-width: 570px; margin: 48px 0 0; color: var(--guide-ink); font-size: clamp(20px, 2.2vw, 28px); line-height: 1.1; letter-spacing: -.03em; }
+.guide-journey-steps p { max-width: 590px; margin: 12px 0 0; color: var(--guide-copy); font: 14px/1.65 'Outfit Variable', sans-serif; }
+.guide-journey-steps a { margin-top: 28px; color: var(--guide-blue); display: inline-flex; align-items: center; gap: 8px; font: 13px 'Outfit Variable', sans-serif; font-weight: 650; text-decoration: none; }
 .guide-journey-steps a:hover { color: var(--guide-blue-dark); }
 
 .guide-roles { background: var(--guide-paper); }
 .guide-role-shell { min-height: 420px; border: 1px solid #d0cec6; border-radius: 18px; overflow: hidden; background: #fff; display: grid; grid-template-columns: minmax(290px, .72fr) minmax(0, 1.28fr); }
 .guide-role-sidebar { padding: clamp(28px, 4vw, 48px); border-right: 1px solid #dddcd6; background: #f3f1ea; }
-.guide-role-sidebar h2 { font-size: clamp(2rem, 3.4vw, 3.5rem); }
+.guide-role-sidebar h2 { font-size: clamp(1.75rem, 2.8vw, 3rem); }
 .guide-role-portraits { margin-top: 38px; display: flex; align-items: center; }
 .guide-role-portraits span { width: 42px; height: 42px; margin-left: -8px; border: 3px solid #f3f1ea; border-radius: 50%; background: #b9c3d3; color: #fff; display: grid; place-items: center; font: 9px 'Outfit Variable', sans-serif; font-weight: 700; transition: transform .25s ease, background-color .25s ease; }
 .guide-role-portraits span:first-child { margin-left: 0; }
@@ -173,34 +190,34 @@
 .guide-carousel-controls button { width: 36px; height: 36px; padding: 0; border: 1px solid #bdc1c7; border-radius: 50%; background: transparent; color: var(--guide-ink); display: grid; place-items: center; }
 .guide-carousel-controls button:hover { border-color: var(--guide-blue); background: var(--guide-blue); color: #fff; }
 .guide-role-quote { padding: clamp(32px, 5vw, 64px); display: flex; flex-direction: column; justify-content: space-between; }
-.guide-role-quote blockquote { max-width: 700px; margin: 0; color: var(--guide-ink); font-size: clamp(1.65rem, 3vw, 3.25rem); font-weight: 560; letter-spacing: -.035em; line-height: 1.14; text-wrap: balance; }
+.guide-role-quote blockquote { max-width: 700px; margin: 0; color: var(--guide-ink); font-size: clamp(1.45rem, 2.4vw, 2.6rem); font-weight: 560; letter-spacing: -.03em; line-height: 1.22; text-wrap: balance; }
 .guide-role-quote footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #e2e1dc; display: grid; grid-template-columns: .55fr 1fr; align-items: end; gap: 30px; }
 .guide-role-quote footer strong, .guide-role-quote footer span { display: block; }
-.guide-role-quote footer strong { font-size: 12px; }
-.guide-role-quote footer span { margin-top: 4px; color: var(--guide-blue); font: 9px 'Outfit Variable', sans-serif; }
-.guide-role-quote footer p { margin: 0; color: var(--guide-copy); font: 10px/1.55 'Outfit Variable', sans-serif; }
+.guide-role-quote footer strong { font-size: 15px; }
+.guide-role-quote footer span { margin-top: 4px; color: var(--guide-blue); font: 12px 'Outfit Variable', sans-serif; }
+.guide-role-quote footer p { margin: 0; color: var(--guide-copy); font: 14px/1.55 'Outfit Variable', sans-serif; }
 
 .guide-simulator { background: #e6edfb; }
 .guide-simulator-shell { border: 1px solid #bdc9df; border-radius: 18px; overflow: hidden; background: #fff; display: grid; grid-template-columns: minmax(0, 1fr) minmax(330px, .8fr); box-shadow: 0 28px 70px rgb(43 69 116 / 11%); }
 .guide-simulator-inputs { padding: clamp(28px, 4vw, 48px); }
-.guide-sample-notice { margin-bottom: 34px; padding: 10px 12px; border: 1px solid #c8d4ed; border-radius: 6px; background: #eff4ff; color: #315895; display: flex; align-items: center; gap: 8px; font: 9px 'Outfit Variable', sans-serif; }
-.guide-range { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; color: var(--guide-copy); font: 10px 'Outfit Variable', sans-serif; }
+.guide-sample-notice { margin-bottom: 34px; padding: 10px 12px; border: 1px solid #c8d4ed; border-radius: 6px; background: #eff4ff; color: #315895; display: flex; align-items: center; gap: 8px; font: 12px 'Outfit Variable', sans-serif; }
+.guide-range { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; color: var(--guide-copy); font: 13px 'Outfit Variable', sans-serif; }
 .guide-range strong { color: var(--guide-ink); font-size: 20px; font-variant-numeric: tabular-nums; }
 .guide-range input { grid-column: 1 / -1; width: 100%; accent-color: var(--guide-blue); }
 .guide-simulator fieldset { margin: 28px 0 0; padding: 0; border: 0; }
-.guide-simulator legend { margin-bottom: 10px; color: var(--guide-copy); font: 10px 'Outfit Variable', sans-serif; }
+.guide-simulator legend { margin-bottom: 10px; color: var(--guide-copy); font: 13px 'Outfit Variable', sans-serif; }
 .guide-toggle { padding: 3px; border: 1px solid #cdd2dc; border-radius: 7px; background: #f1f3f7; display: grid; grid-template-columns: 1fr 1fr; }
-.guide-toggle button { height: 34px; border: 0; border-radius: 5px; background: transparent; color: #687385; font: 9px 'Outfit Variable', sans-serif; }
+.guide-toggle button { height: 36px; border: 0; border-radius: 5px; background: transparent; color: #687385; font: 13px 'Outfit Variable', sans-serif; }
 .guide-toggle button[aria-pressed='true'] { background: #fff; color: var(--guide-ink); box-shadow: 0 1px 4px rgb(32 43 63 / 12%); }
 .guide-simulator-result { min-height: 420px; padding: clamp(30px, 5vw, 58px); background: #172338; color: #fff; display: flex; flex-direction: column; justify-content: center; }
 .guide-result-icon { width: 48px; height: 48px; margin-bottom: 31px; border-radius: 50%; background: rgb(255 255 255 / 9%); color: #79a5ff; display: grid; place-items: center; }
 .guide-simulator-result.eligible .guide-result-icon { color: #64d6a8; }
 .guide-simulator-result.manual_review .guide-result-icon { color: #f3bd66; }
 .guide-simulator-result.ineligible .guide-result-icon { color: #ff8b83; }
-.guide-simulator-result > small { color: #93a3ba; font: 9px 'Outfit Variable', sans-serif; letter-spacing: .08em; text-transform: uppercase; }
-.guide-simulator-result > strong { margin-top: 7px; font-size: clamp(2.2rem, 4vw, 4.3rem); line-height: 1; letter-spacing: -.04em; }
-.guide-simulator-result > p { max-width: 480px; margin: 19px 0 0; color: #b7c2d3; font: 11px/1.65 'Outfit Variable', sans-serif; }
-.guide-simulator-result > div { margin-top: 37px; padding-top: 16px; border-top: 1px solid #3b4a63; display: flex; align-items: center; justify-content: space-between; color: #91a2ba; font: 9px 'Outfit Variable', sans-serif; }
+.guide-simulator-result > small { color: #93a3ba; font: 11px 'Outfit Variable', sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+.guide-simulator-result > strong { margin-top: 7px; font-size: clamp(1.9rem, 3vw, 3.2rem); line-height: 1.05; letter-spacing: -.03em; }
+.guide-simulator-result > p { max-width: 480px; margin: 19px 0 0; color: #b7c2d3; font: 14px/1.65 'Outfit Variable', sans-serif; }
+.guide-simulator-result > div { margin-top: 37px; padding-top: 16px; border-top: 1px solid #3b4a63; display: flex; align-items: center; justify-content: space-between; color: #91a2ba; font: 12px 'Outfit Variable', sans-serif; }
 .guide-simulator-result code { color: #fff; font-family: var(--font-mono); }
 
 .guide-delivery { background: var(--guide-canvas); }
@@ -208,22 +225,22 @@
 .guide-mode-grid article { min-height: 340px; padding: clamp(28px, 4vw, 45px); border: 1px solid #d0cec6; border-radius: 15px; background: var(--guide-paper); display: flex; flex-direction: column; transition: transform .7s cubic-bezier(.2,.8,.2,1), border-color .25s ease; }
 .guide-mode-grid article:hover { border-color: #9fb4e5; transform: scale(1.015); }
 .guide-mode-grid article > span { width: 44px; height: 44px; border-radius: 9px; background: var(--guide-blue-soft); color: var(--guide-blue); display: grid; place-items: center; }
-.guide-mode-grid h3 { margin: 48px 0 0; color: var(--guide-ink); font-size: clamp(24px, 3vw, 38px); letter-spacing: -.04em; }
-.guide-mode-grid p { max-width: 560px; margin: 14px 0 0; color: var(--guide-copy); font: 11px/1.65 'Outfit Variable', sans-serif; }
-.guide-mode-grid strong { margin-top: auto; padding-top: 30px; color: var(--guide-blue); font: 9px/1.5 'Outfit Variable', sans-serif; }
+.guide-mode-grid h3 { margin: 48px 0 0; color: var(--guide-ink); font-size: clamp(21px, 2.4vw, 30px); letter-spacing: -.03em; }
+.guide-mode-grid p { max-width: 560px; margin: 14px 0 0; color: var(--guide-copy); font: 14px/1.65 'Outfit Variable', sans-serif; }
+.guide-mode-grid strong { margin-top: auto; padding-top: 30px; color: var(--guide-blue); font: 12px/1.5 'Outfit Variable', sans-serif; font-weight: 600; }
 
 .guide-glossary { border-top: 1px solid #d5d2c9; background: #eeeae0; }
 .guide-glossary-layout { display: grid; grid-template-columns: minmax(250px, .65fr) minmax(0, 1.35fr); gap: clamp(54px, 9vw, 126px); }
-.guide-glossary h2 { font-size: clamp(2.3rem, 4vw, 4.2rem); }
+.guide-glossary h2 { font-size: clamp(1.9rem, 3vw, 3.2rem); }
 .guide-glossary dl { margin: 0; }
 .guide-glossary dl div { padding: 20px 0; border-top: 1px solid #cbc7bd; display: grid; grid-template-columns: minmax(150px, .55fr) 1fr; gap: 24px; }
-.guide-glossary dt { color: var(--guide-ink); font-size: 12px; font-weight: 700; }
-.guide-glossary dd { margin: 0; color: var(--guide-copy); font: 10px/1.6 'Outfit Variable', sans-serif; }
+.guide-glossary dt { color: var(--guide-ink); font-size: 15px; font-weight: 700; }
+.guide-glossary dd { margin: 0; color: var(--guide-copy); font: 14px/1.6 'Outfit Variable', sans-serif; }
 
 .guide-cta { padding: clamp(90px, 12vw, 160px) clamp(22px, 5vw, 72px) 36px; background: #101a2b; color: #fff; }
 .guide-cta h2 { max-width: 900px; color: #fff; }
 .guide-cta > div > p { max-width: 650px; margin: 24px 0 0; color: #9dabc0; font: 14px/1.65 'Outfit Variable', sans-serif; }
-.guide-cta footer { margin-top: clamp(90px, 12vw, 160px); padding-top: 19px; border-top: 1px solid #334158; color: #8290a5; display: flex; align-items: center; justify-content: space-between; gap: 20px; font: 8px 'Outfit Variable', sans-serif; }
+.guide-cta footer { margin-top: clamp(90px, 12vw, 160px); padding-top: 19px; border-top: 1px solid #334158; color: #8290a5; display: flex; align-items: center; justify-content: space-between; gap: 20px; font: 12px 'Outfit Variable', sans-serif; }
 .guide-cta footer span:first-child { color: #fff; font-weight: 700; }
 
 @media (max-width: 1020px) {
@@ -297,7 +314,7 @@
 .guide-video-section { padding: clamp(78px, 9vw, 126px) clamp(22px, 5vw, 72px); background: #ece9df; }
 .guide-video-layout { display: grid; grid-template-columns: minmax(250px, .54fr) minmax(0, 1.46fr); align-items: center; gap: clamp(42px, 7vw, 96px); }
 .guide-video-layout header { max-width: 430px; }
-.guide-video-layout h2 { margin: 0; color: var(--guide-ink); font-size: clamp(2.2rem, 4vw, 4.35rem); font-weight: 700; letter-spacing: -.05em; line-height: .98; text-wrap: balance; }
+.guide-video-layout h2 { margin: 0; color: var(--guide-ink); font-size: clamp(1.9rem, 3vw, 3.2rem); font-weight: 700; letter-spacing: -.04em; line-height: 1.02; text-wrap: balance; }
 .guide-video-layout header p { margin: 22px 0 0; color: var(--guide-copy); font: 13px/1.65 'Outfit Variable', Outfit, sans-serif; }
 .guide-video-frame { aspect-ratio: 16 / 9; border: 1px solid #c7c6c1; border-radius: 18px; overflow: hidden; background: #111a2b; box-shadow: 0 30px 72px rgb(44 49 58 / 16%); }
 .guide-video-frame video { width: 100%; height: 100%; display: block; object-fit: cover; background: #111a2b; }

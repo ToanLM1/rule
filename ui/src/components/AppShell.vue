@@ -41,18 +41,36 @@ const commandInput = ref<HTMLInputElement | null>(null);
 let timer: number | undefined;
 let systemTheme: MediaQueryList | undefined;
 
-const navigation = computed(() => [
-  { to: "/overview", label: t("nav.overview"), icon: PhGauge },
-  { to: "/guide", label: t("nav.guide"), icon: PhBookOpenText },
-  { to: "/decisions", label: t("nav.decisions"), icon: PhStack },
-  { to: "/studio", label: "Canonical Studio", icon: PhTreeStructure },
-  { to: "/imports", label: t("nav.imports"), icon: PhCloudArrowUp },
-  { to: "/reviews", label: t("nav.reviews"), icon: PhClipboardText },
-  { to: "/test-suites", label: t("nav.suites"), icon: PhFlask },
-  { to: "/releases", label: t("nav.releases"), icon: PhGitPullRequest },
-  { to: "/sites", label: t("nav.sites"), icon: PhBuildings },
-  { to: "/operations", label: t("nav.operations"), icon: PhPulse },
+const navigationGroups = computed(() => [
+  {
+    title: t("nav.group.workspace"),
+    items: [
+      { to: "/overview", label: t("nav.overview"), icon: PhGauge },
+      { to: "/guide", label: t("nav.guide"), icon: PhBookOpenText },
+    ],
+  },
+  {
+    title: t("nav.group.change"),
+    items: [
+      { to: "/imports", label: t("nav.imports"), icon: PhCloudArrowUp, step: 1 },
+      { to: "/reviews", label: t("nav.reviews"), icon: PhClipboardText, step: 2 },
+      { to: "/studio", label: t("nav.studio"), icon: PhTreeStructure, step: 3 },
+      { to: "/decisions", label: t("nav.decisions"), icon: PhStack },
+      { to: "/test-suites", label: t("nav.suites"), icon: PhFlask, step: 4 },
+      { to: "/releases", label: t("nav.releases"), icon: PhGitPullRequest, step: 5 },
+    ],
+  },
+  {
+    title: t("nav.group.operate"),
+    items: [
+      { to: "/operations", label: t("nav.operations"), icon: PhPulse },
+      { to: "/sites", label: t("nav.sites"), icon: PhBuildings },
+    ],
+  },
 ]);
+const navigation = computed(() =>
+  navigationGroups.value.flatMap((group) => group.items),
+);
 const currentLabel = computed(
   () => navigation.value.find((item) => item.to === route.path)?.label ?? "",
 );
@@ -200,15 +218,23 @@ async function refreshJobs() {
         </button>
       </div>
       <nav aria-label="Primary navigation">
-        <RouterLink
-          v-for="item in navigation"
-          :key="item.to"
-          :to="item.to"
-          :title="store.sidebarCollapsed ? item.label : undefined"
+        <div
+          v-for="group in navigationGroups"
+          :key="group.title"
+          class="nav-group"
         >
-          <component :is="item.icon" :size="20" />
-          <span>{{ item.label }}</span>
-        </RouterLink>
+          <p class="nav-group-title">{{ group.title }}</p>
+          <RouterLink
+            v-for="item in group.items"
+            :key="item.to"
+            :to="item.to"
+            :title="store.sidebarCollapsed ? item.label : undefined"
+          >
+            <component :is="item.icon" :size="20" />
+            <span>{{ item.label }}</span>
+            <span v-if="item.step" class="nav-step">{{ item.step }}</span>
+          </RouterLink>
+        </div>
       </nav>
       <div class="sidebar-foot">
         <span class="environment-dot" />
@@ -308,29 +334,16 @@ async function refreshJobs() {
         >
       </header>
 
-      <div
-        v-if="contextError && route.path !== '/guide'"
-        class="global-alert"
-        role="alert"
-      >
+      <div v-if="contextError" class="global-alert" role="alert">
         <strong>Connection problem</strong><span>{{ contextError }}</span
         ><button @click="$router.go(0)">Retry</button>
       </div>
-      <main
-        class="page-frame"
-        :class="{ 'page-frame--guide': route.path === '/guide' }"
-      >
-        <div v-if="route.path !== '/guide'" class="breadcrumbs">
+      <main class="page-frame">
+        <div class="breadcrumbs">
           <span>Rule Platform</span><span>/</span
           ><strong>{{ currentLabel }}</strong>
         </div>
-        <RouterView
-          :key="
-            route.path === '/guide'
-              ? route.path
-              : `${route.path}:${store.siteId}`
-          "
-        />
+        <RouterView :key="`${route.path}:${store.siteId}`" />
       </main>
     </div>
 

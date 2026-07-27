@@ -111,7 +111,7 @@ export const guideContent = {
       steps: [
         { title: 'Pin and preflight the source', screen: 'Imports', body: 'Choose an approved source profile, select an immutable revision and confirm the adapter can process it safely.', action: 'Open Imports', to: '/imports' },
         { title: 'Review the candidate and provenance', screen: 'Review queue', body: 'Compare the proposed condition and outcome with the exact source evidence. Unsupported fragments stay in review.', action: 'Open Review queue', to: '/reviews' },
-        { title: 'Create and approve a revision', screen: 'Decisions', body: 'Edit as a new immutable revision. The maker submits it and a different checker approves or rejects it.', action: 'Open Decisions', to: '/decisions' },
+        { title: 'Author and approve a revision', screen: 'Canonical Studio · Decisions', body: 'Edit business rules in Canonical Studio, then govern the immutable revision in Decisions. The maker submits it and a different checker approves or rejects it.', action: 'Open Canonical Studio', to: '/studio' },
         { title: 'Prove expected behavior', screen: 'Test suites', body: 'Create golden cases, approve lookup snapshots and run the suite against the pinned decision revision.', action: 'Open Test suites', to: '/test-suites' },
         { title: 'Release and observe', screen: 'Releases · Operations', body: 'Publish Mode A or deliver Mode B, then follow the durable job and retained evidence through completion.', action: 'Open Releases', to: '/releases' },
       ],
@@ -232,7 +232,7 @@ export const guideContent = {
       steps: [
         { title: '소스를 고정하고 사전 점검', screen: '가져오기', body: '승인된 소스 프로필과 불변 리비전을 선택하고 어댑터가 안전하게 처리할 수 있는지 확인합니다.', action: '가져오기 열기', to: '/imports' },
         { title: '후보 규칙과 출처 검토', screen: '검토 대기열', body: '제안된 조건과 결과를 정확한 소스 증거와 비교합니다. 지원되지 않는 조각은 검토 상태로 남습니다.', action: '검토 대기열 열기', to: '/reviews' },
-        { title: '리비전 생성 및 승인', screen: '의사결정', body: '새 불변 리비전으로 편집합니다. Maker가 제출하고 다른 Checker가 승인하거나 반려합니다.', action: '의사결정 열기', to: '/decisions' },
+        { title: '리비전 작성 및 승인', screen: 'Canonical 스튜디오 · 의사결정', body: 'Canonical 스튜디오에서 비즈니스 규칙을 편집한 뒤 의사결정에서 불변 리비전을 관리합니다. Maker가 제출하고 다른 Checker가 승인하거나 반려합니다.', action: 'Canonical 스튜디오 열기', to: '/studio' },
         { title: '기대 동작 증명', screen: '테스트 스위트', body: '골든 케이스와 조회 스냅샷을 승인하고 고정된 의사결정 리비전에 대해 실행합니다.', action: '테스트 스위트 열기', to: '/test-suites' },
         { title: '배포 및 관찰', screen: '릴리스 · 운영', body: 'Mode A 게시 또는 Mode B 전달을 실행하고 내구성 작업과 증거가 완료될 때까지 추적합니다.', action: '릴리스 열기', to: '/releases' },
       ],

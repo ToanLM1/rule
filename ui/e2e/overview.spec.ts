@@ -10,7 +10,7 @@ test('functional overview, theme and command navigation work together', async ({
   await page.goto('/overview')
   await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible()
   await expect(page.locator('.metric-grid .metric-card')).toHaveCount(4)
-  await expect(page.locator('.workflow-stages > a')).toHaveCount(4)
+  await expect(page.locator('.workflow-stages > a')).toHaveCount(5)
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0)
 
   await page.getByRole('button', { name: 'Theme: light' }).click()
@@ -32,7 +32,7 @@ test('reduced motion keeps overview content fully visible', async ({ page }) => 
   await mockApi(page)
   await page.goto('/overview')
   await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible()
-  await expect(page.locator('.workflow-stages > a')).toHaveCount(4)
+  await expect(page.locator('.workflow-stages > a')).toHaveCount(5)
 })
 
 test('all eight workflow routes render their primary screen', async ({ page }) => {

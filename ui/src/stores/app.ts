@@ -17,6 +17,8 @@ export const useAppStore = defineStore('app', {
     workspaceId: localStorage.getItem('brp.workspace') ?? '',
     siteId: localStorage.getItem('brp.site') ?? '',
     actor: localStorage.getItem('brp.actor') ?? 'maker-a',
+    /** B-008: stable decision key of the governed change carried across the workflow. */
+    decisionKey: localStorage.getItem('brp.decision') ?? '',
     locale: (localStorage.getItem('brp.locale') ?? 'en') as 'en' | 'ko',
     theme: (localStorage.getItem('brp.theme') ?? 'system') as ThemePreference,
     resolvedTheme: 'light' as ResolvedTheme,
@@ -57,6 +59,11 @@ export const useAppStore = defineStore('app', {
       this.siteId = siteId
       localStorage.setItem('brp.workspace', workspaceId)
       localStorage.setItem('brp.site', siteId)
+    },
+    setDecisionKey(decisionKey: string) {
+      this.decisionKey = decisionKey
+      if (decisionKey) localStorage.setItem('brp.decision', decisionKey)
+      else localStorage.removeItem('brp.decision')
     },
     setActor(actor: string) {
       this.actor = actor

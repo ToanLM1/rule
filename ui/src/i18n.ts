@@ -3,14 +3,20 @@ import { createI18n } from 'vue-i18n'
 const en = {
   nav: {
     overview: 'Overview',
-    guide: 'Guide',
+    guide: 'Docs',
     decisions: 'Decisions',
+    studio: 'Canonical Studio',
     imports: 'Imports',
     reviews: 'Review queue',
     suites: 'Test suites',
     releases: 'Releases',
     sites: 'Sites',
     operations: 'Operations',
+    group: {
+      workspace: 'Workspace',
+      change: 'The governed change',
+      operate: 'Operate',
+    },
   },
   app: {
     name: 'Rule Platform',
@@ -42,14 +48,20 @@ const en = {
 const ko = {
   nav: {
     overview: '개요',
-    guide: '가이드',
+    guide: '문서',
     decisions: '결정',
+    studio: 'Canonical 스튜디오',
     imports: '가져오기',
     reviews: '검토 대기열',
     suites: '테스트 스위트',
     releases: '릴리스',
     sites: '사이트',
     operations: '운영',
+    group: {
+      workspace: '워크스페이스',
+      change: '관리되는 변경',
+      operate: '운영 및 설정',
+    },
   },
   app: {
     name: '규칙 플랫폼',

@@ -17,6 +17,12 @@
 .sidebar nav a:hover { background: #111c2e; color: #edf2f8; }
 .sidebar nav a.router-link-active { border-color: #263a56; background: #162339; color: #fff; box-shadow: none; }
 .sidebar nav a.router-link-active::before { content: ''; position: absolute; inset: 10px auto 10px 0; width: 2px; border-radius: 1px; background: #579dff; }
+.nav-group { display: flex; flex-direction: column; gap: 3px; }
+.nav-group + .nav-group { margin-top: 14px; }
+.nav-group-title { margin: 0 0 4px; padding: 0 12px; color: #6b7789; font-size: var(--fs-3xs); font-weight: 650; letter-spacing: .07em; text-transform: uppercase; }
+.sidebar nav a .nav-step { margin-left: auto; display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: #162339; color: #7f8da3; font-size: var(--fs-3xs); font-weight: 650; font-variant-numeric: tabular-nums; }
+.sidebar nav a:hover .nav-step { color: #cdd7e6; }
+.sidebar nav a.router-link-active .nav-step { background: #1d64e8; color: #fff; }
 .sidebar-foot { margin: auto 2px 0; padding: 15px 10px; border-color: #202c3e; }
 .sidebar-foot strong { color: #d9e1eb; font-size: var(--fs-xs); }
 .sidebar-foot small { color: #7b879a; }
@@ -27,6 +33,7 @@
 .app-shell--collapsed .shell-main { margin-left: var(--sidebar-collapsed-width); }
 .app-shell--collapsed .brand { padding-inline: 7px; }
 .app-shell--collapsed .brand-copy, .app-shell--collapsed .sidebar nav a span, .app-shell--collapsed .sidebar-foot div, .app-shell--collapsed .sidebar-collapse span { width: 0; opacity: 0; overflow: hidden; }
+.app-shell--collapsed .nav-group-title, .app-shell--collapsed .sidebar nav a .nav-step { display: none; }
 .app-shell--collapsed .sidebar nav a, .app-shell--collapsed .sidebar-collapse { justify-content: center; padding-inline: 0; }
 .app-shell--collapsed .sidebar-foot { display: flex; justify-content: center; }
 .navigation-scrim { position: fixed; inset: 0; z-index: 29; border: 0; background: var(--overlay); }
@@ -252,6 +259,13 @@ tbody tr:hover { background: color-mix(in srgb, var(--primary) 4%, var(--surface
 .column-mapping > div { padding: 15px; border: 1px solid var(--border); border-radius: 9px; }
 .column-mapping label { display: flex; gap: 8px; padding: 6px 0; font-size: var(--fs-sm); }
 .column-mapping input { width: auto; }
+.import-mode-switch { display: inline-flex; gap: 4px; margin-bottom: 18px; padding: 4px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.import-mode-switch button { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-size: var(--fs-sm); font-weight: 600; cursor: pointer; }
+.import-mode-switch button.active { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.db-import-intro { margin-bottom: 16px; }
+.db-import-card .wizard-actions { margin-top: 18px; }
+.inline-note { margin: 0 0 14px; padding: 11px 14px; border-radius: 8px; background: var(--success-soft); color: var(--success); font-size: var(--fs-sm); }
+.studio-header-side { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .gorules-editor-shell {
   overflow: hidden;
   min-height: 270px;

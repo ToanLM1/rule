@@ -1,78 +1,130 @@
 import AxeBuilder from '@axe-core/playwright'
-import { expect, test } from '@playwright/test'
-import { mockApi } from './mockApi'
+import { expect, test, type Page } from '@playwright/test'
 
-test('business guide delivers editorial story, handbook and simulator', async ({ page }) => {
+async function mockApi(page: Page) {
+  const handler = async (route: Parameters<Parameters<Page['route']>[1]>[0]) => {
+    const body = route.request().url().endsWith('/api/v1/context')
+      ? {
+          workspaces: [{ id: 'workspace-test', key: 'test', name: 'Test workspace' }],
+          sites: [
+            {
+              id: 'site-test',
+              workspaceId: 'workspace-test',
+              key: 'test',
+              name: 'Test site',
+              status: 'ACTIVE',
+              defaultLocale: 'en',
+              timezone: 'UTC',
+            },
+          ],
+          authentication: 'test',
+          productionBlocked: true,
+        }
+      : []
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(body),
+    })
+  }
+
+  await page.route('http://localhost:8100/**', handler)
+  await page.route('http://127.0.0.1:8100/**', handler)
+}
+
+test('guide presents explanatory slides, architecture, and working navigation', async ({ page }) => {
   const consoleErrors: string[] = []
-  page.on('console', (message) => { if (message.type() === 'error') consoleErrors.push(message.text()) })
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text())
+  })
+
   await mockApi(page)
   await page.goto('/guide')
 
-  const hero = page.locator('.guide-hero h1')
-  await expect(hero).toBeVisible()
-  const heroImage = page.locator('.guide-hero-art img')
-  await expect(heroImage).toBeVisible()
-  expect(await heroImage.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0)
+  await expect(page.locator('.doc-header h1')).toHaveText('Rule Platform documentation')
 
-  const video = page.locator('.guide-video-frame video')
-  await expect(video).toHaveAttribute('preload', 'metadata')
-  await expect(video).not.toHaveAttribute('autoplay', '')
-  await expect(video.locator('track')).toHaveCount(2)
-  await video.evaluate(async (element: HTMLVideoElement) => {
-    if (element.readyState >= 1) return
-    await new Promise<void>((resolve, reject) => {
-      element.addEventListener('loadedmetadata', () => resolve(), { once: true })
-      element.addEventListener('error', () => reject(new Error('Guide video metadata failed to load')), { once: true })
-    })
-  })
-  expect(await video.evaluate((element: HTMLVideoElement) => element.duration)).toBeGreaterThan(45)
-  expect(await video.evaluate((element: HTMLVideoElement) => element.paused)).toBe(true)
-  const heroLines = await hero.evaluate((element) => {
-    const lineHeight = Number.parseFloat(getComputedStyle(element).lineHeight)
-    return Math.round(element.getBoundingClientRect().height / lineHeight)
-  })
-  expect(heroLines).toBeLessThanOrEqual(3)
-  await expect(page.locator('.guide-bento-card')).toHaveCount(5)
-  expect(await page.locator('.guide-bento').evaluate((element) => getComputedStyle(element).gridAutoFlow)).toBe('dense')
-  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0)
+  const images = page.locator('.doc-header img, .doc-visual img')
+  await expect(images).toHaveCount(4)
+  for (let index = 0; index < 4; index += 1) {
+    const image = images.nth(index)
+    await image.scrollIntoViewIfNeeded()
+    await expect.poll(async () => image.evaluate((element) => (element as HTMLImageElement).complete)).toBe(true)
+  }
 
-  const riskGroup = page.getByRole('group', { name: 'Risk flag present' })
-  await riskGroup.getByRole('button', { name: 'Yes', exact: true }).click()
-  await expect(page.getByText('Manual review', { exact: true })).toBeVisible()
-  await expect(page.getByText('ELG-RISK-03', { exact: true })).toBeVisible()
+  const visualState = await images.evaluateAll((images) =>
+    images.map((image) => {
+      const element = image as HTMLImageElement
+      return {
+        alt: element.alt,
+        src: element.getAttribute('src'),
+        naturalWidth: element.naturalWidth,
+        naturalHeight: element.naturalHeight,
+      }
+    }),
+  )
 
-  await page.getByRole('button', { name: 'Next role' }).click()
-  await expect(page.getByText('Checker', { exact: true })).toBeVisible()
-  await expect(page.locator('.guide-role-portraits button')).toHaveCount(4)
-  await expect(page.locator('.guide-role-visual img')).toHaveAttribute('src', '/guide/role-checker.webp')
-  await page.getByLabel('Language').selectOption('ko')
-  await expect(page.getByText('후보 규칙은 운영 로직이 아닙니다.', { exact: true })).toBeVisible()
-  await expect(video).toHaveAttribute('aria-label', 'Rule Platform 소개 영상')
-  await expect.poll(() => video.evaluate((element: HTMLVideoElement) => Array.from(element.textTracks).map((track) => `${track.language}:${track.mode}`).join(','))).toContain('ko:showing')
+  expect(visualState).toHaveLength(4)
+  for (const visual of visualState) {
+    expect(visual.alt.length).toBeGreaterThan(0)
+    expect(visual.naturalWidth).toBeGreaterThan(0)
+    expect(visual.naturalHeight).toBeGreaterThan(0)
+  }
+  expect(visualState.map((visual) => visual.src)).toEqual([
+    '/guide/slides/governed-decision-hero.webp',
+    '/guide/slides/rule-platform-architecture.svg',
+    '/guide/slides/maker-checker-review.webp',
+    '/guide/slides/golden-test-delivery.webp',
+  ])
 
-  const results = await new AxeBuilder({ page }).analyze()
-  expect(results.violations.filter((item) => item.impact === 'critical')).toEqual([])
+  await expect(page.locator('.doc-toc a.active')).toHaveCount(1)
+  const authorLink = page.locator('.doc-toc a[href="#author"]')
+  await authorLink.click()
+  await expect(page.locator('#author')).toBeInViewport()
+
+  await expect(page.locator('.doc-links a[href="/studio"]')).toBeVisible()
+
+  const horizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  )
+  expect(horizontalOverflow).toBeLessThanOrEqual(0)
+
+  const accessibility = await new AxeBuilder({ page }).analyze()
+  expect(accessibility.violations.filter((violation) => violation.impact === 'critical')).toEqual([])
   expect(consoleErrors).toEqual([])
 })
 
-test('guide remains readable without the platform API', async ({ page }) => {
+test('guide remains readable when the API is unavailable', async ({ page }) => {
   await page.route('http://localhost:8100/**', (route) => route.abort())
+  await page.route('http://127.0.0.1:8100/**', (route) => route.abort())
+
   await page.goto('/guide')
-  await expect(page.locator('.guide-hero h1')).toBeVisible()
-  await expect(page.getByText('Connection problem')).toHaveCount(0)
-  await expect(page.getByText('Illustrative sample — not production data')).toBeVisible()
+
+  await expect(page.locator('.doc-header h1')).toHaveText('Rule Platform documentation')
+  await expect(page.locator('#journey h2')).toBeVisible()
+  await expect(page.locator('#release h2')).toBeVisible()
+  await expect(page.getByText('Connection problem')).toBeVisible()
 })
 
-test('guide is static and overflow-free on mobile reduced motion', async ({ page }) => {
+test('guide localizes visuals and stays contained on mobile with reduced motion', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await mockApi(page)
   await page.goto('/guide')
-  await expect(page.locator('.guide-hero h1')).toBeVisible()
-  await expect(page.locator('.guide-trust-word').first()).toHaveCSS('opacity', '1')
-  await expect(page.locator('.guide-video-frame video')).toBeVisible()
-  expect(await page.locator('.guide-video-frame video').evaluate((element: HTMLVideoElement) => element.paused)).toBe(true)
-  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0)
-  await page.getByRole('button', { name: 'Open navigation' }).click()
-  await expect(page.getByRole('link', { name: 'Guide', exact: true })).toBeVisible()
+
+  await page.getByRole('combobox', { name: 'Language' }).selectOption('ko')
+
+  await expect(page.locator('.doc-header h1')).toHaveText('Rule Platform 문서')
+  await expect(page.locator('.doc-hero-visual img')).toHaveAttribute('alt', /5단계/)
+  await expect(page.locator('.doc-hero-visual img')).toBeVisible()
+
+  const heroNaturalWidth = await page.locator('.doc-hero-visual img').evaluate(
+    (image) => (image as HTMLImageElement).naturalWidth,
+  )
+  expect(heroNaturalWidth).toBeGreaterThan(0)
+
+  const horizontalOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  )
+  expect(horizontalOverflow).toBeLessThanOrEqual(0)
 })

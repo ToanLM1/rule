@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import {
   PhCheck,
   PhCaretRight,
@@ -8,18 +8,24 @@ import {
   PhPlay,
   PhArrowClockwise,
   PhCloudArrowUp,
+  PhDatabase,
+  PhTreeStructure,
 } from "@phosphor-icons/vue";
 import {
   BrpApi,
   type Candidate,
+  type DiscoveredTable,
   type ImportRun,
+  type JobRecord,
   type SiteProfile,
 } from "../api";
+import { classifyJob } from "../domain/jobDiagnostics";
 import { useAppStore } from "../stores/app";
 
 const store = useAppStore();
 const api = new BrpApi(store.apiBaseUrl);
 const runs = ref<ImportRun[]>([]);
+const jobs = ref<JobRecord[]>([]);
 const profiles = ref<SiteProfile[]>([]);
 const active = ref<ImportRun | null>(null);
 const preflight = ref<Record<string, unknown> | null>(null);
@@ -47,6 +53,88 @@ const form = ref({
 });
 const javaMode = computed(() => form.value.adapter === "code-java");
 
+const mode = ref<"extraction" | "table">("extraction");
+const dbConnectionAlias = ref("BRP_PSQL_URL");
+const dbSchemaName = ref("brp_demo_source");
+const dbTables = ref<DiscoveredTable[]>([]);
+const dbSelectedTableName = ref("");
+const dbPrimaryKeys = ref<string[]>([]);
+const dbConditionColumns = ref<string[]>([]);
+const dbOutcomeColumns = ref<string[]>([]);
+const dbPackageId = ref("db_eligibility_rules");
+const dbPackageName = ref("DB eligibility rules");
+const dbBusy = ref(false);
+const dbNotice = ref("");
+const importedPackageKey = ref("");
+const dbSelectedTable = computed(() =>
+  dbTables.value.find((item) => item.table === dbSelectedTableName.value),
+);
+watch(dbSelectedTableName, () => {
+  const columns = dbSelectedTable.value?.columns.map((item) => item.name) ?? [];
+  dbPrimaryKeys.value = columns.filter((name) => /(^id$|_id$)/i.test(name)).slice(0, 1);
+  dbOutcomeColumns.value = columns.filter((name) =>
+    /eligible|reason|status|result|outcome/i.test(name),
+  );
+  dbConditionColumns.value = columns.filter(
+    (name) => !dbPrimaryKeys.value.includes(name) && !dbOutcomeColumns.value.includes(name),
+  );
+});
+async function discoverTables() {
+  dbBusy.value = true;
+  error.value = "";
+  dbNotice.value = "";
+  try {
+    dbTables.value = await api.discoverDbTables(
+      dbConnectionAlias.value,
+      dbSchemaName.value,
+      store.actor,
+    );
+    dbSelectedTableName.value = dbTables.value[0]?.table ?? "";
+    dbNotice.value = `Found ${dbTables.value.length} table/view(s).`;
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : "Discovery failed";
+  } finally {
+    dbBusy.value = false;
+  }
+}
+async function importTable() {
+  if (!store.siteId || !dbSelectedTable.value) return;
+  dbBusy.value = true;
+  error.value = "";
+  dbNotice.value = "";
+  try {
+    const result = await api.importDbTable(
+      store.siteId,
+      {
+        connectionAlias: dbConnectionAlias.value,
+        schemaName: dbSchemaName.value,
+        table: dbSelectedTable.value.table,
+        packageId: dbPackageId.value,
+        packageName: dbPackageName.value,
+        decisionId: dbPackageId.value.replace(/_rules$/, ""),
+        decisionName: dbPackageName.value,
+        conditionColumns: dbConditionColumns.value,
+        outcomeColumns: dbOutcomeColumns.value,
+        primaryKeyColumns: dbPrimaryKeys.value,
+        maxRows: 100,
+        programId: "DB_RULE_IMPORT",
+        programKind: "SERVICE",
+        entryPoint: `${dbSchemaName.value}.${dbSelectedTable.value.table}`,
+        scenarios: [],
+      },
+      store.actor,
+    );
+    importedPackageKey.value = result.packageKey;
+    dbNotice.value =
+      "Imported read-only DB snapshot. Open it in Canonical Studio to add a business scenario before submit.";
+    await load();
+  } catch (cause) {
+    error.value = cause instanceof Error ? cause.message : "Table import failed";
+  } finally {
+    dbBusy.value = false;
+  }
+}
+
 onMounted(async () => {
   await load();
   timer = window.setInterval(load, 4000);
@@ -55,12 +143,14 @@ onUnmounted(() => clearInterval(timer));
 async function load() {
   if (!store.siteId) return;
   try {
-    const [history, siteProfiles] = await Promise.all([
+    const [history, siteProfiles, jobRecords] = await Promise.all([
       api.importRuns(store.siteId),
       api.siteProfiles(store.siteId),
+      api.jobs(store.siteId),
     ]);
     runs.value = history;
     profiles.value = siteProfiles;
+    jobs.value = jobRecords;
     if (active.value)
       active.value = await api.importRun(store.siteId, active.value.id);
   } catch (cause) {
@@ -182,22 +272,68 @@ function evidenceCount(candidate: Candidate, field: string) {
   const value = evidenceBundle(candidate)?.[field];
   return Array.isArray(value) ? value.length : 0;
 }
+function evidenceHash(candidate: Candidate) {
+  const snapshot = candidate.sourceSnapshot ?? {};
+  const hash = snapshot.evidenceHash ?? snapshot.contentHash ?? (evidenceBundle(candidate)?.contentHash as string | undefined);
+  return typeof hash === "string" ? hash.slice(0, 16) : "";
+}
+/** B-103: a run in history must state its outcome, not just a percentage. */
+function runJob(run: ImportRun) {
+  return jobs.value.find((job) => job.id === run.jobId) ?? null;
+}
+function runDiagnosis(run: ImportRun) {
+  const job = runJob(run);
+  return job && job.status === "FAILED" ? classifyJob(job) : null;
+}
+function unresolvedCount(run: ImportRun) {
+  return run.reviewCount ?? 0;
+}
+function runNextAction(run: ImportRun) {
+  const diagnosis = runDiagnosis(run);
+  if (diagnosis) return diagnosis.nextAction;
+  if (run.status === "SUCCEEDED") {
+    return run.candidateCount
+      ? "Open the run to review evidence and promote a candidate."
+      : "The run completed without a candidate. Narrow the entry point and import again.";
+  }
+  if (run.status === "CANCELLED") return "Cancelled. Start a new run when ready.";
+  return "Extraction is still in progress.";
+}
 </script>
 
 <template>
   <section>
     <header class="page-header">
       <div>
-        <p class="page-kicker">Source onboarding</p>
+        <p class="page-kicker">Source onboarding · step 1</p>
         <h1>Imports</h1>
         <p>
-          Connect a pinned repository or upload supported source, then promote
-          reviewed candidates.
+          The single entry point for every source. Extract candidates from code
+          and stored objects, or map a bounded PostgreSQL table directly into a
+          package.
         </p>
       </div>
     </header>
+    <div class="import-mode-switch" role="tablist" aria-label="Import mode">
+      <button
+        role="tab"
+        :aria-selected="mode === 'extraction'"
+        :class="{ active: mode === 'extraction' }"
+        @click="mode = 'extraction'"
+      >
+        <PhFileCode :size="16" /> Source extraction
+      </button>
+      <button
+        role="tab"
+        :aria-selected="mode === 'table'"
+        :class="{ active: mode === 'table' }"
+        @click="mode = 'table'"
+      >
+        <PhDatabase :size="16" /> Guided table import
+      </button>
+    </div>
     <div v-if="error" class="inline-alert" role="alert">{{ error }}</div>
-    <div class="import-layout">
+    <div v-if="mode === 'extraction'" class="import-layout">
       <section class="surface wizard">
         <ol class="stepper">
           <li
@@ -420,7 +556,12 @@ function evidenceCount(candidate: Candidate, field: string) {
                       <li>{{ evidenceCount(candidate, "fieldEvidence") }} fields with linked evidence</li>
                       <li>{{ evidenceCount(candidate, "assumptions") }} assumptions</li>
                       <li>{{ evidenceCount(candidate, "unresolvedCalls") }} unresolved calls</li>
+                      <li v-if="evidenceHash(candidate)">evidence hash <code>{{ evidenceHash(candidate) }}</code></li>
                     </ul>
+                    <p v-if="evidenceCount(candidate, 'unresolvedCalls')" class="evidence-disposition">
+                      Every unresolved fragment needs an explicit disposition in the
+                      <RouterLink to="/reviews">review queue</RouterLink> before this candidate is promoted.
+                    </p>
                   </details>
                 </div>
                 <div class="row-actions">
@@ -447,9 +588,12 @@ function evidenceCount(candidate: Candidate, field: string) {
                 </div>
               </article>
             </div>
-            <div v-if="active.status === 'FAILED'" class="inline-alert">
-              Open Operations using job {{ active.jobId }} for the structured
-              error and retry history.
+            <div v-if="active.status === 'FAILED'" class="inline-alert" role="alert">
+              <strong v-if="runDiagnosis(active)">{{ runDiagnosis(active)!.title }} ({{ runDiagnosis(active)!.failureClass }}).</strong>
+              <span>{{ runNextAction(active) }}</span>
+              <RouterLink class="secondary-button" to="/operations?status=FAILED">
+                Open job {{ active.jobId.slice(0, 8) }} diagnostics
+              </RouterLink>
             </div>
           </div>
           <button
@@ -476,7 +620,7 @@ function evidenceCount(candidate: Candidate, field: string) {
         <button
           v-for="run in runs"
           :key="run.id"
-          class="history-row"
+          class="history-row detailed"
           @click="
             active = run;
             step = 4;
@@ -484,15 +628,55 @@ function evidenceCount(candidate: Candidate, field: string) {
         >
           <span :class="['status-dot', run.status.toLowerCase()]" />
           <div>
-            <strong>{{ run.sourceName }}</strong
-            ><small
-              >{{ run.adapter }} ·
-              {{ new Date(run.createdAt).toLocaleString() }}</small
-            >
+            <strong>{{ run.sourceName }}</strong>
+            <small>{{ run.adapter }} · pinned <code>{{ run.sourceRevision }}</code></small>
+            <small>
+              {{ run.candidateCount ?? 0 }} candidate(s) · {{ unresolvedCount(run) }} unresolved ·
+              {{ new Date(run.createdAt).toLocaleString() }}
+            </small>
+            <small v-if="runDiagnosis(run)" class="history-failure">
+              {{ runDiagnosis(run)!.failureClass }} — {{ runDiagnosis(run)!.title }}
+            </small>
+            <small class="history-next">Next: {{ runNextAction(run) }}</small>
           </div>
-          <span>{{ run.progress }}%</span>
+          <span>{{ run.status === 'SUCCEEDED' ? 'Done' : `${run.progress}%` }}</span>
         </button>
       </aside>
     </div>
+
+    <section v-else class="surface db-import-card">
+      <div class="db-import-intro">
+        <p class="page-kicker">Read-only source</p>
+        <h2>Guided PostgreSQL table import</h2>
+        <p>
+          No model-authored SQL. Schema, table and selected columns are validated
+          and bounded, then mapped directly into a draft canonical package.
+        </p>
+      </div>
+      <p v-if="dbNotice" class="inline-note">{{ dbNotice }}</p>
+      <div class="form-grid">
+        <label>Connection reference<input v-model="dbConnectionAlias" /></label>
+        <label>Schema<input v-model="dbSchemaName" /></label>
+        <button class="secondary-button align-end" :disabled="dbBusy" @click="discoverTables">
+          <PhArrowClockwise :size="16" :class="{ spin: dbBusy }" /> Discover
+        </button>
+        <label>Table/view<select v-model="dbSelectedTableName"><option v-for="item in dbTables" :key="item.table" :value="item.table">{{ item.table }} · {{ item.kind }}</option></select></label>
+        <label>Package ID<input v-model="dbPackageId" /></label>
+        <label>Package name<input v-model="dbPackageName" /></label>
+      </div>
+      <div v-if="dbSelectedTable" class="column-mapping">
+        <div><h3>Primary key</h3><label v-for="column in dbSelectedTable.columns" :key="column.name"><input v-model="dbPrimaryKeys" type="checkbox" :value="column.name" />{{ column.name }} <small>{{ column.databaseType }}</small></label></div>
+        <div><h3>Conditions</h3><label v-for="column in dbSelectedTable.columns" :key="column.name"><input v-model="dbConditionColumns" type="checkbox" :value="column.name" />{{ column.name }} <small>{{ column.databaseType }}</small></label></div>
+        <div><h3>Outcomes</h3><label v-for="column in dbSelectedTable.columns" :key="column.name"><input v-model="dbOutcomeColumns" type="checkbox" :value="column.name" />{{ column.name }} <small>{{ column.databaseType }}</small></label></div>
+      </div>
+      <div class="wizard-actions">
+        <button class="primary-button" :disabled="dbBusy || !dbSelectedTable || !dbPrimaryKeys.length || !dbConditionColumns.length || !dbOutcomeColumns.length" @click="importTable">
+          <PhDatabase :size="16" /> Import bounded snapshot
+        </button>
+        <RouterLink v-if="importedPackageKey" class="secondary-button" to="/studio">
+          <PhTreeStructure :size="16" /> Open in Canonical Studio
+        </RouterLink>
+      </div>
+    </section>
   </section>
 </template>

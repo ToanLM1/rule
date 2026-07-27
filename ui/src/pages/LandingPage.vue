@@ -15,6 +15,8 @@ import {
   PhGitPullRequest,
   PhShieldCheck,
   PhTestTube,
+  PhTranslate,
+  PhTreeStructure,
 } from '@phosphor-icons/vue'
 import { guideContent, type GuideLocale } from '../content/guide'
 import { evaluateSampleDecision, guideMotionEnabled } from '../domain/sampleDecision'
@@ -61,6 +63,10 @@ onBeforeUnmount(() => {
   disposeMotion?.()
 })
 
+function toggleLocale() {
+  locale.value = locale.value === 'ko' ? 'en' : 'ko'
+}
+
 function moveRole(direction: number) {
   roleIndex.value = (roleIndex.value + direction + content.value.roles.items.length) % content.value.roles.items.length
 }
@@ -106,11 +112,18 @@ async function mountMotion() {
 </script>
 
 <template>
-  <section ref="root" class="guide-page">
-    <nav class="guide-local-nav" aria-label="Guide chapters">
-      <a class="guide-nav-brand" href="#understand"><PhBookOpenText :size="18" /><strong>{{ content.nav.title }}</strong></a>
-      <div>
+  <section ref="root" class="guide-page landing-page">
+    <nav class="guide-local-nav landing-nav" aria-label="Rule Platform">
+      <a class="guide-nav-brand" href="#understand"><PhTreeStructure :size="20" /><strong>Rule Platform</strong></a>
+      <div class="landing-nav-anchors">
         <a v-for="chapter in content.nav.chapters" :key="chapter.id" :href="`#${chapter.id}`" :class="{ active: activeChapter === chapter.id }">{{ chapter.label }}</a>
+      </div>
+      <div class="landing-nav-actions">
+        <button type="button" class="landing-lang" aria-label="Language" @click="toggleLocale">
+          <PhTranslate :size="17" /><span>{{ currentLocale === 'ko' ? '한국어' : 'EN' }}</span>
+        </button>
+        <RouterLink class="landing-nav-docs" to="/guide"><PhBookOpenText :size="16" />Docs</RouterLink>
+        <RouterLink class="guide-button guide-button-primary landing-nav-cta" to="/overview">{{ content.hero.secondary }}<PhArrowRight :size="15" /></RouterLink>
       </div>
     </nav>
 
@@ -126,8 +139,8 @@ async function mountMotion() {
             </h1>
             <p class="guide-hero-body">{{ content.hero.body }}</p>
             <div class="guide-actions">
-              <a class="guide-button guide-button-primary" href="#workflow">{{ content.hero.primary }}<PhArrowRight :size="16" /></a>
-              <RouterLink class="guide-button guide-button-secondary" to="/overview">{{ content.hero.secondary }}</RouterLink>
+              <RouterLink class="guide-button guide-button-primary" to="/overview">{{ content.hero.secondary }}<PhArrowRight :size="16" /></RouterLink>
+              <RouterLink class="guide-button guide-button-secondary" to="/guide">{{ content.hero.primary }}</RouterLink>
             </div>
           </div>
           <figure class="guide-hero-art">
@@ -309,7 +322,7 @@ async function mountMotion() {
         <div class="max-w-6xl">
           <h2>{{ content.cta.title }}</h2>
           <p>{{ content.cta.body }}</p>
-          <div class="guide-actions"><RouterLink class="guide-button guide-button-primary" to="/imports">{{ content.cta.primary }}<PhArrowRight :size="16" /></RouterLink><RouterLink class="guide-button guide-button-dark" to="/overview">{{ content.cta.secondary }}</RouterLink></div>
+          <div class="guide-actions"><RouterLink class="guide-button guide-button-primary" to="/imports">{{ content.cta.primary }}<PhArrowRight :size="16" /></RouterLink><RouterLink class="guide-button guide-button-dark" to="/guide">{{ content.nav.title }}</RouterLink></div>
           <footer><span>Rule Platform</span><span>Canonical IR · Governed evidence · Deterministic delivery</span></footer>
         </div>
       </section>

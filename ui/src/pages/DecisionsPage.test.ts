@@ -20,6 +20,8 @@ beforeEach(async () => {
     routes: [
       { path: '/decisions', component: { template: '<div />' } },
       { path: '/imports', component: { template: '<div />' } },
+      { path: '/studio', component: { template: '<div />' } },
+      { path: '/test-suites', component: { template: '<div />' } },
     ],
   })
   await router.push('/decisions')

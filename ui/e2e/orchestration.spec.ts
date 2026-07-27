@@ -10,7 +10,8 @@ test('responsive shell exposes the full workflow in Korean without overflow', as
   await expect(page.getByRole('navigation', { name: 'Primary navigation' })).toBeVisible()
   await page.getByLabel('Language').selectOption('ko')
   await expect(page.getByRole('link', { name: '결정' })).toBeVisible()
-  await page.getByRole('link', { name: '가져오기', exact: true }).click()
+  // The nav link's accessible name includes its workflow step badge.
+  await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('link', { name: /가져오기/ }).click()
   await expect(page).toHaveURL(/\/imports$/)
   await expect(page.getByRole('heading', { name: 'Imports' })).toBeVisible()
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)

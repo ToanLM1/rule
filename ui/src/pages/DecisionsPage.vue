@@ -472,16 +472,18 @@ async function govern(action: "submit" | "approve" | "reject" | "retire") {
   <section>
     <header class="page-header">
       <div>
-        <p class="page-kicker">Decision portfolio</p>
+        <p class="page-kicker">Author · governed change · portfolio</p>
         <h1>Decisions</h1>
         <p>
-          Search, govern and inspect immutable rule revisions scoped
-          to this site.
+          Search, govern and inspect immutable rule revisions scoped to this
+          site. Edit business rules in Canonical Studio; prove them next in Test
+          suites.
         </p>
       </div>
-      <RouterLink class="primary-button" to="/imports"
-        >Import decision</RouterLink
-      >
+      <div class="header-actions">
+        <RouterLink class="secondary-button" to="/studio">Canonical Studio</RouterLink>
+        <RouterLink class="primary-button" to="/test-suites">Next: Test suites →</RouterLink>
+      </div>
     </header>
     <div v-if="error" class="inline-alert" role="alert">
       {{ error }}<button @click="load()">Retry</button>
