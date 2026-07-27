@@ -4,6 +4,13 @@ Estimate recorded 2026-07-16 for `ap-southeast-1` (Singapore). This is a plannin
 estimate, not an authorization to resize infrastructure. Recalculate in AWS Pricing
 Calculator before purchase or Savings Plan commitment.
 
+> **Update (2026-07-27):** the shared EC2 was resized from `t3.small` to
+> `t3.medium` to run the Rule Platform public pilot alongside the existing
+> Hybrid-RAG stack. This is a pilot-sizing decision, not the production sizing
+> recommended below. See [deployment.md](../deployment.md) for the as-built
+> record; the "Current shared environment" section below still reflects the
+> pre-resize baseline used for this estimate.
+
 ## Current shared environment
 
 - EC2 `i-07af453b12aa01ff2`: `t3.small`, 2 vCPU, 2 GiB RAM.
