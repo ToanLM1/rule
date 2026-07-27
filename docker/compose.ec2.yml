@@ -1,6 +1,7 @@
 name: brp-ec2
 
 x-app: &app
+  image: brp-ec2-app:${BRP_IMAGE_TAG:-latest}
   build:
     context: ..
     dockerfile: platform/Dockerfile
@@ -73,6 +74,7 @@ services:
           memory: 1G
 
   ui:
+    image: brp-ec2-ui:${BRP_IMAGE_TAG:-latest}
     build:
       context: ..
       dockerfile: ui/Dockerfile
