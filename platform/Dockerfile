@@ -1,7 +1,7 @@
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS build
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
-WORKDIR /build/platform
-COPY mcp-db-connector /build/mcp-db-connector
+WORKDIR /app
+COPY mcp-db-connector /mcp-db-connector
 COPY platform/pyproject.toml platform/uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 COPY platform ./
@@ -28,7 +28,7 @@ RUN apt-get update \
     && groupadd --system --gid 10001 brp \
     && useradd --system --uid 10001 --gid brp --home /app brp
 WORKDIR /app
-COPY --from=build --chown=brp:brp /build/platform /app
+COPY --from=build --chown=brp:brp /app /app
 COPY --chown=brp:brp java-toolchain /app/java-toolchain
 RUN mkdir -p /app/output/artifacts && chown -R brp:brp /app/output
 USER 10001:10001
