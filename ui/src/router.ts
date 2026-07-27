@@ -3,6 +3,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 export const router = createRouter({
   history: createWebHistory(),
   routes: [
+    { path: '/login', name: 'login', component: () => import('./pages/LoginPage.vue'), meta: { layout: 'blank', public: true } },
     { path: '/', name: 'landing', component: () => import('./pages/LandingPage.vue'), meta: { layout: 'blank' } },
     { path: '/overview', name: 'overview', component: () => import('./pages/OverviewPage.vue') },
     { path: '/guide', name: 'guide', component: () => import('./pages/GuideDocPage.vue') },

@@ -24,12 +24,15 @@ import {
   PhMagnifyingGlass,
   PhSun,
   PhCloudArrowUp,
+  PhSignOut,
   PhX,
 } from "@phosphor-icons/vue";
 import { BrpApi, type PlatformContext } from "../api";
 import { useAppStore } from "../stores/app";
+import { useAuthStore } from "../stores/auth";
 
 const store = useAppStore();
+const auth = useAuthStore();
 const route = useRoute();
 const router = useRouter();
 const { t, locale } = useI18n();
@@ -92,6 +95,11 @@ const themeIcon = computed(
   () => ({ system: PhMonitor, light: PhSun, dark: PhMoon })[store.theme],
 );
 const themeLabel = computed(() => `Theme: ${store.theme}`);
+
+async function signOut() {
+  await auth.logout()
+  await router.replace({ name: 'login' })
+}
 
 watch(locale, (value) => store.setLocale(value as "en" | "ko"));
 watch(
@@ -318,20 +326,13 @@ async function refreshJobs() {
             <option value="ko">한국어</option>
           </select></label
         >
-        <label
-          class="identity-picker"
-          title="Authentication is intentionally deferred"
-          ><span>{{ t("app.developmentIdentity") }}</span
-          ><select
-            :value="store.actor"
-            @change="store.setActor(($event.target as HTMLSelectElement).value)"
-          >
-            <option>maker-a</option>
-            <option>checker-b</option>
-            <option>reviewer-c</option>
-            <option>deployer-d</option>
-          </select></label
-        >
+        <div class="identity-picker" title="Authenticated identity">
+          <span>{{ auth.principal?.username }}</span>
+          <small>{{ auth.principal?.roles.join(' · ') }}</small>
+        </div>
+        <button class="icon-button" type="button" title="Sign out" aria-label="Sign out" @click="signOut">
+          <PhSignOut :size="18" />
+        </button>
       </header>
 
       <div v-if="contextError" class="global-alert" role="alert">

@@ -1,0 +1,101 @@
+name: brp-ec2
+
+x-app: &app
+  build:
+    context: ..
+    dockerfile: platform/Dockerfile
+  env_file:
+    - ${BRP_ENV_FILE:-/opt/brp/runtime.env}
+  environment:
+    BRP_ENVIRONMENT: production
+    BRP_ARTIFACT_ROOT: /app/output/artifacts
+    BRP_LOCAL_USERS_FILE: /run/secrets/brp-users.json
+    BRP_SESSION_SECRET_FILE: /run/secrets/brp-session-secret
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp
+  volumes:
+    - artifacts:/app/output/artifacts
+    - ${BRP_USERS_FILE_HOST:-/opt/brp/secrets/users.json}:/run/secrets/brp-users.json:ro
+    - ${BRP_SESSION_SECRET_FILE_HOST:-/opt/brp/secrets/session-secret}:/run/secrets/brp-session-secret:ro
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  stop_grace_period: 30s
+
+services:
+  migrate:
+    <<: *app
+    profiles: [ops]
+    restart: "no"
+    command: [python, -m, brp.migrate]
+
+  api:
+    <<: *app
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8100/health/live', timeout=2)"
+      interval: 20s
+      timeout: 3s
+      start_period: 20s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  worker:
+    <<: *app
+    command: [python, -m, brp.worker]
+    environment:
+      BRP_ENVIRONMENT: production
+      BRP_ARTIFACT_ROOT: /app/output/artifacts
+      BRP_LOCAL_USERS_FILE: /run/secrets/brp-users.json
+      BRP_SESSION_SECRET_FILE: /run/secrets/brp-session-secret
+      BRP_WORKER_ID: ec2-worker
+      BRP_REQUIRE_WORKER_HEARTBEAT: "true"
+    healthcheck:
+      test: [CMD, python, -m, brp.worker, --health]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
+
+  ui:
+    build:
+      context: ..
+      dockerfile: ui/Dockerfile
+    ports:
+      - 127.0.0.1:8180:8080
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+volumes:
+  artifacts:

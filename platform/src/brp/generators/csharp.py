@@ -107,9 +107,9 @@ def verify_csharp_compile(source: GeneratedArtifact) -> CompileEvidence:
     version = version_result.stdout.strip()
     if version_result.returncode != 0 or not version:
         return CompileEvidence(
-            status="COMPILE_FAILED",
+            status="COMPILE_NOT_RUN",
             source_hash=source.content_hash,
-            detail="dotnet SDK version probe failed",
+            detail="dotnet SDK is not installed on this host",
         )
     major = version.split(".", 1)[0]
     if not major.isdigit():

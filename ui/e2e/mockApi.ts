@@ -153,7 +153,13 @@ export async function mockApi(page: Page, options: MockOptions = {}) {
       return
     }
     let json: unknown = {}
-    if (path === '/api/v1/context') {
+    if (path === '/api/v1/auth/me') {
+      json = {
+        username: 'maker',
+        roles: ['maker'],
+        csrfToken: 'playwright-csrf-token',
+      }
+    } else if (path === '/api/v1/context') {
       json = {
         workspaces: [{ id: '00000000-0000-0000-0000-000000000001', key: 'rules', name: 'Rules Operations' }],
         sites: [

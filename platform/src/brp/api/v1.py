@@ -243,11 +243,14 @@ def build_v1_router(
 
     def actor_for(role: str) -> Any:
         def dependency(request: Request) -> str:
-            principal = request_authenticator.authenticate(
-                authorization=request.headers.get("Authorization"),
-                development_actor=request.headers.get("X-BRP-Actor"),
-                development_roles=request.headers.get("X-BRP-Roles"),
-            )
+            principal = getattr(request.state, "principal", None)
+            if principal is None:
+                principal = request_authenticator.authenticate(
+                    authorization=request.headers.get("Authorization"),
+                    development_actor=request.headers.get("X-BRP-Actor"),
+                    development_roles=request.headers.get("X-BRP-Roles"),
+                    session_cookie=request.cookies.get("brp_session"),
+                )
             return request_authenticator.require_role(principal, role)
 
         return dependency

@@ -1,12 +1,16 @@
+import json
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 import jwt
 import pytest
+from argon2 import PasswordHasher
 from cryptography.hazmat.primitives.asymmetric import rsa
 
 from brp.security import (
     AuthenticationError,
     AuthorizationError,
+    LocalAuthConfig,
     OidcConfig,
     RequestAuthenticator,
     SecuritySettings,
@@ -96,3 +100,71 @@ def test_development_headers_require_explicit_flag_and_are_rejected_in_productio
     principal = local.authenticate(authorization=None, development_actor="maker")
     assert principal.subject == "maker"
     assert principal.roles == {"maker", "checker", "reviewer", "deployer"}
+
+
+def local_authenticator(tmp_path: Path) -> RequestAuthenticator:
+    users = tmp_path / "users.json"
+    users.write_text(
+        json.dumps(
+            {
+                "users": [
+                    {
+                        "username": "maker",
+                        "passwordHash": PasswordHasher().hash("correct horse battery staple"),
+                        "roles": ["maker"],
+                        "sessionVersion": 3,
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    secret = tmp_path / "session-secret"
+    secret.write_text("a-session-secret-with-at-least-thirty-two-bytes", encoding="utf-8")
+    return RequestAuthenticator(
+        SecuritySettings(
+            local_auth=LocalAuthConfig(
+                users_file=users,
+                session_secret_file=secret,
+                public_origin="https://rule.example.test",
+            )
+        )
+    )
+
+
+def test_local_login_session_csrf_and_header_rejection(tmp_path: Path) -> None:
+    auth = local_authenticator(tmp_path)
+    with pytest.raises(AuthenticationError, match="invalid username or password"):
+        auth.login("maker", "wrong password")
+
+    login = auth.login("maker", "correct horse battery staple")
+    principal = auth.authenticate(
+        authorization=None,
+        development_actor=None,
+        session_cookie=login.session_token,
+    )
+    assert principal.subject == "maker"
+    assert principal.roles == {"maker"}
+    auth.verify_unsafe_request(
+        principal,
+        csrf_token=principal.csrf_token,
+        origin="https://rule.example.test",
+    )
+    with pytest.raises(AuthenticationError, match="CSRF"):
+        auth.verify_unsafe_request(
+            principal,
+            csrf_token="wrong",
+            origin="https://rule.example.test",
+        )
+    with pytest.raises(AuthenticationError, match="origin"):
+        auth.verify_unsafe_request(
+            principal,
+            csrf_token=principal.csrf_token,
+            origin="https://attacker.invalid",
+        )
+    with pytest.raises(AuthenticationError, match="header-based"):
+        auth.authenticate(
+            authorization=None,
+            development_actor="impersonated",
+            session_cookie=login.session_token,
+        )

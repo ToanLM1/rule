@@ -3,7 +3,13 @@ import { expect, test, type Page } from '@playwright/test'
 
 async function mockApi(page: Page) {
   const handler = async (route: Parameters<Parameters<Page['route']>[1]>[0]) => {
-    const body = route.request().url().endsWith('/api/v1/context')
+    const body = route.request().url().endsWith('/api/v1/auth/me')
+      ? {
+          username: 'maker',
+          roles: ['maker'],
+          csrfToken: 'guide-playwright-csrf',
+        }
+      : route.request().url().endsWith('/api/v1/context')
       ? {
           workspaces: [{ id: 'workspace-test', key: 'test', name: 'Test workspace' }],
           sites: [
@@ -94,16 +100,14 @@ test('guide presents explanatory slides, architecture, and working navigation', 
   expect(consoleErrors).toEqual([])
 })
 
-test('guide remains readable when the API is unavailable', async ({ page }) => {
+test('an unavailable authentication API fails closed at login', async ({ page }) => {
   await page.route('http://localhost:8100/**', (route) => route.abort())
   await page.route('http://127.0.0.1:8100/**', (route) => route.abort())
 
   await page.goto('/guide')
 
-  await expect(page.locator('.doc-header h1')).toHaveText('Rule Platform documentation')
-  await expect(page.locator('#journey h2')).toBeVisible()
-  await expect(page.locator('#release h2')).toBeVisible()
-  await expect(page.getByText('Connection problem')).toBeVisible()
+  await expect(page).toHaveURL(/\/login\?redirect=\/guide/)
+  await expect(page.getByRole('heading', { name: 'Sign in to continue' })).toBeVisible()
 })
 
 test('guide localizes visuals and stays contained on mobile with reduced motion', async ({ page }) => {

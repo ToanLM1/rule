@@ -2,9 +2,9 @@
 
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
-from typing import Annotated, Any
+from typing import Annotated, Any, cast
 
-from fastapi import Depends, FastAPI, Query, Request
+from fastapi import Depends, FastAPI, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select, text
@@ -33,7 +33,7 @@ from brp.governance.diff import semantic_diff
 from brp.governance.golden import GoldenCaseData, GoldenRepository, GoldenSuiteEvidencePolicy
 from brp.governance.runner import run_zen_advisory
 from brp.governance.zen import DictLookupResolver, preview
-from brp.ir.models import DecisionContent
+from brp.ir.models import DecisionContent, StrictModel
 from brp.mode_a import ModeAService
 from brp.observability import RequestContextMiddleware, configure_json_logging, metrics_response
 from brp.orchestration import (
@@ -84,6 +84,11 @@ from brp.security import (
 from brp.settings import RuntimeSettings
 
 
+class LoginRequest(StrictModel):
+    username: str
+    password: str
+
+
 def create_app(
     evidence_policy: ReleaseEvidencePolicy | None = None,
     *,
@@ -95,9 +100,8 @@ def create_app(
     engine = create_database_engine()
     factory = sessionmaker(engine, expire_on_commit=False)
     policy = evidence_policy or GoldenSuiteEvidencePolicy()
-    request_authenticator = RequestAuthenticator(
-        security or SecuritySettings(), key_resolver=key_resolver
-    )
+    security_settings = security or SecuritySettings.from_environment()
+    request_authenticator = RequestAuthenticator(security_settings, key_resolver=key_resolver)
     app = FastAPI(title="Business Rules Platform", version="1.0.0-rc.1")
     app.add_middleware(RequestContextMiddleware)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(runtime.trusted_hosts))
@@ -109,6 +113,45 @@ def create_app(
     )
     runtime.artifact_root.mkdir(parents=True, exist_ok=True)
 
+    public_paths = frozenset(
+        {
+            "/health/live",
+            "/health/ready",
+            "/api/v1/auth/login",
+        }
+    )
+
+    @app.middleware("http")
+    async def enforce_authentication(request: Request, call_next: Any) -> Response:
+        if not request_authenticator.protects_all_requests or request.url.path in public_paths:
+            return cast(Response, await call_next(request))
+        try:
+            principal = request_authenticator.authenticate(
+                authorization=request.headers.get("Authorization"),
+                development_actor=request.headers.get("X-BRP-Actor"),
+                development_roles=request.headers.get("X-BRP-Roles"),
+                session_cookie=request.cookies.get("brp_session"),
+            )
+            request.state.principal = principal
+            if request.method.upper() not in {"GET", "HEAD", "OPTIONS"}:
+                request_authenticator.verify_unsafe_request(
+                    principal,
+                    csrf_token=request.headers.get("X-CSRF-Token"),
+                    origin=request.headers.get("Origin"),
+                )
+        except AuthenticationError as exc:
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "type": "about:blank",
+                    "title": "Authentication failed",
+                    "status": 401,
+                    "detail": str(exc),
+                    "code": "AUTHENTICATION_FAILED",
+                },
+            )
+        return cast(Response, await call_next(request))
+
     def get_session() -> Iterator[Session]:
         with factory() as session:
             yield session
@@ -116,10 +159,14 @@ def create_app(
     SessionDependency = Annotated[Session, Depends(get_session)]
 
     def authenticate_request(request: Request) -> Principal:
+        principal = getattr(request.state, "principal", None)
+        if isinstance(principal, Principal):
+            return principal
         return request_authenticator.authenticate(
             authorization=request.headers.get("Authorization"),
             development_actor=request.headers.get("X-BRP-Actor"),
             development_roles=request.headers.get("X-BRP-Roles"),
+            session_cookie=request.cookies.get("brp_session"),
         )
 
     def require_role(role: str) -> Any:
@@ -200,6 +247,47 @@ def create_app(
     @app.get("/metrics", include_in_schema=False)
     def metrics() -> Any:
         return metrics_response()
+
+    @app.post("/api/v1/auth/login", tags=["auth"])
+    def login(body: LoginRequest, response: Response) -> dict[str, object]:
+        result = request_authenticator.login(body.username, body.password)
+        response.set_cookie(
+            key="brp_session",
+            value=result.session_token,
+            max_age=security_settings.local_auth.session_ttl_seconds
+            if security_settings.local_auth
+            else None,
+            expires=result.expires_at,
+            path="/",
+            secure=True,
+            httponly=True,
+            samesite="lax",
+        )
+        return {
+            "username": result.principal.subject,
+            "roles": sorted(result.principal.roles),
+            "csrfToken": result.principal.csrf_token,
+            "expiresAt": result.expires_at.isoformat(),
+        }
+
+    @app.get("/api/v1/auth/me", tags=["auth"])
+    def me(principal: Annotated[Principal, Depends(authenticate_request)]) -> dict[str, object]:
+        return {
+            "username": principal.subject,
+            "roles": sorted(principal.roles),
+            "csrfToken": principal.csrf_token,
+        }
+
+    @app.post("/api/v1/auth/logout", tags=["auth"])
+    def logout(response: Response) -> dict[str, bool]:
+        response.delete_cookie(
+            key="brp_session",
+            path="/",
+            secure=True,
+            httponly=True,
+            samesite="lax",
+        )
+        return {"loggedOut": True}
 
     @app.exception_handler(AuthenticationError)
     async def authentication_handler(request: Request, exc: AuthenticationError) -> JSONResponse:

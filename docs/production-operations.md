@@ -33,6 +33,17 @@ Compose file starts its own isolated PostgreSQL. Cloud deployment must use an
 explicit external-RDS configuration and must not accidentally start a second
 authoritative database. Joern is optional and only starts with `--profile joern`.
 
+The shared EC2 deployment uses `docker/compose.ec2.yml` instead. It requires an
+external `BRP_DATABASE_URL`, local-auth secret mounts and a one-shot migration:
+
+```bash
+docker compose -f docker/compose.ec2.yml --profile ops run --rm migrate
+docker compose -f docker/compose.ec2.yml up -d --build --wait api worker ui
+```
+
+This EC2 file contains neither PostgreSQL nor Joern. Its UI binds only to
+`127.0.0.1:8180`; host nginx owns public TLS and routing.
+
 For a local API/UI against an external database, set an ignored environment file,
 run migrations with `uv run python -m brp.migrate`, start the API with Uvicorn and
 start the worker with `uv run python -m brp.worker`. Never commit connection URLs.
@@ -78,3 +89,9 @@ PostgreSQL stores secret references only. Providers resolve uppercase environmen
 references or absolute `file:` references at execution time. Do not print secret
 values, place them in site profiles, pass them as command-line arguments or include
 them in artifacts and delivery evidence.
+
+For the local public-pilot auth provider, `BRP_LOCAL_USERS_FILE` contains Argon2id
+hashes, usernames, roles and `sessionVersion`; `BRP_SESSION_SECRET_FILE` contains at
+least 32 random bytes. Mount both read-only and never store plaintext passwords.
+The browser receives only a Secure/HttpOnly signed session cookie and a per-session
+CSRF token.

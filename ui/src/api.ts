@@ -58,6 +58,13 @@ export type CanonicalPackageRevision = {
   compiledDecisions: Array<Record<string, unknown>>
 }
 export type DiscoveredTable = { schemaName: string; table: string; kind: string; columns: Array<{ name: string; databaseType: string; nullable: boolean; ordinal: number }> }
+export type AuthPrincipal = { username: string; roles: string[]; csrfToken: string; expiresAt?: string }
+
+let sessionCsrfToken = ''
+
+export function setSessionCsrfToken(value: string) {
+  sessionCsrfToken = value
+}
 
 export type Revision = {
   envelope: {
@@ -135,14 +142,36 @@ export class BrpApi {
   }
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${path}`, init)
+    const headers = new Headers(init?.headers)
+    if (sessionCsrfToken) {
+      if (!['GET', 'HEAD', 'OPTIONS'].includes((init?.method ?? 'GET').toUpperCase())) {
+        headers.set('X-CSRF-Token', sessionCsrfToken)
+      }
+    }
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      ...init,
+      credentials: 'include',
+      headers,
+    })
     if (!response.ok) {
       const problem = await response.json().catch(() => ({ detail: response.statusText }))
+      if (response.status === 401 && path !== '/api/v1/auth/login') {
+        window.dispatchEvent(new CustomEvent('brp:unauthorized'))
+      }
       throw new Error(problem.detail ?? `Request failed: ${response.status}`)
     }
     return response.json() as Promise<T>
   }
 
+  login(username: string, password: string) {
+    return this.request<AuthPrincipal>('/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    })
+  }
+  me() { return this.request<AuthPrincipal>('/api/v1/auth/me') }
+  logout() { return this.request<{ loggedOut: boolean }>('/api/v1/auth/logout', { method: 'POST' }) }
   context() { return this.request<PlatformContext>('/api/v1/context') }
   overview(siteId: string) { return this.request<{ decisions: number; openReviews: number; activeJobs: number; failedJobs: number }>(`/api/v1/overview?site_id=${encodeURIComponent(siteId)}`) }
   decisionPage(siteId: string, options: { q?: string; status?: string; product?: string; flow?: string; page?: number; pageSize?: number } = {}) {
@@ -156,55 +185,54 @@ export class BrpApi {
     return this.request<Revision>(`/api/v1/decisions/${encodeURIComponent(key)}?${query}`)
   }
   decisionRevisions(siteId: string, key: string) { return this.request<Revision[]>(`/api/v1/decisions/${encodeURIComponent(key)}/revisions?site_id=${encodeURIComponent(siteId)}`) }
-  createDecisionRevision(siteId: string, key: string, content: Record<string, unknown>, baseRevision: number, effectiveFrom: string, actor: string) {
-    return this.request<Revision>(`/api/v1/decisions/${encodeURIComponent(key)}/revisions?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor, 'If-Match': `"${baseRevision}"` }, body: JSON.stringify({ content, baseRevision, effectiveFrom }) })
+  createDecisionRevision(siteId: string, key: string, content: Record<string, unknown>, baseRevision: number, effectiveFrom: string, _actor: string) {
+    return this.request<Revision>(`/api/v1/decisions/${encodeURIComponent(key)}/revisions?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'If-Match': `"${baseRevision}"` }, body: JSON.stringify({ content, baseRevision, effectiveFrom }) })
   }
-  transitionDecision(siteId: string, key: string, revision: number, action: 'submit' | 'approve' | 'reject' | 'retire', actor: string, reason?: string) { return this.request<Revision>(`/api/v1/decisions/${encodeURIComponent(key)}/revisions/${revision}/${action}?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify({ reason }) }) }
+  transitionDecision(siteId: string, key: string, revision: number, action: 'submit' | 'approve' | 'reject' | 'retire', _actor: string, reason?: string) { return this.request<Revision>(`/api/v1/decisions/${encodeURIComponent(key)}/revisions/${revision}/${action}?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) }) }
   jobs(siteId: string) { return this.request<JobRecord[]>(`/api/v1/jobs?site_id=${encodeURIComponent(siteId)}`) }
-  cancelJob(siteId: string, jobId: string, actor: string) { return this.request<JobRecord>(`/api/v1/jobs/${jobId}/cancel?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'X-BRP-Actor': actor } }) }
+  cancelJob(siteId: string, jobId: string, _actor: string) { return this.request<JobRecord>(`/api/v1/jobs/${jobId}/cancel?site_id=${encodeURIComponent(siteId)}`, { method: 'POST' }) }
   importRuns(siteId: string) { return this.request<ImportRun[]>(`/api/v1/import-runs?site_id=${encodeURIComponent(siteId)}`) }
   importRun(siteId: string, runId: string) { return this.request<ImportRun>(`/api/v1/import-runs/${runId}?site_id=${encodeURIComponent(siteId)}`) }
-  createImport(payload: Record<string, unknown>, actor: string) { return this.request<ImportRun>('/api/v1/import-runs', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify(payload) }) }
+  createImport(payload: Record<string, unknown>, _actor: string) { return this.request<ImportRun>('/api/v1/import-runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }) }
   preflightImport(payload: Record<string, unknown>) { return this.request<Record<string, unknown>>('/api/v1/import-runs/preflight', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }) }
-  promoteCandidate(candidateId: string, payload: Record<string, unknown>, actor: string) { return this.request<Revision>(`/api/v1/candidates/${candidateId}/promote`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify(payload) }) }
-  promoteCanonicalCandidate(candidateId: string, payload: Record<string, unknown>, actor: string) { return this.request<CanonicalPackageRevision>(`/api/v1/candidates/${candidateId}/promote-package`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor, 'X-BRP-Roles': 'maker' }, body: JSON.stringify(payload) }) }
+  promoteCandidate(candidateId: string, payload: Record<string, unknown>, _actor: string) { return this.request<Revision>(`/api/v1/candidates/${candidateId}/promote`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }) }
+  promoteCanonicalCandidate(candidateId: string, payload: Record<string, unknown>, _actor: string) { return this.request<CanonicalPackageRevision>(`/api/v1/candidates/${candidateId}/promote-package`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }) }
   reviewItems(siteId: string) { return this.request<Array<Record<string, unknown>>>(`/api/v1/review-items?site_id=${encodeURIComponent(siteId)}`) }
-  disposeReviews(siteId: string, dispositions: Array<{ itemId: string; status: string; reason?: string }>, actor: string) { return this.request<Array<Record<string, unknown>>>(`/api/v1/review-items/dispositions?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify({ dispositions }) }) }
+  disposeReviews(siteId: string, dispositions: Array<{ itemId: string; status: string; reason?: string }>, _actor: string) { return this.request<Array<Record<string, unknown>>>(`/api/v1/review-items/dispositions?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dispositions }) }) }
   siteProfiles(siteId: string) { return this.request<SiteProfile[]>(`/api/v1/sites/${siteId}/profiles`) }
-  createSiteProfile(siteId: string, document: Record<string, unknown>, actor: string) { return this.request<SiteProfile>(`/api/v1/sites/${siteId}/profiles`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify({ document }) }) }
+  createSiteProfile(siteId: string, document: Record<string, unknown>, _actor: string) { return this.request<SiteProfile>(`/api/v1/sites/${siteId}/profiles`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ document }) }) }
   goldenSuites(siteId: string, key: string) { return this.request<GoldenSuite[]>(`/api/v1/golden-suites/${encodeURIComponent(key)}?site_id=${encodeURIComponent(siteId)}`) }
-  createGoldenSuite(siteId: string, key: string, cases: Array<Record<string, unknown>>, lookupSnapshotHashes: string[], actor: string) { return this.request<GoldenSuite>(`/api/v1/golden-suites/${encodeURIComponent(key)}/revisions?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify({ cases, lookupSnapshotHashes }) }) }
+  createGoldenSuite(siteId: string, key: string, cases: Array<Record<string, unknown>>, lookupSnapshotHashes: string[], _actor: string) { return this.request<GoldenSuite>(`/api/v1/golden-suites/${encodeURIComponent(key)}/revisions?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cases, lookupSnapshotHashes }) }) }
   lookupSnapshots(siteId: string) { return this.request<LookupSnapshot[]>(`/api/v1/lookup-snapshots?site_id=${encodeURIComponent(siteId)}`) }
-  createLookupSnapshot(siteId: string, payload: Record<string, unknown>, actor: string) { return this.request<LookupSnapshot>(`/api/v1/lookup-snapshots?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify(payload) }) }
-  transitionGoldenSuite(siteId: string, key: string, revision: number, action: 'submit' | 'approve', actor: string) { return this.request<GoldenSuite>(`/api/v1/golden-suites/${encodeURIComponent(key)}/revisions/${revision}/${action}?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'X-BRP-Actor': actor } }) }
-  runGoldenSuite(siteId: string, key: string, decisionRevision: number, suiteRevision: number, actor: string) { return this.request<JobRecord>(`/api/v1/golden-runs?decision_key=${encodeURIComponent(key)}&site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify({ decisionRevision, suiteRevision }) }) }
+  createLookupSnapshot(siteId: string, payload: Record<string, unknown>, _actor: string) { return this.request<LookupSnapshot>(`/api/v1/lookup-snapshots?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }) }
+  transitionGoldenSuite(siteId: string, key: string, revision: number, action: 'submit' | 'approve', _actor: string) { return this.request<GoldenSuite>(`/api/v1/golden-suites/${encodeURIComponent(key)}/revisions/${revision}/${action}?site_id=${encodeURIComponent(siteId)}`, { method: 'POST' }) }
+  runGoldenSuite(siteId: string, key: string, decisionRevision: number, suiteRevision: number, _actor: string) { return this.request<JobRecord>(`/api/v1/golden-runs?decision_key=${encodeURIComponent(key)}&site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decisionRevision, suiteRevision }) }) }
   modeAHistory(siteId: string, key: string) { return this.request<ModeAPublication[]>(`/api/v1/releases/mode-a/${encodeURIComponent(key)}?site_id=${encodeURIComponent(siteId)}`) }
-  publishModeA(siteId: string, key: string, revision: number, suiteRevision: number, actor: string) { return this.request<JobRecord>(`/api/v1/releases/mode-a/${encodeURIComponent(key)}/publish?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify({ revision, suiteRevision, channel: 'production' }) }) }
-  rollbackModeA(siteId: string, key: string, targetPublicationId: number, actor: string) { return this.request<JobRecord>(`/api/v1/releases/mode-a/${encodeURIComponent(key)}/rollback?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify({ targetPublicationId, channel: 'production' }) }) }
+  publishModeA(siteId: string, key: string, revision: number, suiteRevision: number, _actor: string) { return this.request<JobRecord>(`/api/v1/releases/mode-a/${encodeURIComponent(key)}/publish?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision, suiteRevision, channel: 'production' }) }) }
+  rollbackModeA(siteId: string, key: string, targetPublicationId: number, _actor: string) { return this.request<JobRecord>(`/api/v1/releases/mode-a/${encodeURIComponent(key)}/rollback?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ targetPublicationId, channel: 'production' }) }) }
   modeBHistory(siteId: string) { return this.request<ModeBDelivery[]>(`/api/v1/releases/mode-b?site_id=${encodeURIComponent(siteId)}`) }
-  deliverModeB(siteId: string, key: string, revision: number, profileRevision: number, actor: string) { return this.request<JobRecord>(`/api/v1/releases/mode-b/${encodeURIComponent(key)}/deliver?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor }, body: JSON.stringify({ revision, profileRevision }) }) }
+  deliverModeB(siteId: string, key: string, revision: number, profileRevision: number, _actor: string) { return this.request<JobRecord>(`/api/v1/releases/mode-b/${encodeURIComponent(key)}/deliver?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision, profileRevision }) }) }
   canonicalPackages(siteId: string) { return this.request<CanonicalPackageSummary[]>(`/api/v1/canonical-packages?site_id=${encodeURIComponent(siteId)}`) }
   canonicalPackage(siteId: string, key: string, revision?: number) {
     const query = new URLSearchParams({ site_id: siteId })
     if (revision) query.set('revision', String(revision))
     return this.request<CanonicalPackageRevision>(`/api/v1/canonical-packages/${encodeURIComponent(key)}?${query}`)
   }
-  reviseCanonicalPackage(siteId: string, key: string, revision: number, document: Record<string, unknown>, actor: string, reason: string) {
+  reviseCanonicalPackage(siteId: string, key: string, revision: number, document: Record<string, unknown>, _actor: string, reason: string) {
     const at = new Date().toISOString()
-    return this.request<CanonicalPackageRevision>(`/api/v1/canonical-packages/${encodeURIComponent(key)}/revisions?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor, 'X-BRP-Roles': 'maker', 'If-Match': `"${revision}"` }, body: JSON.stringify({ package: document, baseRevision: revision, effectiveFrom: at, authoredAt: at, reason }) })
+    return this.request<CanonicalPackageRevision>(`/api/v1/canonical-packages/${encodeURIComponent(key)}/revisions?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'If-Match': `"${revision}"` }, body: JSON.stringify({ package: document, baseRevision: revision, effectiveFrom: at, authoredAt: at, reason }) })
   }
-  transitionCanonicalPackage(siteId: string, key: string, revision: number, action: 'submit' | 'approve' | 'reject', actor: string, reason?: string) {
-    const role = action === 'submit' ? 'maker' : 'checker'
-    return this.request<CanonicalPackageRevision>(`/api/v1/canonical-packages/${encodeURIComponent(key)}/${revision}/${action}?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor, 'X-BRP-Roles': role }, body: JSON.stringify({ reason }) })
+  transitionCanonicalPackage(siteId: string, key: string, revision: number, action: 'submit' | 'approve' | 'reject', _actor: string, reason?: string) {
+    return this.request<CanonicalPackageRevision>(`/api/v1/canonical-packages/${encodeURIComponent(key)}/${revision}/${action}?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason }) })
   }
   canonicalPackageDiff(siteId: string, key: string, from: number, to: number) { return this.request<Record<string, unknown>>(`/api/v1/canonical-packages/${encodeURIComponent(key)}/diff?site_id=${encodeURIComponent(siteId)}&fromRevision=${from}&toRevision=${to}`) }
-  discoverDbTables(connectionAlias: string, schemaName: string, actor: string) {
+  discoverDbTables(connectionAlias: string, schemaName: string, _actor: string) {
     const query = new URLSearchParams({ connection_alias: connectionAlias, schema_name: schemaName })
-    return this.request<DiscoveredTable[]>(`/api/v1/db-sources/tables?${query}`, { headers: { 'X-BRP-Actor': actor, 'X-BRP-Roles': 'maker' } })
+    return this.request<DiscoveredTable[]>(`/api/v1/db-sources/tables?${query}`)
   }
-  importDbTable(siteId: string, mapping: Record<string, unknown>, actor: string) {
+  importDbTable(siteId: string, mapping: Record<string, unknown>, _actor: string) {
     const at = new Date().toISOString()
-    return this.request<CanonicalPackageRevision>(`/api/v1/db-sources/import?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor, 'X-BRP-Roles': 'maker' }, body: JSON.stringify({ mapping, effectiveFrom: at, authoredAt: at, reason: 'Guided PostgreSQL table import' }) })
+    return this.request<CanonicalPackageRevision>(`/api/v1/db-sources/import?site_id=${encodeURIComponent(siteId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mapping, effectiveFrom: at, authoredAt: at, reason: 'Guided PostgreSQL table import' }) })
   }
 
   decisions() {
@@ -231,18 +259,18 @@ export class BrpApi {
     return this.request<Array<Record<string, unknown>>>(`/golden-suites/${key}`)
   }
 
-  transition(key: string, revision: number, action: string, actor: string, reason?: string) {
+  transition(key: string, revision: number, action: string, _actor: string, reason?: string) {
     return this.request<Revision>(`/decisions/${key}/revisions/${revision}/${action}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor },
+      headers: { 'Content-Type': 'application/json' },
       body: action === 'reject' || action === 'retire' ? JSON.stringify({ reason }) : undefined,
     })
   }
 
-  addRevision(key: string, content: Record<string, unknown>, actor: string, effectiveFrom: string) {
+  addRevision(key: string, content: Record<string, unknown>, _actor: string, effectiveFrom: string) {
     return this.request<Revision>(`/decisions/${key}/revisions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content, effectiveFrom }),
     })
   }
@@ -259,10 +287,10 @@ export class BrpApi {
     return this.request<OrchestrationCatalog>('/orchestration/catalog')
   }
 
-  orchestrationExtract(payload: Record<string, unknown>, actor: string) {
+  orchestrationExtract(payload: Record<string, unknown>, _actor: string) {
     return this.request<ExtractionResponse>('/orchestration/extract', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
   }
@@ -270,12 +298,12 @@ export class BrpApi {
   orchestrationGenerate(
     generator: string,
     content: Record<string, unknown>,
-    actor: string,
+    _actor: string,
     csharpNamespace: string,
   ) {
     return this.request<GenerationResponse>('/orchestration/generate', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-BRP-Actor': actor },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ generator, content, csharpNamespace }),
     })
   }
